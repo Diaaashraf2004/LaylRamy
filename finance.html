@@ -2434,58 +2434,61 @@ input:checked:active + .slider:before {
                                     </div>
                                 </div>
                             </fieldset>
-                   <fieldset id="inv_payment_details_field" class="border-2 border-blue-100 p-4 rounded-xl bg-white shadow-sm">
-    <legend class="px-2 font-bold text-blue-800 bg-white">المديونية والتحصيل</legend>
+                  <fieldset id="inv_payment_details_field" class="border-2 border-blue-100 p-5 rounded-2xl bg-white shadow-md mt-4">
+    <legend class="px-3 font-bold text-blue-900 bg-white text-lg">⚖️ المديونية والتحصيل المالي</legend>
     
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div class="form-group">
-            <label for="inv_payment_account" class="block text-sm font-bold mb-1">إيداع الكاش في:</label>
-            <select id="inv_payment_account" class="w-full border-gray-300 rounded-lg shadow-sm focus:ring-blue-500"></select>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div id="containerDepositAccount" class="form-group transition-all duration-300">
+            <label for="inv_payment_account" class="block text-sm font-bold text-gray-700 mb-1">إيداع الكاش في:</label>
+            <select id="inv_payment_account" class="w-full border-gray-300 rounded-xl shadow-sm focus:ring-2 focus:ring-blue-500 transition-all"></select>
         </div>
+
         <div class="form-group">
-            <label for="inv_paidAmount" class="text-blue-700 font-bold block mb-1">المبلغ المدفوع الآن:</label>
-            <input type="number" id="inv_paidAmount" value="0" min="0" step="0.01" class="w-full border-blue-300 rounded-lg shadow-sm focus:ring-blue-500" oninput="window.inv_calculateTotals()">
+            <label for="inv_paidAmount" class="text-blue-700 font-bold block mb-1">المبلغ المدفوع الآن (كاش):</label>
+            <input type="number" id="inv_paidAmount" value="0" min="0" step="0.01" class="w-full border-blue-200 rounded-xl shadow-sm focus:ring-2 focus:ring-blue-500 text-lg font-bold" oninput="window.inv_calculateTotals()">
         </div>
 
         <div class="md:col-span-2">
-            <button type="button" id="btnToggleDebtOptions" onclick="toggleDebtPanel()" class="w-full py-2 bg-gray-100 text-gray-700 font-bold rounded-lg border-2 border-dashed border-gray-300 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 transition-all">
-                🔄 تحويل المديونية لشخص آخر / اختيار مديون سابق
+            <button type="button" id="btnToggleDebtOptions" onclick="toggleDebtPanel()" class="w-full py-3 bg-gray-50 text-blue-800 font-bold rounded-xl border-2 border-dashed border-blue-200 hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all duration-300 flex justify-center items-center gap-2">
+                🔄 خيارات تحويل المديونية / سجلات سابقة
             </button>
         </div>
 
-        <div id="debtOptionsPanel" class="hidden md:col-span-2 space-y-3 bg-blue-50 p-4 rounded-lg border border-blue-200 mt-2">
-            <label class="block text-sm font-bold text-blue-900">اختر جهة تسجيل الدين:</label>
-            
-            <select id="inv_debtTypeSelect" class="w-full p-2 border-gray-300 rounded-md shadow-sm" onchange="handleDebtTypeChange()">
-                <option value="default">تسجيل على نفس العميل (تلقائي)</option>
-                <option value="existing">تحويل لمديون سابق (اختر من القائمة)</option>
-                <option value="new_name">تحويل لشخص جديد تماماً</option>
-            </select>
-
-            <div id="containerExistingDebtors" class="hidden">
-                <label class="block text-xs font-bold text-gray-600 mb-1">اختر المديون المُراد التحويل إليه:</label>
-                <select id="inv_listDebtors" class="w-full p-2 border-blue-300 rounded-md" onchange="handleDebtorEntriesLookup()"></select>
+        <div id="debtOptionsPanel" class="hidden md:col-span-2 space-y-4 bg-slate-50 p-5 rounded-xl border border-blue-200 animate-fade-in">
+            <div class="border-b border-blue-100 pb-2 mb-2">
+                <span class="text-sm font-bold text-blue-900">إعدادات جهة تسجيل الدين:</span>
             </div>
 
-            <div id="containerSpecificDebtEntries" class="hidden border-t border-blue-200 pt-2 mt-2">
-                <label class="block text-xs font-bold text-blue-700 mb-1">تحديث سجل قديم لهذا الشخص أم فتح سجل جديد؟</label>
-                <select id="inv_specificEntrySelect" class="w-full p-2 border-yellow-400 bg-yellow-50 rounded-md shadow-sm focus:ring-yellow-500"></select>
+            <select id="inv_debtTypeSelect" class="w-full p-3 border-gray-300 rounded-lg shadow-sm focus:border-blue-500" onchange="handleDebtTypeChange()">
+                <option value="default">تسجيل ملقائي (على صاحب الفاتورة الحالي)</option>
+                <option value="existing">تحويل لمديون سابق (اختيار من القائمة)</option>
+                <option value="new_name">تسجيل على اسم مديون جديد تماماً</option>
+            </select>
+
+            <div id="containerExistingDebtors" class="hidden space-y-2">
+                <label class="block text-xs font-black text-gray-500 uppercase tracking-wider">قائمة المديونين المتاحين:</label>
+                <select id="inv_listDebtors" class="w-full p-3 border-blue-300 rounded-lg bg-white" onchange="handleDebtorEntriesLookup()"></select>
+            </div>
+
+            <div id="containerSpecificDebtEntries" class="hidden p-3 bg-yellow-50 rounded-lg border border-yellow-200 border-l-4">
+                <label class="block text-xs font-bold text-yellow-800 mb-2">تحديث سجل قديم لهذا الشخص أم فتح سجل جديد؟</label>
+                <select id="inv_specificEntrySelect" class="w-full p-2 border-yellow-300 bg-white rounded-md shadow-inner"></select>
             </div>
 
             <div id="containerNewName" class="hidden">
-                <label class="block text-xs font-bold text-gray-600 mb-1">اسم الشخص البديل:</label>
-                <input type="text" id="inv_customDebtorName" placeholder="اكتب اسم الشخص هنا..." class="w-full p-2 border-blue-300 rounded-md">
+                <input type="text" id="inv_customDebtorName" placeholder="اكتب اسم الشخص الجديد هنا..." class="w-full p-3 border-blue-300 rounded-lg shadow-inner">
             </div>
 
             <div>
-                <label class="block text-xs font-bold text-gray-600 mb-1">ملاحظات وسبب الدين:</label>
-                <textarea id="inv_debtNote" rows="2" placeholder="اكتب سبب تسجيل الدين بالتفصيل..." class="w-full p-2 border-gray-300 rounded-md"></textarea>
+                <textarea id="inv_debtNote" rows="2" placeholder="اكتب ملاحظة أو سبب الدين هنا (اختياري)..." class="w-full p-3 border-gray-300 rounded-lg shadow-inner"></textarea>
             </div>
         </div>
 
-        <div class="form-group bg-red-50 p-3 rounded-lg border border-red-200 md:col-span-2 flex justify-between items-center">
-            <span class="text-red-800 font-bold">المتبقي المطلوب تسجيله كدين:</span>
-            <strong id="inv_remainingDebt" class="text-xl text-red-600">0.00 جنيه</strong>
+        <div class="form-group bg-red-50 p-4 rounded-xl border border-red-100 md:col-span-2 flex justify-between items-center shadow-inner">
+            <span class="text-red-900 font-bold">المتبقي للتسجيل كمديونية:</span>
+            <div class="text-left">
+                <strong id="inv_remainingDebt" class="text-2xl text-red-600">0.00 جنيه</strong>
+            </div>
         </div>
     </div>
 </fieldset>
@@ -5856,19 +5859,20 @@ function updateGlobalState(account, amountToCollect, customerName, grandTotal, d
 }
 
 async function handleSaveInvoice() {
+    // حفظ الحالة الحالية في التاريخ للسماح بالتراجع (Undo)
     saveStateToHistory(); 
     
-    // 1. التحقق من صحة النموذج الأساسي
+    // 1. التحقق من صحة النموذج الأساسي (الأسماء، الكميات، إلخ)
     if (!inv_validateForm()) { return; }
 
     const isPending = d('inv_markAsPending').checked; 
     const selectedAccountId = d('inv_payment_account').value;
     const account = accounts.find(acc => acc.id === selectedAccountId);
     
-    // جلب المبالغ للتحقق المالي قبل البدء
+    // جلب المبلغ المدفوع من الحقل (الصفر هنا يعني عدم دفع أي كاش)
     const paidNowInput = parseFloat(document.getElementById('inv_paidAmount').value) || 0;
 
-    // تجميع بنود الفاتورة وحساب الإجمالي
+    // تجميع بنود الفاتورة من الجدول وحساب الإجماليات
     const invoiceItems = inv_invoiceItemsBody ? Array.from(inv_invoiceItemsBody.querySelectorAll('.invoice-item-row')).map(row => ({
         name: row.dataset.itemName,
         quantity: parseInt(row.dataset.itemQty),
@@ -5882,32 +5886,31 @@ async function handleSaveInvoice() {
     const totalGoods = invoiceItems.reduce((sum, item) => sum + item.subtotal, 0);
     const grandTotal = totalGoods + shippingCost; 
 
-    // معالجة العربون (إن وجد)
+    // معالجة العربون المدفوع مسبقاً (في حال كانت الفاتورة محولة من بيع مؤقت)
     let depositAlreadyPaid = 0;
     if (isInvoiceFromPending && pendingSaleOriginData && pendingSaleOriginData.depositPaid) {
         depositAlreadyPaid = Number(pendingSaleOriginData.depositPaid) || 0;
     }
     
-    // [تعديل هام]: تحديد المبلغ النقدي المستلم (الصفر يعني صفر)
+    // المبلغ النقدي المستلم فعلياً (الصفر يعني صفر)
     let actualCashReceived = paidNowInput;
-    // تم حذف سطر (if paidNowInput === 0) القديم الذي كان يسبب المشكلة
 
-    // --- التحقق الذكي من الحساب لمنع الخطأ ---
-    // يطلب الحساب فقط إذا كانت فاتورة نهائية وهناك مبلغ كاش فعلي (أكبر من 0)
+    // --- التحقق الذكي من الحساب لمنع الأخطاء ---
+    // يطلب الحساب فقط إذا كانت الفاتورة نهائية وهناك مبلغ كاش فعلي سيدخل الخزينة
     if (!isPending && actualCashReceived > 0.01 && !account) {
         showMessage(globalMessage, "⚠️ الفاتورة تتضمن استلام مبلغ نقدي، يرجى اختيار حساب الإيداع أولاً.", true);
         document.getElementById('inv_payment_account').focus();
         return;
     }
 
-    // 2. تجميع البيانات الوصفية
+    // 2. تجميع البيانات الوصفية للفاتورة
     const customerName = inv_customerNameInput.value.trim();
     const customerAddress = inv_customerAddressInput ? inv_customerAddressInput.value.trim() : '';
     const phones = inv_invoiceForm ? Array.from(inv_invoiceForm.querySelectorAll('input[name="phone[]"]')).map(input => input.value.trim()).filter(phone => phone) : [];
     const warranty = inv_warrantyInput ? inv_warrantyInput.value.trim() : '';
     const notes = inv_notesTextarea ? inv_notesTextarea.value.trim() : '';
 
-    // 3. حساب التكلفة ومعالجة المخزون والملحقات
+    // 3. حساب التكلفة الكلية ومعالجة المخزون والملحقات (Accessories)
     let totalInvoiceCost = 0;
     let deductedItemsData = [];
     let quantitiesToDeduct = {};
@@ -5938,6 +5941,7 @@ async function handleSaveInvoice() {
         });
     }
 
+    // تنفيذ خصم الكميات من المخزون (للفواتير الجديدة فقط)
     if (!isInvoiceFromPending) {
         Object.keys(quantitiesToDeduct).forEach(itemName => {
             const productIndex = products.findIndex(p => p.name.toLowerCase() === itemName.toLowerCase());
@@ -5949,8 +5953,9 @@ async function handleSaveInvoice() {
 
     const finalInvoiceProfit = grandTotal - totalInvoiceCost; 
 
-    // 4. منطق الحفظ
+    // 4. منطق الحفظ (مؤقت vs نهائي)
     if (isPending) {
+        // --- أ: حفظ الفاتورة كـ "مؤقتة" ---
         const pendingInvoiceData = {
             id: isInvoiceFromPending && pendingSaleOriginData ? pendingSaleOriginData.id : `pending-inv-${Date.now()}`,
             timestamp: new Date().toISOString(),
@@ -5975,10 +5980,11 @@ async function handleSaveInvoice() {
         showMessage(globalMessage, "تم حفظ الفاتورة في قائمة المبيعات المؤقتة.", false);
 
     } else {
+        // --- ب: حفظ الفاتورة كـ "نهائية" ---
         const generatedInvoiceNumber = "INV-" + Date.now(); 
         const remainingAsDebt = grandTotal - (actualCashReceived + depositAlreadyPaid);
 
-        // تحديث الخزينة فقط إذا كان هناك مبلغ حقيقي
+        // 1. تحديث الخزينة (فقط إذا وجد مبلغ كاش وحساب إيداع)
         if (actualCashReceived > 0.01 && account) {
             account.balance += actualCashReceived;
             liquidityLog.push({
@@ -5986,54 +5992,56 @@ async function handleSaveInvoice() {
                 timestamp: new Date().toISOString(),
                 type: "add",
                 amount: actualCashReceived,
-                description: `استلام مبلغ فاتورة: ${customerName}`,
+                description: `استلام مبلغ فاتورة رقم ${generatedInvoiceNumber} من: ${customerName}`,
                 accountId: account.id
             });
         }
 
-       // ابحث عن الجزء الخاص بـ (if remainingAsDebt > 0.01) واستبدله بهذا:
-if (remainingAsDebt > 0.01) {
-    const debtType = document.getElementById('inv_debtTypeSelect').value;
-    const customNote = document.getElementById('inv_debtNote').value.trim();
-    
-    let finalTargetName = customerName;
-    let selectedEntryId = "NEW_ENTRY";
+        // 2. نظام تحويل المديونية المطور (على مديون سابق أو سجل محدد)
+        if (remainingAsDebt > 0.01) {
+            const debtType = document.getElementById('inv_debtTypeSelect').value;
+            const customNote = document.getElementById('inv_debtNote').value.trim();
+            
+            let finalTargetName = customerName;
+            let selectedEntryId = "NEW_ENTRY";
 
-    if (debtType === 'existing') {
-        finalTargetName = document.getElementById('inv_listDebtors').value;
-        selectedEntryId = document.getElementById('inv_specificEntrySelect').value;
-    } else if (debtType === 'new_name') {
-        finalTargetName = document.getElementById('inv_customDebtorName').value.trim() || customerName;
-    }
+            // تحديد اسم المديون والسجل المطلوب
+            if (debtType === 'existing') {
+                finalTargetName = document.getElementById('inv_listDebtors').value;
+                selectedEntryId = document.getElementById('inv_specificEntrySelect').value;
+            } else if (debtType === 'new_name') {
+                finalTargetName = document.getElementById('inv_customDebtorName').value.trim() || customerName;
+            }
 
-    const reasonPrefix = (finalTargetName !== customerName) ? `[فاتورة: ${customerName}] ` : "";
-    const finalReason = reasonPrefix + (customNote || `متبقي فاتورة رقم ${generatedInvoiceNumber}`);
+            const reasonPrefix = (finalTargetName !== customerName) ? `[فاتورة العميل: ${customerName}] ` : "";
+            const finalReason = reasonPrefix + (customNote || `متبقي فاتورة رقم ${generatedInvoiceNumber}`);
 
-    // [المنطق الجديد]: البحث بالـ ID المختار أو بالاسم إذا كان تلقائياً
-    let targetIdx = -1;
-    if (selectedEntryId !== "NEW_ENTRY") {
-        targetIdx = debtors.findIndex(d => d.id === selectedEntryId);
-    }
+            // البحث بالـ ID المختار أو بالاسم إذا كان تلقائياً
+            let targetIdx = -1;
+            if (selectedEntryId !== "NEW_ENTRY") {
+                targetIdx = debtors.findIndex(d => d.id === selectedEntryId);
+            }
 
-    if (targetIdx !== -1) {
-        // حالة التحديث: إضافة مبلغ لسجل محدد سابقاً
-        debtors[targetIdx].amount += remainingAsDebt;
-        debtors[targetIdx].reason += ` | ${finalReason}`;
-        debtors[targetIdx].timestamp = new Date().toISOString();
-        logOperation("تحديث دين", `إضافة ${formatCurrency(remainingAsDebt)} لسجل قديم لـ ${finalTargetName}.`);
-    } else {
-        // حالة الجديد: فتح سجل مستقل تماماً
-        debtors.push({
-            id: `debt-auto-${Date.now()}`,
-            name: finalTargetName,
-            reason: finalReason,
-            amount: remainingAsDebt,
-            timestamp: new Date().toISOString()
-        });
-        logOperation("دين جديد", `فتح سجل مديونية منفصل لـ ${finalTargetName} بقيمة ${formatCurrency(remainingAsDebt)}.`);
-    }
-}
+            if (targetIdx !== -1) {
+                // دمج المديونية مع سجل قديم محدد
+                debtors[targetIdx].amount += remainingAsDebt;
+                debtors[targetIdx].reason += ` | ${finalReason}`;
+                debtors[targetIdx].timestamp = new Date().toISOString();
+                logOperation("تحديث مديونية", `إضافة ${formatCurrency(remainingAsDebt)} لسجل قديم للعميل ${finalTargetName}.`);
+            } else {
+                // فتح سجل مديونية جديد تماماً
+                debtors.push({
+                    id: `debt-auto-${Date.now()}`,
+                    name: finalTargetName,
+                    reason: finalReason,
+                    amount: remainingAsDebt,
+                    timestamp: new Date().toISOString()
+                });
+                logOperation("دين جديد", `فتح سجل مديونية منفصل للعميل ${finalTargetName} بقيمة ${formatCurrency(remainingAsDebt)}.`);
+            }
+        }
 
+        // 3. تحديث حالة السيريالات إلى "مباع"
         invoiceItems.forEach(item => {
             if (item.serial) {
                 const idx = serialNumbersLog.findIndex(log => log.serial === item.serial);
@@ -6041,6 +6049,7 @@ if (remainingAsDebt > 0.01) {
             }
         });
 
+        // 4. تحديث إجمالي الأرباح وحذف سجل البيع المؤقت الأصلي
         totalProfit += finalInvoiceProfit;
 
         if (isInvoiceFromPending && pendingSaleOriginData && pendingSaleOriginData.id) {
@@ -6048,17 +6057,20 @@ if (remainingAsDebt > 0.01) {
             if (idx !== -1) pendingSales.splice(idx, 1);
         }
 
+        // 5. إنشاء كائن الفاتورة النهائي وحفظه سحابياً
         const invoiceRecord = {
             id: isInvoiceFromPending && pendingSaleOriginData ? pendingSaleOriginData.id.replace('pending','inv') : `inv-${Date.now()}`,
             invoiceNumber: generatedInvoiceNumber,
             type: 'invoice',
             timestamp: new Date().toISOString(),
+            // تثبيت تاريخ الإنشاء الأصلي للتقارير الشهرية
             saleDate: (isInvoiceFromPending && pendingSaleOriginData && pendingSaleOriginData.timestamp) 
                        ? pendingSaleOriginData.timestamp.split('T')[0] 
                        : (currentLoadedDate || getTodayDateString()),
             customerName, customerAddress, phones, items: invoiceItems,
             shippingCost, totalGoodsPrice: totalGoods, grandTotal, 
-            paidAmount: actualCashReceived, depositPaid: depositAlreadyPaid, 
+            paidAmount: actualCashReceived + depositAlreadyPaid, 
+            depositPaid: depositAlreadyPaid, 
             warranty, notes, deductedItems: deductedItemsData, 
             totalCost: totalInvoiceCost, profit: finalInvoiceProfit, 
             accountId: selectedAccountId
@@ -6067,17 +6079,23 @@ if (remainingAsDebt > 0.01) {
         salesToday.push(invoiceRecord);
         await saveInvoiceToFirestore(invoiceRecord); 
 
-        logOperation("إنشاء فاتورة", `فاتورة نهائية ${generatedInvoiceNumber} للعميل ${customerName}.`);
-        showMessage(globalMessage, "تم حفظ الفاتورة بنجاح.", false);
+        logOperation("إنشاء فاتورة", `فاتورة نهائية رقم ${generatedInvoiceNumber} للعميل ${customerName}. (إجمالي: ${grandTotal})`);
+        showMessage(globalMessage, "تم حفظ الفاتورة النهائية بنجاح.", false);
     }
 
+    // 5. تنظيف الحالة، تحديث الواجهة، وإغلاق النافذة
     isInvoiceFromPending = false;
     pendingSaleOriginData = null;
     updateUI();
     inv_closeModal();
     
+    // تصفير حقول المديونية الإضافية لضمان عدم تكرارها في العملية التالية
     if(document.getElementById('inv_debtNote')) document.getElementById('inv_debtNote').value = "";
     if(document.getElementById('inv_customDebtorName')) document.getElementById('inv_customDebtorName').value = "";
+    if(document.getElementById('inv_debtTypeSelect')) {
+        document.getElementById('inv_debtTypeSelect').value = 'default';
+        handleDebtTypeChange(); // لإخفاء الحقول المتغيرة
+    }
 }
             // (استكمالاً للجزء 8أ)
 function printPendingSaleAsInvoice(pendingId) {
@@ -12873,62 +12891,56 @@ window.updateQuickSaleDebt = function() {
     }
 };
 };
-// وظيفة فتح/غلق لوحة الخيارات
+// 1. وظيفة تبديل ظهور لوحة المديونية
 window.toggleDebtPanel = function() {
     const panel = document.getElementById('debtOptionsPanel');
     const btn = document.getElementById('btnToggleDebtOptions');
+    if (!panel || !btn) return;
+
     panel.classList.toggle('hidden');
-    if(!panel.classList.contains('hidden')) {
-        btn.innerText = "❌ إلغاء خيارات التحويل (العودة للتلقائي)";
-        btn.classList.replace('bg-gray-100', 'bg-red-50');
+    
+    if (!panel.classList.contains('hidden')) {
+        btn.innerText = "❌ إغلاق لوحة المديونية";
+        btn.classList.add('bg-red-50', 'text-red-700', 'border-red-200');
     } else {
-        btn.innerText = "🔄 تحويل المديونية لشخص آخر / اختيار مديون سابق";
-        btn.classList.replace('bg-red-50', 'bg-gray-100');
-        document.getElementById('inv_debtTypeSelect').value = 'default';
-        handleDebtTypeChange(); // إعادة تصفير الحقول
+        btn.innerText = "🔄 خيارات تحويل المديونية / سجلات سابقة";
+        btn.classList.remove('bg-red-50', 'text-red-700', 'border-red-200');
+        
+        // تصفير الخيارات عند الإغلاق
+        const typeSelect = document.getElementById('inv_debtTypeSelect');
+        if (typeSelect) {
+            typeSelect.value = 'default';
+            handleDebtTypeChange(); // استدعاء دالة التغيير لتحديث الواجهة
+        }
     }
 };
 
-// وظيفة 1: جلب أسماء المديونين (بدون تكرار)
+// 2. وظيفة التعامل مع تغير نوع الدين (هنا كان الخطأ، تم إضافة تعريف الدالة)
 window.handleDebtTypeChange = function() {
-    const type = document.getElementById('inv_debtTypeSelect').value;
+    const typeSelect = document.getElementById('inv_debtTypeSelect');
+    if (!typeSelect) return;
+
+    const type = typeSelect.value;
     const contExisting = document.getElementById('containerExistingDebtors');
     const contNew = document.getElementById('containerNewName');
     const contEntries = document.getElementById('containerSpecificDebtEntries');
 
-    contExisting.classList.toggle('hidden', type !== 'existing');
-    contNew.classList.toggle('hidden', type !== 'new_name');
-    contEntries.classList.add('hidden'); // إخفاء قائمة السجلات الفرعية حتى يتم اختيار اسم
+    // إظهار وإخفاء الحاويات بناءً على النوع المختار
+    if (contExisting) contExisting.classList.toggle('hidden', type !== 'existing');
+    if (contNew) contNew.classList.toggle('hidden', type !== 'new_name');
+    if (contEntries) contEntries.classList.add('hidden');
 
+    // ملء قائمة المديونين إذا كان الاختيار "مديون سابق"
     if (type === 'existing') {
-        const listSelect = document.getElementById('inv_listDebtors');
-        // جلب أسماء فريدة فقط من مصفوفة الديون
-        const uniqueNames = [...new Set(debtors.map(d => d.name.trim()))];
-        listSelect.innerHTML = `<option value="">-- اختر الشخص --</option>` + 
-            uniqueNames.map(name => `<option value="${name}">${name}</option>`).join('');
+        const listDebtors = document.getElementById('inv_listDebtors');
+        if (listDebtors) {
+            // جلب أسماء فريدة من مصفوفة debtors
+            const uniqueNames = [...new Set(debtors.map(d => d.name.trim()))];
+            listDebtors.innerHTML = '<option value="">-- اختر مديون سابق --</option>' + 
+                uniqueNames.map(name => `<option value="${name}">${name}</option>`).join('');
+        }
     }
 };
-// وظيفة 2: البحث عن مديونيات الشخص المختار وعرضها
-window.handleDebtorEntriesLookup = function() {
-    const selectedName = document.getElementById('inv_listDebtors').value;
-    const contEntries = document.getElementById('containerSpecificDebtEntries');
-    const entrySelect = document.getElementById('inv_specificEntrySelect');
-
-    if (!selectedName) {
-        contEntries.classList.add('hidden');
-        return;
-    }
-
-    // فلترة الديون لهذا الشخص فقط
-    const personEntries = debtors.filter(d => d.name.trim() === selectedName.trim());
-    
-    contEntries.classList.remove('hidden');
-    entrySelect.innerHTML = `<option value="NEW_ENTRY">🆕 إنشاء سجل دين جديد باسم (${selectedName})</option>` + 
-        personEntries.map(entry => `
-            <option value="${entry.id}">➕ إضافة للسجل: [${entry.reason}] - (الحالي: ${entry.amount})</option>
-        `).join('');
-};
-
 }); // End DOMContentLoaded
 </script>
 
