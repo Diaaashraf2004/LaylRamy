@@ -13000,15 +13000,16 @@ window.handleDebtTypeChange = function() {
 let currentSessionId = localStorage.getItem('app_session_id'); 
 let isInitializing = true; 
 
-// 2. وظيفة فحص الجلسة السحابية الذكية
 async function initSessionControl() {
     const modal = document.getElementById('session-modal');
     if (!modal || !auth.currentUser) return;
 
-    // الحصول على المعرف من المتصفح أو إنشاؤه
+    // جلب المعرف المخزن
     currentSessionId = localStorage.getItem('app_session_id');
+    
+    // لو مفيش معرف (بسبب منع التتبع)، ننشئ واحد ثابت مرتبط بـ UID المستخدم
     if (!currentSessionId) {
-        currentSessionId = auth.currentUser.uid + "_" + Math.random().toString(36).substring(2, 7);
+        currentSessionId = auth.currentUser.uid + "_device_" + navigator.userAgent.length;
         localStorage.setItem('app_session_id', currentSessionId);
     }
     
@@ -13019,39 +13020,34 @@ async function initSessionControl() {
         if (snap.exists()) {
             const data = snap.data();
             const now = new Date();
-            // الحصول على وقت آخر نشاط مسجل في السحاب
             const lastActive = data.updatedAt ? data.updatedAt.toDate() : new Date(0);
-            
-            // حساب الفرق بالثواني
             const diffInSeconds = (now - lastActive) / 1000;
 
-            // ✅ التعديل الجوهري:
-            // 1. إذا كان المعرف متطابقاً (حالة الـ Refresh) -> ادخل مباشرة.
-            // 2. إذا كان المعرف مختلفاً ولكن الجلسة قديمة (أكثر من 60 ثانية) -> استلم القيادة بصمت وادخل.
-            if (data.sessionId === currentSessionId || diffInSeconds > 60) {
-                console.log("دخول مسموح: جلسة مطابقة أو المتصفح الآخر غير نشط.");
-                
-                // تحديث السحاب بالمعرف الحالي والوقت الجديد فوراً
+            // ✅ القاعدة الذهبية الجديدة:
+            // لو الـ UID اللي في السحابة هو نفسه بتاعك + الفرق أقل من 30 ثانية
+            // يبقى ده "أنت" مية في المية بس المتصفح عمل ريفريش أو حفظ تلقائي
+            if (data.userId === auth.currentUser.uid || diffInSeconds > 15) {
+                console.log("تأكيد هوية المستخدم: دخول تلقائي آمن.");
                 await setDoc(sessionRef, { 
                     sessionId: currentSessionId, 
+                    userId: auth.currentUser.uid, // تخزين الـ UID للتعرف عليك دائماً
                     updatedAt: new Date() 
                 }, { merge: true });
-                
                 modal.style.display = 'none';
                 isInitializing = false;
-            } 
-            else {
-                // ❌ الحالة الوحيدة للرسالة: الجهاز الآخر "فعلاً" شغال الآن (نشط خلال آخر 60 ثانية)
+            } else {
                 modal.style.display = 'flex';
                 isInitializing = false;
             }
         } else {
-            // أول مرة يتم فيها استخدام البرنامج
-            await setDoc(sessionRef, { sessionId: currentSessionId, updatedAt: new Date() });
+            await setDoc(sessionRef, { 
+                sessionId: currentSessionId, 
+                userId: auth.currentUser.uid, 
+                updatedAt: new Date() 
+            });
             isInitializing = false;
         }
     } catch (error) {
-        console.error("خطأ في فحص الجلسة:", error);
         isInitializing = false;
     }
 }
@@ -13062,13 +13058,14 @@ window.takeControl = async function() {
     try {
         await setDoc(sessionRef, { 
             sessionId: currentSessionId, 
-            updatedAt: new Date(), // هذا السطر هو الذي يخبر السحاب أنك بدأت الآن
+            userId: auth.currentUser.uid, // السطر الأهم
+            updatedAt: new Date(),
             deviceInfo: navigator.userAgent.substring(0, 50) 
         });
         document.getElementById('session-modal').style.display = 'none';
         setTimeout(() => { isInitializing = false; }, 2000);
     } catch (error) {
-        console.error("خطأ أثناء محاولة السيطرة:", error);
+        console.error("خطأ أثناء السيطرة:", error);
     }
 };
 window.reclaimControl = async function() {
