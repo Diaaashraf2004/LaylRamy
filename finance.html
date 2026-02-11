@@ -3902,28 +3902,89 @@ function updateDebtorsListDisplay() {
         const ulElement = document.createElement('ul');
         ulElement.className = 'p-3 pt-2 border-t border-gray-200 bg-white';
 
-        debtorData.items.sort((a, b) => a.reason.localeCompare(b.reason, 'ar')).forEach(item => {
-            const liElement = document.createElement('li');
-            liElement.className = 'text-sm text-gray-600 py-1.5 border-b border-gray-100 flex justify-between items-center flex-wrap gap-2';
+      debtorData.items.sort((a, b) => a.reason.localeCompare(b.reason, 'ar')).forEach(item => {
+    const liElement = document.createElement('li');
+    liElement.className = 'text-sm text-gray-600 py-1.5 border-b border-gray-100 flex justify-between items-center flex-wrap gap-2';
+    
+    // هذا هو الجزء الذي ستقوم بتبديله لضمان ظهور الزر
+    liElement.innerHTML = `
+        <div class="flex-grow">
+            <span>${item.reason}</span>
+            <span class="font-mono text-xs text-gray-500">${formatCurrency(item.amount)}</span>
+        </div>
+        <div class="actions flex-shrink-0 flex items-center gap-1">
+            <button data-debt-id="${item.id}" class="pay-partial-debt-btn text-xs bg-teal-500 hover:bg-teal-600 text-white font-semibold py-1 px-2 rounded">تسديد جزئي</button>
             
-            liElement.innerHTML = `
-                <div class="flex-grow">
-                    <span>${item.reason}</span>
-                    <span class="font-mono text-xs text-gray-500">${formatCurrency(item.amount)}</span>
-                </div>
-                <div class="actions flex-shrink-0">
-                    <button data-debt-id="${item.id}" class="pay-partial-debt-btn text-xs bg-teal-500 hover:bg-teal-600 text-white font-semibold py-1 px-2 rounded">تسديد جزئي</button>
-                </div>
-            `;
-            ulElement.appendChild(liElement);
-        });
+            <button onclick="window.openDebtTransferModal('${name.replace(/'/g, "\\'")}', '${item.reason.replace(/'/g, "\\'")}', ${item.amount}, '${item.id}')" 
+                    class="text-xs bg-orange-500 hover:bg-orange-600 text-white font-semibold py-1 px-2 rounded">
+                تحويل
+            </button>
+        </div>
+    `;
+    ulElement.appendChild(liElement);
+});
 
         detailsElement.appendChild(summaryElement);
         detailsElement.appendChild(ulElement);
         debtorsListContainer.appendChild(detailsElement);
     });
 }
+window.openDebtTransferModal = function(fromName, reason, amount, debtId) {
+    const modal = document.getElementById('transfer-debt-modal');
+    document.getElementById('transfer-from-name').value = fromName;
+    document.getElementById('transfer-category-display').value = reason;
+    document.getElementById('transfer-amount').value = amount;
+    document.getElementById('transfer-debt-id').value = debtId;
 
+    // ملء قائمة الأسماء المقترحة
+    const datalist = document.getElementById('existing-debtors-list');
+    const uniqueNames = [...new Set(debtors.map(d => d.name))].filter(n => n !== fromName);
+    datalist.innerHTML = uniqueNames.map(name => `<option value="${name}">`).join('');
+
+    modal.style.display = 'flex';
+};
+
+window.executeDebtTransfer = async function() {
+    const fromName = document.getElementById('transfer-from-name').value;
+    const toName = document.getElementById('transfer-to-name').value.trim();
+    const reason = document.getElementById('transfer-category-display').value;
+    const amount = parseFloat(document.getElementById('transfer-amount').value);
+    const debtId = document.getElementById('transfer-debt-id').value;
+
+    if (!toName || !amount || amount <= 0) return alert("يرجى إكمال البيانات بشكل صحيح");
+
+    const debtIndex = debtors.findIndex(d => d.id === debtId);
+    if (debtIndex === -1) return alert("بند الدين غير موجود");
+
+    const originalDebt = debtors[debtIndex];
+    if (amount > originalDebt.amount) return alert("المبلغ المطلوب أكبر من المتاح");
+
+    // تنفيذ عملية النقل
+    originalDebt.amount -= amount;
+    if (originalDebt.amount <= 0) {
+        debtors.splice(debtIndex, 1);
+    }
+
+    // إضافة الدين للشخص الجديد
+    const targetDebt = debtors.find(d => d.name === toName && d.reason === reason);
+    if (targetDebt) {
+        targetDebt.amount += amount;
+    } else {
+        debtors.push({
+            id: 'tr-' + Date.now(),
+            name: toName,
+            reason: reason,
+            amount: amount,
+            date: new Date().toISOString()
+        });
+    }
+
+    // حفظ وتحديث
+    saveData();
+    updateUI();
+    document.getElementById('transfer-debt-modal').style.display = 'none';
+    alert("تم نقل الدين بنجاح!");
+};
 
 
 function toggleInlinePaymentForm(debtorName) {
@@ -9386,11 +9447,6 @@ async function performSmartGlobalSearch() {
 // =======================================================
 async function initializeApp() {
 
-
-
-
-
-
     console.log("Initializing App with Online-First Logic...");
         // (هنا تضع كل تعريفات المتغيرات التي كانت داخل الدالة القديمة)
     // مثال: mainNav = d("main-nav"); contentSections = document.querySelectorAll(...);
@@ -9847,6 +9903,24 @@ if (sellPaidInput) {
                  inv_notesTextarea = d('inv_notes');
                  inv_saveInvoiceBtn = d('inv_saveInvoiceBtn');
         // ... داخل دالة initializeApp ...
+        if (saveButtonAlt) {
+    saveButtonAlt.onclick = async () => { // استخدمنا onclick لضمان عدم التكرار
+        // تحديد التاريخ المراد الحفظ عليه
+        const targetDate = currentLoadedDate || getTodayDateString();
+        
+        // إظهار رسالة للمستخدم
+        showGlobalMessage("جاري حفظ البيانات...", false, true);
+        
+        try {
+            // استدعاء الدالة التي أرسلتها للتأكد منها
+            await saveCurrentStateByDate(targetDate);
+            // الدالة نفسها تحتوي على رسالة نجاح "تم الحفظ ✓"
+        } catch (e) {
+            console.error("خطأ في الحفظ اليدوي:", e);
+            showGlobalMessage("فشل الحفظ اليدوي. تأكد من الاتصال.", true);
+        }
+    };
+}
 
     // 1. تعريف المتغيرات (مع استخدام d مباشرة للتأكد)
     inv_serialSelectContainer = d('inv_serialSelectContainer');
@@ -11837,8 +11911,21 @@ if (actionTabsContainer) {
 }
 
 
-    // --- Initial Load Logic ---
-    const todayString = getTodayDateString();
+    // --- التعديل لحل مشكلة التاريخ القديم والمزامنة ---
+    const realToday = getTodayDateString(); 
+    
+    // إجبار البرنامج على نسيان أي تاريخ قديم والبدء بتاريخ اليوم
+    currentLoadedDate = realToday; 
+    localStorage.setItem('goodsMgmt_lastDate', realToday);
+
+    try {
+        // تحميل بيانات اليوم الفعلي (سيقوم بالترحيل إذا لزم الأمر)
+        await loadDataForDate(realToday);
+        updateUI();
+        console.log("تم بدء البرنامج بنجاح على تاريخ: " + realToday);
+    } catch (err) {
+        console.error("خطأ في تشغيل اليوم:", err);
+    }
     // =======================================================
 // START: Returns Section Event Listeners
 // =======================================================
@@ -11962,11 +12049,7 @@ if (d('liabilities-list-container')) {
         }
     });
 }
-    // لا داعي للبحث عن آخر يوم محفوظ، سنقوم بالتحميل مباشرة
-    await loadDataForDate(todayString);
-
-    // بعد التأكد من تحميل البيانات، نقوم بتحديث الواجهة بالكامل
-    updateUI();
+   
 
     // تعيين القيم الافتراضية لحقول التاريخ
     if (loadDateInputAlt) {
@@ -12943,6 +13026,7 @@ window.handleDebtTypeChange = function() {
         }
     }
 };
+
 }); // End DOMContentLoaded
 </script>
 <script type="module">
@@ -13051,6 +13135,63 @@ async function initSessionControl() {
         isInitializing = false;
     }
 }
+window.openTransferModal = function(fromName, reason, amount) {
+    const modal = document.getElementById('transfer-debt-modal');
+    document.getElementById('transfer-from-name').value = fromName;
+    document.getElementById('transfer-category-display').value = reason;
+    document.getElementById('transfer-amount').value = amount;
+
+    // تعبئة قائمة الأشخاص الآخرين
+    const toSelect = document.getElementById('transfer-to-person-select');
+    toSelect.innerHTML = liabilities
+        .filter(p => p.name !== fromName)
+        .map(p => `<option value="${p.name}">${p.name}</option>`)
+        .join('');
+
+    modal.style.display = 'flex';
+};
+
+window.executeDebtTransfer = async function() {
+    const fromName = document.getElementById('transfer-from-name').value;
+    const toName = document.getElementById('transfer-to-person-select').value;
+    const reason = document.getElementById('transfer-category-display').value;
+    const amount = parseFloat(document.getElementById('transfer-amount').value);
+
+    if (!amount || amount <= 0) return alert("المبلغ غير صحيح");
+
+    const fromPerson = liabilities.find(p => p.name === fromName);
+    const toPerson = liabilities.find(p => p.name === toName);
+    const sourceItem = fromPerson.items.find(i => i.reason === reason);
+
+    if (amount > sourceItem.amount) return alert("المبلغ أكبر من المتاح");
+
+    // 1. الخصم من الشخص الأول
+    sourceItem.amount -= amount;
+    fromPerson.total -= amount;
+    if (sourceItem.amount <= 0) {
+        fromPerson.items = fromPerson.items.filter(i => i.reason !== reason);
+    }
+
+    // 2. الإضافة للشخص الثاني
+    let targetItem = toPerson.items.find(i => i.reason === reason);
+    if (targetItem) {
+        targetItem.amount += amount;
+    } else {
+        toPerson.items.push({ 
+            id: 'debt_' + Date.now(), 
+            reason: reason, 
+            amount: amount, 
+            date: new Date().toISOString() 
+        });
+    }
+    toPerson.total += amount;
+
+    // 3. الحفظ والتحديث
+    await saveLiabilitiesToCloud();
+    renderLiabilities();
+    document.getElementById('transfer-debt-modal').style.display = 'none';
+    alert("تم نقل الدين بنجاح!");
+};
 
 window.takeControl = async function() {
     isInitializing = true; 
@@ -13169,6 +13310,9 @@ setInterval(async () => {
 <!-- ======================================================= -->
 <!-- END: Firebase Connection (Revised) -->
 <!-- ======================================================= -->
+          
+          
+          
            <div id="session-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:10000; justify-content:center; align-items:center; backdrop-filter: blur(5px); font-family:tahoma;">
     <div style="background:#fff; padding:40px; border-radius:20px; text-align:center; max-width:450px; box-shadow:0 10px 30px rgba(0,0,0,0.5); border: 4px solid #f39c12;">
         <div style="font-size: 60px; margin-bottom: 20px;">⚠️</div>
@@ -13180,7 +13324,39 @@ setInterval(async () => {
         </div>
     </div>
 </div>
-            
+         <div id="transfer-debt-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:9999; justify-content:center; align-items:center; backdrop-filter: blur(4px);">
+    <div style="background:#fff; padding:25px; border-radius:15px; width:90%; max-width:400px; direction:rtl; font-family:tahoma; box-shadow: 0 10px 25px rgba(0,0,0,0.3);">
+        <h3 style="margin-top:0; color:#2c3e50; border-bottom:2px solid #f39c12; padding-bottom:10px;">نقل مديونية</h3>
+        
+        <div style="margin-top:15px;">
+            <label style="display:block; font-weight:bold; font-size:13px;">من الشخص:</label>
+            <input type="text" id="transfer-from-name" style="width:100%; padding:10px; background:#f8f9fa; border:1px solid #ddd; border-radius:8px;" readonly>
+        </div>
+
+        <div style="margin-top:15px;">
+            <label style="display:block; font-weight:bold; font-size:13px;">بند الدين:</label>
+            <input type="text" id="transfer-category-display" style="width:100%; padding:10px; background:#fff; border:1px solid #ddd; border-radius:8px;" readonly>
+        </div>
+
+        <div style="margin-top:15px;">
+            <label style="display:block; font-weight:bold; font-size:13px;">إلى الشخص (المستلم):</label>
+            <input type="text" id="transfer-to-name" list="existing-debtors-list" placeholder="اكتب اسم الشخص" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:8px;">
+            <datalist id="existing-debtors-list"></datalist>
+        </div>
+
+        <div style="margin-top:15px;">
+            <label style="display:block; font-weight:bold; font-size:13px;">المبلغ:</label>
+            <input type="number" id="transfer-amount" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:8px;">
+        </div>
+
+        <input type="hidden" id="transfer-debt-id">
+
+        <div style="margin-top:25px; display:flex; gap:10px;">
+            <button onclick="window.executeDebtTransfer()" style="flex:2; padding:12px; background:#f39c12; color:white; border:none; border-radius:8px; cursor:pointer; font-weight:bold;">تأكيد النقل</button>
+            <button onclick="document.getElementById('transfer-debt-modal').style.display='none'" style="flex:1; padding:12px; background:#eee; border:none; border-radius:8px; cursor:pointer;">إلغاء</button>
+        </div>
+    </div>
+</div>
             
             
             </body>
