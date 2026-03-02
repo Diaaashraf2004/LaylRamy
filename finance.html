@@ -4425,7 +4425,26 @@ function initiateReturnFromPendingSale(pendingId) {
     saveStateToHistory();
 
     // حذف البيع المؤقت الآن ونسخ بياناته
-    returnSourceData = pendingSales.splice(saleIndex, 1)[0]; 
+    returnSourceData = pendingSales.splice(saleIndex, 1)[0];
+
+    // ✅✅✅ NEW: تطبيع الملحقات/التكاليف الإضافية إلى أسماء ثابتة
+    // (بدون تغيير أي داتا أصلية — فقط بنجهز حقول موحدة للعرض/الحفظ)
+    const srcExtraItems =
+        returnSourceData.additionalItems ??
+        returnSourceData.attachments ??
+        returnSourceData.accessories ??
+        returnSourceData.extraItems ??
+        [];
+
+    const srcExtraCosts =
+        returnSourceData.additionalCosts ??
+        returnSourceData.extraCosts ??
+        returnSourceData.otherCosts ??
+        returnSourceData.deductibleCosts ??
+        [];
+
+    returnSourceData.additionalItems = Array.isArray(srcExtraItems) ? srcExtraItems : [];
+    returnSourceData.additionalCosts = Array.isArray(srcExtraCosts) ? srcExtraCosts : [];
 
     logOperation("تحويل لمُرتجع", `حذف بيع مؤقت وبدء إرجاع للعميل ${returnSourceData.customerName || '-'}.`);
     
@@ -4444,22 +4463,20 @@ function initiateReturnFromPendingSale(pendingId) {
     const mainItem = returnSourceData.items ? returnSourceData.items[0] : returnSourceData.mainProduct;
     if (mainItem) {
         d('return-manual-product-name').value = mainItem.name;
-        d('return-product-select').value = ""; // تصفير الاختيار ليعتمد على الاسم اليدوي
+        d('return-product-select').value = ""; 
         d('return-quantity').value = mainItem.quantity;
     }
     d('return-customer-name').value = returnSourceData.customerName || '';
-    
-    d('return-sale-price-input').value = returnSourceData.totalSellPrice || 0; 
-    
+    d('return-sale-price-input').value = returnSourceData.totalSellPrice || 0;
+
     // تفعيل خيار الإرجاع بسعر البيع
     const atSalePriceCheckbox = d('return-at-sale-price');
     if (atSalePriceCheckbox) {
         atSalePriceCheckbox.checked = true;
-        // مهم: تفعيل حدث التغيير في حال كان هناك كود يعتمد عليه لإظهار/إخفاء حقول
         atSalePriceCheckbox.dispatchEvent(new Event('change'));
     }
 
-    d('return-receive-now').checked = false; // افتراضياً قيد الاستلام
+    d('return-receive-now').checked = false;
     
     updateUI();
     showGlobalMessage("تم حذف البيع المؤقت. بيانات المرتجع جاهزة للتأكيد.", false, true);
@@ -4493,30 +4510,82 @@ function updateReturnsUI() {
     updatePendingReturnsDisplay();
 }
 
+
+function renderReturnExtras(ret) {
+    const extraItems =
+        ret.additionalItems ??
+        ret.attachments ??
+        ret.accessories ??
+        ret.extraItems ??
+        [];
+
+    const extraCosts =
+        ret.additionalCosts ??
+        ret.extraCosts ??
+        ret.otherCosts ??
+        ret.deductibleCosts ??
+        [];
+
+    const items = Array.isArray(extraItems) ? extraItems : [];
+    const costs = Array.isArray(extraCosts) ? extraCosts : [];
+
+    const itemsText = items
+        .map(x => `${Number(x.qty ?? x.quantity ?? 1)}x ${x.name ?? x.itemName ?? x.title ?? 'ملحق'}`)
+        .filter(Boolean)
+        .join('، ');
+
+    const costsText = costs
+        .map(c => {
+            const label = c.name ?? c.label ?? c.title ?? 'تكلفة';
+            const amount = Number(c.amount ?? c.value ?? 0);
+            return `${label}: ${formatCurrency(amount)}`;
+        })
+        .filter(Boolean)
+        .join('، ');
+
+    const itemsHtml = itemsText
+        ? `<div class="text-xs text-gray-600 mt-1"><strong>ملحقات:</strong> ${itemsText}</div>`
+        : '';
+
+    const costsHtml = costsText
+        ? `<div class="text-xs text-gray-600 mt-1"><strong>تكاليف إضافية:</strong> ${costsText}</div>`
+        : '';
+
+    return itemsHtml + costsHtml;
+}
+
+
 function updateCompletedReturnsDisplay() {
     const completedReturnsList = d('completed-returns-list');
     if (!completedReturnsList) return;
+
     if (completedReturns.length === 0) {
         completedReturnsList.innerHTML = '<p class="text-center text-gray-500">لم تتم أي عمليات إرجاع اليوم.</p>';
         return;
     }
+
     const sortedReturns = [...completedReturns].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
     completedReturnsList.innerHTML = sortedReturns.map(ret => `
         <div class="p-2 border-b">
-            <div><strong>${(ret.items || []).map(item => `${item.quantity}x ${item.name}`).join(', ')}</strong> <span class="text-sm text-gray-500">(${ret.customerName})</span></div>
+            <div>
+                <strong>${(ret.items || []).map(item => `${item.quantity}x ${item.name}`).join(', ')}</strong>
+                <span class="text-sm text-gray-500">(${ret.customerName})</span>
+                ${renderReturnExtras(ret)}
+            </div>
             <div class="font-mono text-red-600">-${formatCurrency(ret.returnedAmount)}</div>
             <div class="text-xs text-gray-400">${formatDateTime(ret.timestamp)}</div>
         </div>
     `).join('');
 }
-
 function updatePendingReturnsDisplay() {
     const pendingReceiptList = d('pending-receipt-list');
     if (!pendingReceiptList) return;
+
     if (pendingReturns.length === 0) {
         pendingReceiptList.innerHTML = '<p class="text-center text-gray-500">لا توجد مرتجعات معلقة حاليًا.</p>';
         return;
     }
+
     const sortedReturns = [...pendingReturns].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
     pendingReceiptList.innerHTML = sortedReturns.map(ret => `
         <div class="p-3 border rounded-md bg-yellow-50 shadow-sm mb-2">
@@ -4524,6 +4593,7 @@ function updatePendingReturnsDisplay() {
                 <div>
                     <strong>${(ret.items || []).map(item => `${item.quantity}x ${item.name}`).join(', ')}</strong> 
                     <span class="text-sm text-gray-500">(${ret.customerName})</span>
+                    ${renderReturnExtras(ret)}
                     <div class="text-xs text-gray-400">${formatDateTime(ret.timestamp)}</div>
                 </div>
                 <button data-pending-return-id="${ret.id}" class="bg-green-500 hover:bg-green-600 text-white font-semibold py-1 px-3 rounded text-xs confirm-receipt-btn">تأكيد الاستلام</button>
@@ -4532,7 +4602,7 @@ function updatePendingReturnsDisplay() {
     `).join('');
 }
 
-// ✅✅✅ الكود الجديد والصحيح لدالة handleConfirmReceipt ✅✅✅
+
 function handleConfirmReceipt(pendingId) {
     saveStateToHistory();
     const returnIndex = pendingReturns.findIndex(r => r.id === pendingId);
@@ -4543,40 +4613,93 @@ function handleConfirmReceipt(pendingId) {
 
     const ret = pendingReturns.splice(returnIndex, 1)[0];
 
-    // --- ✅ بداية الإصلاح: هذه الدالة الآن لوجيستية فقط ---
+    // ✅ حماية
+    if (!Array.isArray(ret.items)) ret.items = [];
+    if (!Array.isArray(ret.additionalItems)) ret.additionalItems = [];
+    if (!ret.customerName) ret.customerName = '';
 
-    // 1. تحديث المخزون باستخدام التكلفة الصحيحة المحفوظة
-    ret.items.forEach(item => {
-        // item.costPrice هنا يحتوي على القيمة الصحيحة التي تم حسابها في الخطوة السابقة
-        if (ret.returnAtSalePrice) {
-            const newProductName = `${item.name} - ${ret.customerName} (مرتجع)`;
-            products.push({ name: newProductName, quantity: item.quantity, costPrice: item.costPrice });
+    // ✅ 1) خصم القيمة من "الأصول المعلقة" (لو المتغير موجود)
+    if (typeof pendingReturnsValue !== 'undefined') {
+        pendingReturnsValue -= (Number(ret.returnedAmount) || 0);
+    }
+
+    // ✅ دالة موحّدة لإضافة صنف للمخزون مع متوسط التكلفة
+    const mergeIntoStock = (name, qty, unitCost) => {
+        const q = Number(qty);
+        const c = Number(unitCost) || 0;
+        if (!name || !q || q <= 0) return;
+
+        const idx = products.findIndex(p => p.name === name);
+        if (idx !== -1) {
+            const existing = products[idx];
+            const oldQty = Number(existing.quantity) || 0;
+            const oldCost = Number(existing.costPrice) || 0;
+
+            const oldTotalValue = oldCost * oldQty;
+            const newTotalValue = c * q;
+
+            existing.quantity = oldQty + q;
+            existing.costPrice = existing.quantity > 0 ? (oldTotalValue + newTotalValue) / existing.quantity : oldCost;
         } else {
-            const pIndex = products.findIndex(p => p.name === item.name);
-            if (pIndex !== -1) {
-                // منطق حساب المتوسط الصحيح
-                const existing = products[pIndex];
-                const oldTotalValue = (existing.costPrice || 0) * (existing.quantity || 0);
-                const newTotalValue = item.costPrice * item.quantity;
-                existing.quantity += item.quantity;
-                existing.costPrice = (oldTotalValue + newTotalValue) / existing.quantity;
-            } else {
-                // إضافة المنتج بتكلفته الصحيحة لأول مرة
-                products.push({ name: item.name, quantity: item.quantity, costPrice: item.costPrice || 0 });
-            }
+            products.push({ name, quantity: q, costPrice: c });
+        }
+    };
+
+    // ✅ إضافة باسم منفصل (عند returnAtSalePrice)
+    const addSeparated = (name, qty, unitCost) => {
+        const q = Number(qty);
+        const c = Number(unitCost) || 0;
+        if (!name || !q || q <= 0) return;
+
+        products.push({
+            name: `${name} - ${ret.customerName} (مرتجع)`,
+            quantity: q,
+            costPrice: c
+        });
+    };
+
+    // ✅ 2) تحديث المخزون للمنتج الرئيسي
+    ret.items.forEach(item => {
+        const name = item?.name;
+        const qty = item?.quantity ?? 0;
+        const cost = item?.costPrice ?? 0;
+
+        if (ret.returnAtSalePrice) {
+            addSeparated(name, qty, cost);
+        } else {
+            mergeIntoStock(name, qty, cost);
         }
     });
 
-    // 2. نقل المرتجع إلى قائمة المكتملة
+    // ✅✅✅ 3) تحديث المخزون للملحقات (يرجعوا للاسم الأصلي دائمًا)
+    ret.additionalItems.forEach(att => {
+        const attName = att?.name;
+        const attQty = Number(att?.quantity ?? att?.qty ?? 0);
+
+        // لو costPrice ناقص لأي سبب، استخدم تكلفة المخزون الحالية إن وجدت
+        const existing = products.find(p => p.name === attName);
+        const attUnitCost = Number(att?.costPrice ?? existing?.costPrice ?? 0);
+
+        mergeIntoStock(attName, attQty, attUnitCost);
+    });
+
+    // ✅ 4) نقل المرتجع إلى قائمة المكتملة
     completedReturns.push({ ...ret, status: 'Completed', timestamp: new Date().toISOString() });
 
-    // 3. تسجيل العملية كإجراء لوجيستي
-    logOperation("تأكيد استلام مرتجع", `تم تأكيد استلام ${ret.items.map(i=> i.quantity + 'x ' + i.name).join(', ')} في المخزن.`);
-    
-    // --- ✅ نهاية الإصلاح: تم حذف كل العمليات المالية من هنا ---
+    // ✅ 5) تسجيل العملية
+    const mainTxt = ret.items.map(i => `${Number(i.quantity || 0)}x ${i.name}`).join(', ');
+    const attTxt = ret.additionalItems
+        .map(a => `${Number(a.quantity ?? a.qty ?? 0)}x ${a.name}`)
+        .filter(s => !s.startsWith('0x') && !s.includes('undefined'))
+        .join(', ');
+
+    logOperation(
+        "تأكيد استلام مرتجع",
+        `تم تأكيد استلام: ${mainTxt}${attTxt ? ` | ملحقات: ${attTxt}` : ''}`
+    );
 
     updateUI();
-    showGlobalMessage("تم تأكيد استلام البضاعة وتحديث المخزون بنجاح.", false);
+    showGlobalMessage("تم تأكيد استلام البضاعة والملحقات وتحديث المخزون بنجاح.", false);
 }
 
 
@@ -4605,7 +4728,6 @@ function handleManualReturn() {
     saveStateToHistory();
     const returnMessage = d('return-message');
     
-    // قراءة البيانات من المدخلات
     const productName = d('return-product-select').value || d('return-manual-product-name').value.trim();
     const quantity = parseInputNumber(d('return-quantity'));
     const customerName = d('return-customer-name').value.trim() || 'عميل';
@@ -4616,7 +4738,6 @@ function handleManualReturn() {
     const selectedAccountId = d('return-from-account-select').value;
     const account = accounts.find(acc => acc.id === selectedAccountId);
 
-    // التحقق من صحة المدخلات
     if (!productName || isNaN(quantity) || quantity <= 0) {
         showMessage(returnMessage, "يرجى إدخال اسم المنتج وكمية صحيحة.", true); return;
     }
@@ -4627,27 +4748,20 @@ function handleManualReturn() {
         showMessage(returnMessage, "للإرجاع النقدي، يجب اختيار الحساب الذي سيتم الخصم منه.", true); return;
     }
     
-    // =================================================================
-    // 🔥🔥 التعديل الجوهري هنا: حساب تكلفة البضاعة بناءً على خيارك 🔥🔥
-    // =================================================================
     const productData = products.find(p => p.name === productName);
     let costOfGoods = 0;
 
     if (returnAtSalePrice) {
-        // الحالة 1: إذا اخترت الإرجاع بسعر البيع
-        // نعتبر أن التكلفة هي نفس المبلغ الذي أرجعته للعميل (إعادة شراء)
         costOfGoods = returnedAmount;
     } else if (productData) {
-        // الحالة 2: إرجاع عادي والمنتج موجود -> نستخدم متوسط التكلفة القديم
         costOfGoods = (productData.costPrice || 0) * quantity;
     } else {
-        // الحالة 3: إرجاع عادي لمنتج غير موجود -> نستخدم مبلغ الإرجاع كتكلفة
         costOfGoods = returnedAmount;
     }
 
     let logDetails = "";
 
-    // --- 2. الإجراء المالي (السيولة أو الديون) ---
+    // --- الإجراء المالي ---
     if (financialType === 'cash') {
         if (returnedAmount > account.balance) { 
             showMessage(returnMessage, `رصيد حساب "${account.name}" غير كافٍ.`, true); 
@@ -4660,64 +4774,102 @@ function handleManualReturn() {
         logDetails = `تسجيل رصيد للعميل "${customerName}" بقيمة ${formatCurrency(returnedAmount)}.`;
     }
 
-    // --- 3. تعديل الأرباح ---
-    // إذا كان الإرجاع بسعر البيع (returnAtSalePrice = true)، فإن costOfGoods = returnedAmount
-    // وبالتالي profitToReverse سيكون صفر، وهذا صحيح (لا نخصم ربحاً لأننا اشترينا البضاعة بسعرها)
+    // --- تعديل الأرباح ---
     if ((financialType === 'cash' || financialType === 'credit')) {
         const profitToReverse = returnedAmount - costOfGoods;
-        
-        // نخصم الفرق من الأرباح فقط إذا كان هناك فرق
         if (Math.abs(profitToReverse) > 0.001) {
             totalProfit -= profitToReverse;
             logOperation("عكس أرباح مرتجع", `عكس أرباح بقيمة ${formatCurrency(profitToReverse)}.`);
         }
     }
 
-    // --- 4. إجراء المخزون ---
-    // حساب تكلفة الوحدة الواحدة لإضافتها للمخزون
+    // --- إجراء المخزون ---
     const newUnitCost = (quantity > 0) ? (costOfGoods / quantity) : 0;
 
-    if (receiveNow) {
-        if (returnAtSalePrice) {
-            // خيار: إضافة كمنتج منفصل لتمييزه (أو يمكنك دمجه وحساب متوسط جديد)
-            // هنا سنضيفه كمنتج منفصل ليكون واضحاً أنه مرتجع بسعر مختلف
-            products.push({ 
-                name: `${productName} - ${customerName} (مرتجع)`, 
-                quantity: quantity, 
-                costPrice: newUnitCost // هنا سيأخذ سعر البيع كتكلفة
+    // ✅✅✅ نقل الملحقات من البيع المؤقت (إن وجد)
+    const extrasItems = (returnSourceData && Array.isArray(returnSourceData.additionalItems)) ? returnSourceData.additionalItems : [];
+    const extrasCosts = (returnSourceData && Array.isArray(returnSourceData.additionalCosts)) ? returnSourceData.additionalCosts : [];
+
+    // ✅✅✅ NEW: دالة داخلية آمنة لتسجيل الملحقات في المخزون (تحافظ على متوسط التكلفة)
+    const addItemToStock = (name, qty, unitCost, asSeparatedReturnName) => {
+        const q = Number(qty);
+        const c = Number(unitCost) || 0;
+        if (!name || !q || q <= 0) return;
+
+        if (asSeparatedReturnName) {
+            products.push({
+                name: `${name} - ${customerName} (مرتجع)`,
+                quantity: q,
+                costPrice: c
             });
-        } else {
-            // المنطق العادي: دمج وحساب المتوسط
-            if (productData) {
-                const oldTotalValue = (productData.costPrice || 0) * (productData.quantity || 0);
-                const newTotalValue = costOfGoods; // محسوبة بالأعلى
-                productData.quantity += quantity;
-                // تحديث المتوسط
-                productData.costPrice = (oldTotalValue + newTotalValue) / productData.quantity;
-            } else {
-                products.push({ name: productName, quantity, costPrice: newUnitCost });
-            }
+            return;
         }
-        
-        completedReturns.push({ id: generateId('ret'), items: [{ name: productName, quantity }], customerName, returnedAmount, timestamp: new Date().toISOString() });
-        logOperation("مرتجع فوري", logDetails + " وتم استلام البضاعة.");
-        showMessage(returnMessage, "تم تسجيل المرتجع واستلامه بالمخزن بنجاح.", false);
-        
+
+        const idx = products.findIndex(p => p.name === name);
+        if (idx !== -1) {
+            const existing = products[idx];
+            const oldQty = Number(existing.quantity) || 0;
+            const oldCost = Number(existing.costPrice) || 0;
+
+            const oldTotalValue = oldCost * oldQty;
+            const newTotalValue = c * q;
+
+            existing.quantity = oldQty + q;
+            existing.costPrice = existing.quantity > 0 ? (oldTotalValue + newTotalValue) / existing.quantity : oldCost;
+        } else {
+            products.push({ name, quantity: q, costPrice: c });
+        }
+    };
+
+    if (receiveNow) {
+        // ✅ 1) إدخال المنتج الرئيسي للمخزون (كما هو منطقك)
+        if (returnAtSalePrice) {
+            addItemToStock(productName, quantity, newUnitCost, true);
+        } else {
+            addItemToStock(productName, quantity, newUnitCost, false);
+        }
+
+        // ✅✅✅ 2) إدخال الملحقات للمخزون فورًا (الجديد)
+        extrasItems.forEach(att => {
+            const attName = att?.name;
+            const attQty = Number(att?.quantity ?? att?.qty ?? 0);
+            const attUnitCost = Number(att?.costPrice ?? 0);
+            addItemToStock(attName, attQty, attUnitCost, !!returnAtSalePrice);
+        });
+
+        completedReturns.push({
+            id: generateId('ret'),
+            items: [{ name: productName, quantity }],
+            additionalItems: extrasItems,
+            additionalCosts: extrasCosts,
+            customerName,
+            returnedAmount,
+            returnAtSalePrice,
+            timestamp: new Date().toISOString()
+        });
+
+        logOperation("مرتجع فوري", logDetails + " وتم استلام البضاعة والملحقات.");
+        showMessage(returnMessage, "تم تسجيل المرتجع واستلامه بالمخزن (مع الملحقات) بنجاح.", false);
+
     } else {
         // --- مرتجع قيد الاستلام ---
         if (typeof pendingReturnsValue !== 'undefined') {
              pendingReturnsValue += returnedAmount;
         }
-        
+
         pendingReturns.push({
             id: generateId('pend-ret'),
-            // 🔥 هنا الإصلاح للمرتجع المعلق: نمرر التكلفة المحسوبة (الجديدة) وليس القديمة 🔥
             items: [{ name: productName, quantity, costPrice: newUnitCost }],
-            customerName, returnedAmount,
-            returnAtSalePrice: returnAtSalePrice,
+            additionalItems: extrasItems,
+            additionalCosts: extrasCosts,
+            customerName,
+            returnedAmount,
+            returnAtSalePrice,
+            timestamp: new Date().toISOString()
         });
-        logOperation("مرتجع قيد الاستلام", logDetails + " والبضاعة قيد الاستلام.");
-        showMessage(returnMessage, "تم تسجيل المرتجع كـ 'قيد الاستلام' بنجاح. تم تنفيذ الإجراء المالي.", false, true);
+
+        logOperation("مرتجع قيد الاستلام", logDetails + " والبضاعة (وملحقاتها إن وجدت) قيد الاستلام.");
+        showMessage(returnMessage, "تم تسجيل المرتجع كـ 'قيد الاستلام' بنجاح. سيتم إضافة البضاعة والملحقات للمخزن عند تأكيد الاستلام.", false, true);
     }
     
     resetReturnForm();
@@ -8481,52 +8633,8 @@ function handleInvoiceReturnConfirmation(invoiceId, invoiceNumber) {
     updateUI();
 }
 
-// ✅✅✅ الكود الجديد والصحيح لدالة handleConfirmReceipt ✅✅✅
-function handleConfirmReceipt(pendingId) {
-    saveStateToHistory();
-    const returnIndex = pendingReturns.findIndex(r => r.id === pendingId);
-    if (returnIndex === -1) {
-        showGlobalMessage("خطأ: لم يتم العثور على المرتجع المعلق.", true);
-        return;
-    }
 
-    const ret = pendingReturns.splice(returnIndex, 1)[0];
 
-    // --- ✅ بداية الإصلاح: هذه الدالة الآن لوجيستية فقط ---
-
-    // 1. خصم القيمة من "الأصول المعلقة"
-    pendingReturnsValue -= ret.returnedAmount;
-
-    // 2. تحديث المخزون (إضافة القيمة إلى أصل المخزون)
-    ret.items.forEach(item => {
-        if (ret.returnAtSalePrice) {
-            const newProductName = `${item.name} - ${ret.customerName} (مرتجع)`;
-            products.push({ name: newProductName, quantity: item.quantity, costPrice: item.costPrice });
-        } else {
-            const pIndex = products.findIndex(p => p.name === item.name);
-            if (pIndex !== -1) {
-                const existing = products[pIndex];
-                const oldTotalValue = (existing.costPrice || 0) * (existing.quantity || 0);
-                const newTotalValue = item.costPrice * item.quantity;
-                existing.quantity += item.quantity;
-                existing.costPrice = (oldTotalValue + newTotalValue) / existing.quantity;
-            } else {
-                products.push({ name: item.name, quantity: item.quantity, costPrice: item.costPrice || 0 });
-            }
-        }
-    });
-
-    // 3. نقل المرتجع إلى قائمة المكتملة
-    completedReturns.push({ ...ret, status: 'Completed', timestamp: new Date().toISOString() });
-
-    // 4. تسجيل العملية كإجراء لوجيستي فقط
-    logOperation("تأكيد استلام مرتجع", `تم تأكيد استلام ${ret.items.map(i=> i.quantity + 'x ' + i.name).join(', ')} في المخزن.`);
-    
-    // --- ✅ نهاية الإصلاح: تم حذف كل العمليات المالية من هنا ---
-
-    updateUI();
-    showGlobalMessage("تم تأكيد استلام البضاعة وتحديث المخزون بنجاح.", false);
-}
 
 
 function pi_addItem() {
