@@ -2728,6 +2728,21 @@ input:checked:active + .slider:before {
                 <input type="number" id="return-sale-price-input" placeholder="0.00" min="0" class="form-input">
             </div>
         </div>
+        <div class="mt-2">
+  <label class="font-semibold">التكلفة عند رجوع المخزون:</label>
+  <div class="flex gap-4 mt-1">
+    <label><input type="radio" name="return-cost-basis" value="original" checked> التكلفة الأصلية</label>
+    <label><input type="radio" name="return-cost-basis" value="sale"> تكلفة البيع</label>
+  </div>
+  <div id="return-original-cost-hint" class="text-xs text-gray-500 mt-1"></div>
+</div>
+
+<div class="mt-2">
+  <label class="font-semibold">تصنيف المنتج عند رجوعه للمخزون:</label>
+  <select id="return-category-select" class="w-full border rounded p-1">
+    <option value="">بدون تصنيف</option>
+  </select>
+</div>
 
         <div class="form-group mt-4">
              <label class="font-bold">2. اختر خيارات المخزون:</label>
@@ -2745,11 +2760,113 @@ input:checked:active + .slider:before {
     </div>
 </div>
 
+
+
        
         
         
     </div>
-    
+   <!-- ✅ Return Cost Modal (Professional Fixed) -->
+<div id="return-cost-modal"
+     class="hidden"
+     style="display:none; position:fixed; inset:0; z-index:99999; align-items:center; justify-content:center; pointer-events:auto;">
+
+  <!-- الخلفية -->
+  <div id="return-cost-modal-backdrop"
+      style="position:absolute; inset:0; background:rgba(0,0,0,.45); z-index:1;"></div>
+
+  <!-- الصندوق -->
+  <div style="
+      position:relative;
+      max-width:560px;
+      width:95%;
+      margin:auto;
+      background:#fff;
+      border-radius:14px;
+      padding:18px;
+      box-shadow:0 10px 30px rgba(0,0,0,.25);
+  ">
+
+    <!-- العنوان -->
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+      <div>
+        <div style="font-size:18px; font-weight:700;">اختيار تكلفة المرتجع</div>
+        <div style="font-size:12px; color:#666; margin-top:4px;">
+          هل تريد إدخال المرتجع للمخزون بالتكلفة الأصلية أم تكلفة البيع؟
+        </div>
+      </div>
+
+      <button id="return-cost-modal-close"
+              type="button"
+              class="action-button"
+              style="background:#eee; color:#333; padding:6px 10px;">
+        ×
+      </button>
+    </div>
+
+    <!-- معلومات المنتج -->
+    <div style="margin-top:14px; border-top:1px solid #eee; padding-top:12px;">
+      <div id="return-cost-modal-summary"
+           style="font-size:13px; color:#444; line-height:1.7;"></div>
+
+      <!-- الربح الذي سيتم عكسه -->
+      <div id="return-profit-reverse-line"
+           style="font-size:12px; color:#888; margin-top:6px;"></div>
+    </div>
+
+    <!-- الاختيارات -->
+    <div style="margin-top:14px;">
+
+      <label style="
+        display:block;
+        padding:10px;
+        border:1px solid #e6e6e6;
+        border-radius:10px;
+        margin-bottom:10px;
+        cursor:pointer;
+      ">
+        <input type="radio" name="return-cost-basis-modal" value="original" checked>
+        <span style="font-weight:700; margin-right:6px;">التكلفة الأصلية</span>
+        <span id="return-cost-original-line"
+              style="font-size:12px; color:#666;"></span>
+      </label>
+
+      <label style="
+        display:block;
+        padding:10px;
+        border:1px solid #e6e6e6;
+        border-radius:10px;
+        cursor:pointer;
+      ">
+        <input type="radio" name="return-cost-basis-modal" value="sale">
+        <span style="font-weight:700; margin-right:6px;">تكلفة البيع</span>
+        <span id="return-cost-sale-line"
+              style="font-size:12px; color:#666;"></span>
+      </label>
+
+    </div>
+
+    <!-- الأزرار -->
+    <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:18px;">
+
+      <button id="return-cost-modal-cancel"
+              type="button"
+              class="action-button"
+              style="background:#eee; color:#333;">
+        إلغاء
+      </button>
+
+      <button id="return-cost-modal-confirm"
+              type="button"
+              class="action-button"
+              style="background:#2563eb; color:#fff;">
+        تأكيد الاختيار
+      </button>
+
+    </div>
+
+  </div>
+</div>
     <button id="confirm-manual-return-btn" class="action-button">
         تأكيد الإرجاع اليدوي
     </button>
@@ -2769,6 +2886,9 @@ input:checked:active + .slider:before {
         </div>
     </div>
 </section>
+
+
+
 <!-- END: Returns Section -->
 <!-- ======================================================= -->
         </footer>
@@ -4325,9 +4445,392 @@ function updatePendingSalesDisplay() {
              creditorNamesDatalistOffset.innerHTML = creditorNames.map(name => `<option value="${name}"></option>`).join('');
           }
 
-       
+// =======================
+// ✅ Returns: Categories + Cost Hint + Professional Modal
+// =======================
+
+// 1) تعبئة قائمة التصنيفات من المخزون
+function populateReturnCategorySelect() {
+    const sel = d('return-category-select');
+    if (!sel) return;
+
+    const current = sel.value || '';
+    const cats = [...new Set((products || []).map(p => p.category).filter(Boolean))].sort();
+
+    sel.innerHTML = `<option value="">بدون تصنيف</option>` +
+        cats.map(c => `<option value="${c}">${c}</option>`).join('');
+
+    sel.value = current;
+}
+
+// 2) تحديث “هينت” التكلفة الأصلية أسفل الراديو في الصفحة
+function updateReturnCostHint() {
+    const hint = d('return-original-cost-hint');
+    if (!hint) return;
+
+    const productName = d('return-product-select')?.value || d('return-manual-product-name')?.value?.trim() || '';
+    const qty = parseFloat(d('return-quantity')?.value) || 1;
+
+    const simpleName = String(productName).split(' (S/N:')[0].trim();
+    const productData = (products || []).find(p => p.name === productName) || (products || []).find(p => p.name === simpleName);
+
+    const originalUnit =
+        Number(returnSourceData?.mainProduct?.costPrice ?? 0) ||
+        Number(productData?.costPrice ?? 0) ||
+        0;
+
+    if (originalUnit > 0) {
+        hint.textContent = `التكلفة الأصلية المحفوظة: ${formatCurrency(originalUnit)} للوحدة (إجمالي: ${formatCurrency(originalUnit * qty)})`;
+    } else {
+        hint.textContent = `التكلفة الأصلية غير متاحة لهذا المنتج حالياً.`;
+    }
+}
+
+// 3) استخراج بيانات “مسودة المرتجع” للعرض داخل الـ Modal
+function getReturnDraftData() {
+
+    const productName =
+        d('return-product-select')?.value ||
+        d('return-manual-product-name')?.value?.trim() ||
+        '';
+
+    const qty = parseFloat(d('return-quantity')?.value) || 1;
+
+    const returnedAmount =
+        parseFloat(d('return-sale-price-input')?.value) || 0;
+
+    const simpleName = String(productName).split(' (S/N:')[0].trim();
+
+    const productData =
+        (products || []).find(p => p.name === productName) ||
+        (products || []).find(p => p.name === simpleName);
+
+    // ✅ استخراج التكلفة الأصلية
+    const originalUnit =
+        Number(returnSourceData?.mainProduct?.costPrice ?? 0) ||
+        Number(productData?.costPrice ?? 0) ||
+        0;
+
+    const originalTotal = originalUnit * qty;
+
+    // ✅ تكلفة البيع
+    const saleTotal = returnedAmount;
+    const saleUnit = qty > 0 ? (saleTotal / qty) : 0;
+
+    // ✅ الربح الذي سيتم عكسه (نفس منطق handleManualReturn)
+    let profitReverseIfOriginal = saleTotal - originalTotal;
+
+    if (!isFinite(profitReverseIfOriginal))
+        profitReverseIfOriginal = 0;
+
+    // عند اختيار "تكلفة البيع" الربح المعكوس = صفر
+    const profitReverseIfSale = 0;
+
+    return {
+        productName,
+        qty,
+
+        originalUnit,
+        originalTotal,
+
+        saleUnit,
+        saleTotal,
+
+        profitReverseIfOriginal,
+        profitReverseIfSale
+    };
+}
+
+// 4) فتح/غلق الـ Modal (محدث + عرض الربح المعكوس طبقًا لمنطق handleManualReturn)
+function openReturnCostModal() {
+    const modal = d('return-cost-modal');
+    if (!modal) return;
+
+    // حدّث تصنيفات/هينت قبل العرض
+    populateReturnCategorySelect();
+    updateReturnCostHint();
+
+    const data = getReturnDraftData();
+
+    // لو البيانات ناقصة: نخلي handleManualReturn تطلع رسائل التحقق المعتادة
+    if (!data.productName) { handleManualReturn(); return; }
+    if (!data.qty || data.qty <= 0) { handleManualReturn(); return; }
+
+    const summary = d('return-cost-modal-summary');
+    const lineOriginal = d('return-cost-original-line');
+    const lineSale = d('return-cost-sale-line');
+    const profitLine = d('return-profit-reverse-line');
+
+    // ✅ منطق التكلفة مطابق لدالتك:
+    // - الأصلية = originalUnit * qty (ولو مش موجودة يبقى احتياط returnedAmount)
+    const originalTotal = (Number(data.originalUnit) || 0) * (Number(data.qty) || 0);
+    const saleTotal = Number(data.saleTotal) || 0;
+
+    // ✅ الربح المعكوس (نفس منطقك: returnedAmount - costOfGoods)
+    // عند اختيار الأصلية:
+    let profitReverseIfOriginal = saleTotal - originalTotal;
+    if (!isFinite(profitReverseIfOriginal)) profitReverseIfOriginal = 0;
+
+    // عند اختيار البيع: costOfGoods = returnedAmount => profitToReverse = 0
+    const profitReverseIfSale = 0;
+
+    if (summary) {
+        summary.innerHTML =
+          `<div><strong>المنتج:</strong> ${data.productName}</div>` +
+          `<div><strong>الكمية:</strong> ${data.qty}</div>`;
+    }
+
+    if (lineOriginal) {
+        lineOriginal.textContent =
+          `— للوحدة: ${formatCurrency(Number(data.originalUnit) || 0)} | الإجمالي: ${formatCurrency(originalTotal)}`;
+    }
+
+    if (lineSale) {
+        lineSale.textContent =
+          `— للوحدة: ${formatCurrency(Number(data.saleUnit) || 0)} | الإجمالي: ${formatCurrency(saleTotal)}`;
+    }
+
+    // ✅ عرض الربح المعكوس بشكل احترافي
+    if (profitLine) {
+        if ((Number(data.originalUnit) || 0) <= 0) {
+            profitLine.textContent = `تنبيه: لا توجد تكلفة أصلية محفوظة لهذا المنتج. عند اختيار "الأصلية" سيستخدم النظام مبلغ المرتجع كاحتياط.`;
+        } else {
+            profitLine.textContent =
+              `عكس الأرباح المتوقع: عند اختيار "التكلفة الأصلية" ≈ ${formatCurrency(profitReverseIfOriginal)} | عند اختيار "تكلفة البيع" = ${formatCurrency(profitReverseIfSale)}.`;
+        }
+    }
+
+    // افتراضيًا: الأصلية
+    const rOriginal = document.querySelector('input[name="return-cost-basis-modal"][value="original"]');
+    if (rOriginal) rOriginal.checked = true;
+
+    // ✅ إظهار مضمون (display + hidden)
+    modal.classList.remove('hidden');
+    modal.style.display = 'flex';
+}
+
+function closeReturnCostModal() {
+    const modal = d('return-cost-modal');
+    if (!modal) return;
+    modal.classList.add('hidden');
+    modal.style.display = 'none';
+}
+// 5) ربط زر “تأكيد الإرجاع اليدوي” بالمودال بشكل “مضمون”
+// (بنبدّل الزر بنسخة جديدة علشان نمسح أي event listeners قديمة)
+function bindReturnModalSystem() {
+    // ربط تحديثات الهينت
+    d('return-product-select')?.addEventListener('change', () => { updateReturnCostHint(); });
+    d('return-manual-product-name')?.addEventListener('input', () => { updateReturnCostHint(); });
+    d('return-quantity')?.addEventListener('input', () => { updateReturnCostHint(); });
+    d('return-sale-price-input')?.addEventListener('input', () => { updateReturnCostHint(); });
+
+    // ربط الراديو في الصفحة مع checkbox القديم (توافق)
+    document.querySelectorAll('input[name="return-cost-basis"]').forEach(r => {
+        r.addEventListener('change', () => {
+            const cb = d('return-at-sale-price');
+            if (cb) {
+                cb.checked = (r.value === 'sale' && r.checked);
+                cb.dispatchEvent(new Event('change'));
+            }
+        });
+    });
+
+    // استبدال زر التأكيد لمسح أي listeners قديمة
+    const btn = d('confirm-manual-return-btn');
+    if (btn && !btn.dataset.boundReturnModal) {
+        const newBtn = btn.cloneNode(true);
+        newBtn.dataset.boundReturnModal = "1";
+        btn.parentNode.replaceChild(newBtn, btn);
+
+        newBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            openReturnCostModal();
+        });
+    }
+
+    // أزرار المودال
+    d('return-cost-modal-close')?.addEventListener('click', closeReturnCostModal);
+    d('return-cost-modal-cancel')?.addEventListener('click', closeReturnCostModal);
+    d('return-cost-modal-backdrop')?.addEventListener('click', closeReturnCostModal);
+
+  // ✅ تأكيد الاختيار ثم تنفيذ المرتجع (نسخة قوية)
+(function bindReturnCostModalConfirm(){
+  const btn = document.getElementById('return-cost-modal-confirm');
+  if (!btn) return;
+
+  // امسح أي listeners قديمة باستبدال الزر (يمنع التكرار والتعارض)
+  const fresh = btn.cloneNode(true);
+  btn.parentNode.replaceChild(fresh, btn);
+
+  fresh.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const choice =
+        document.querySelector('input[name="return-cost-basis-modal"]:checked')?.value
+        || 'original';
+
+      // مزامنة مع راديو الصفحة
+      const pageRadio = document.querySelector(`input[name="return-cost-basis"][value="${choice}"]`);
+      if (pageRadio) pageRadio.checked = true;
+
+      // مزامنة مع checkbox القديم
+      const oldCb = document.getElementById('return-at-sale-price');
+      if (oldCb) {
+          oldCb.checked = (choice === 'sale');
+          oldCb.dispatchEvent(new Event('change'));
+      }
+
+      // ✅ إغلاق المودال بطريقة مضمونة
+      const modal = document.getElementById('return-cost-modal');
+      if (modal) {
+          modal.classList.add('hidden');       // لو عندك hidden
+          modal.style.display = 'none';        // لو عندك display
+      }
+
+      // ✅ تنفيذ المرتجع
+      if (typeof handleManualReturn === 'function') {
+          handleManualReturn();
+      } else {
+          console.error("handleManualReturn is not defined");
+      }
+  });
+})();
+    // تهيئة أولية
+    populateReturnCategorySelect();
+    updateReturnCostHint();
+}
+
+// تشغيل الربط بعد تحميل الصفحة
+document.addEventListener('DOMContentLoaded', bindReturnModalSystem);
+
+
+
+
+// ===== Return Cost Modal Logic =====
+let __returnCostModalBound = false;
+
+function getReturnDraftData() {
+    const productName = d('return-product-select')?.value || d('return-manual-product-name')?.value?.trim();
+    const qty = parseFloat(d('return-quantity')?.value) || 1;
+    const returnedAmount = parseFloat(d('return-sale-price-input')?.value) || 0;
+
+    // اسم مبسط لو فيه سيريال
+    const simpleName = String(productName || '').split(' (S/N:')[0].trim();
+
+    const productData = (products || []).find(p => p.name === productName) || (products || []).find(p => p.name === simpleName);
+
+    // التكلفة الأصلية: أولوية للبيع المؤقت ثم المخزون
+    const originalUnit =
+        Number(returnSourceData?.mainProduct?.costPrice ?? 0) ||
+        Number(productData?.costPrice ?? 0) ||
+        0;
+
+    const originalTotal = originalUnit * qty;
+
+    const saleTotal = returnedAmount;
+    const saleUnit = qty > 0 ? (saleTotal / qty) : 0;
+
+    return {
+        productName: productName || '',
+        qty,
+        originalUnit,
+        originalTotal,
+        saleUnit,
+        saleTotal
+    };
+}
+
+function openReturnCostModal() {
+    const modal = d('return-cost-modal');
+    if (!modal) return;
+
+    const data = getReturnDraftData();
+
+    // لو مفيش منتج/كمية صحيحة، سيب handleManualReturn يطلع رسائل التحقق بتاعته
+    // بس هنا نخلي المودال يظهر فقط لو فيه اسم منتج
+    if (!data.productName) {
+        handleManualReturn(); // يخلي رسائل التحقق تظهر
+        return;
+    }
+
+    const summary = d('return-cost-modal-summary');
+    const lineOriginal = d('return-cost-original-line');
+    const lineSale = d('return-cost-sale-line');
+
+    if (summary) {
+        summary.innerHTML =
+          `<div><strong>المنتج:</strong> ${data.productName}</div>` +
+          `<div><strong>الكمية:</strong> ${data.qty}</div>`;
+    }
+
+    if (lineOriginal) {
+        lineOriginal.textContent =
+          `— للوحدة: ${formatCurrency(data.originalUnit)} | الإجمالي: ${formatCurrency(data.originalTotal)}`;
+    }
+
+    if (lineSale) {
+        lineSale.textContent =
+          `— للوحدة: ${formatCurrency(data.saleUnit)} | الإجمالي: ${formatCurrency(data.saleTotal)}`;
+    }
+
+    // الافتراضي: الأصلية
+    const rOriginal = document.querySelector('input[name="return-cost-basis-modal"][value="original"]');
+    if (rOriginal) rOriginal.checked = true;
+
+    modal.classList.remove('hidden');
+}
+
+function closeReturnCostModal() {
+    const modal = d('return-cost-modal');
+    if (modal) modal.classList.add('hidden');
+}
+
+function bindReturnCostModalOnce() {
+    if (__returnCostModalBound) return;
+    __returnCostModalBound = true;
+
+    // بدل ما زر التأكيد ينفذ المرتجع مباشرة، يفتح المودال
+    const btn = d('confirm-manual-return-btn');
+    if (btn) {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            openReturnCostModal();
+        });
+    }
+
+    // أزرار المودال
+    d('return-cost-modal-close')?.addEventListener('click', closeReturnCostModal);
+    d('return-cost-modal-cancel')?.addEventListener('click', closeReturnCostModal);
+
+    d('return-cost-modal-confirm')?.addEventListener('click', () => {
+        const choice = document.querySelector('input[name="return-cost-basis-modal"]:checked')?.value || 'original';
+
+        // مزامنة اختيار المودال مع الراديو الموجود في الصفحة (لو موجود)
+        const pageRadio = document.querySelector(`input[name="return-cost-basis"][value="${choice}"]`);
+        if (pageRadio) pageRadio.checked = true;
+
+        // مزامنة مع checkbox القديم (لتوافق أي كود قديم)
+        const oldCb = d('return-at-sale-price');
+        if (oldCb) {
+            oldCb.checked = (choice === 'sale');
+            oldCb.dispatchEvent(new Event('change'));
+        }
+
+        closeReturnCostModal();
+
+        // نفّذ المرتجع بعد الاختيار
+        handleManualReturn();
+    });
+}
+
+// نادِ هذه مرة واحدة بعد تحميل الصفحة أو بعد إنشاء الـ DOM
+// إذا عندك init() أو window.onload حطها هناك، وإلا استخدم:
+document.addEventListener('DOMContentLoaded', bindReturnCostModalOnce);
 // =======================================================
 function updateUI() {
+    // داخل updateUI أو updateReturnsUI
+populateReturnCategorySelect();
     console.log("updateUI called. Current loaded date:", currentLoadedDate);
    const { 
         totalInventoryValue, 
@@ -4427,8 +4930,7 @@ function initiateReturnFromPendingSale(pendingId) {
     // حذف البيع المؤقت الآن ونسخ بياناته
     returnSourceData = pendingSales.splice(saleIndex, 1)[0];
 
-    // ✅✅✅ NEW: تطبيع الملحقات/التكاليف الإضافية إلى أسماء ثابتة
-    // (بدون تغيير أي داتا أصلية — فقط بنجهز حقول موحدة للعرض/الحفظ)
+    // ✅ تطبيع الملحقات/التكاليف الإضافية
     const srcExtraItems =
         returnSourceData.additionalItems ??
         returnSourceData.attachments ??
@@ -4447,7 +4949,7 @@ function initiateReturnFromPendingSale(pendingId) {
     returnSourceData.additionalCosts = Array.isArray(srcExtraCosts) ? srcExtraCosts : [];
 
     logOperation("تحويل لمُرتجع", `حذف بيع مؤقت وبدء إرجاع للعميل ${returnSourceData.customerName || '-'}.`);
-    
+
     // الانتقال إلى قسم المرتجعات
     const returnsSection = d('returns-section');
     const navButton = document.querySelector('button[data-target="returns-section"]');
@@ -4463,17 +4965,38 @@ function initiateReturnFromPendingSale(pendingId) {
     const mainItem = returnSourceData.items ? returnSourceData.items[0] : returnSourceData.mainProduct;
     if (mainItem) {
         d('return-manual-product-name').value = mainItem.name;
-        d('return-product-select').value = ""; 
+        d('return-product-select').value = "";
         d('return-quantity').value = mainItem.quantity;
     }
     d('return-customer-name').value = returnSourceData.customerName || '';
     d('return-sale-price-input').value = returnSourceData.totalSellPrice || 0;
 
-    // تفعيل خيار الإرجاع بسعر البيع
+    // ✅ افتراضيًا: اختار "التكلفة الأصلية" لو الراديو موجود
+    const costOriginalRadio = document.querySelector('input[name="return-cost-basis"][value="original"]');
+    if (costOriginalRadio) costOriginalRadio.checked = true;
+
+    // (توافق قديم) لو لسه عندك checkbox
     const atSalePriceCheckbox = d('return-at-sale-price');
     if (atSalePriceCheckbox) {
-        atSalePriceCheckbox.checked = true;
+        atSalePriceCheckbox.checked = false;
         atSalePriceCheckbox.dispatchEvent(new Event('change'));
+    }
+
+    // ✅ عرض التكلفة الأصلية المحفوظة (لو موجودة)
+    const hint = d('return-original-cost-hint');
+    if (hint && mainItem) {
+        const unit = Number(mainItem.costPrice ?? 0);
+        const qty = Number(mainItem.quantity ?? 0);
+        hint.textContent = `التكلفة الأصلية المحفوظة: ${formatCurrency(unit)} للوحدة (إجمالي: ${formatCurrency(unit * qty)})`;
+    }
+
+    // ✅ اختيار التصنيف تلقائيًا (إن أمكن)
+    populateReturnCategorySelect();
+    const catSel = d('return-category-select');
+    if (catSel && mainItem) {
+        const simpleName = String(mainItem.name || '').split(' (S/N:')[0];
+        const p = (products || []).find(x => x.name === simpleName) || (products || []).find(x => x.name === mainItem.name);
+        catSel.value = (mainItem.category || returnSourceData.mainProduct?.category || p?.category || '') || '';
     }
 
     d('return-receive-now').checked = false;
@@ -4613,18 +5136,18 @@ function handleConfirmReceipt(pendingId) {
 
     const ret = pendingReturns.splice(returnIndex, 1)[0];
 
-    // ✅ حماية
     if (!Array.isArray(ret.items)) ret.items = [];
     if (!Array.isArray(ret.additionalItems)) ret.additionalItems = [];
     if (!ret.customerName) ret.customerName = '';
 
-    // ✅ 1) خصم القيمة من "الأصول المعلقة" (لو المتغير موجود)
     if (typeof pendingReturnsValue !== 'undefined') {
         pendingReturnsValue -= (Number(ret.returnedAmount) || 0);
     }
 
-    // ✅ دالة موحّدة لإضافة صنف للمخزون مع متوسط التكلفة
-    const mergeIntoStock = (name, qty, unitCost) => {
+    const costBasis = ret.costBasis || (ret.returnAtSalePrice ? 'sale' : 'original');
+    const selectedCategory = ret.category || '';
+
+    const mergeIntoStock = (name, qty, unitCost, categoryToSet) => {
         const q = Number(qty);
         const c = Number(unitCost) || 0;
         if (!name || !q || q <= 0) return;
@@ -4640,13 +5163,16 @@ function handleConfirmReceipt(pendingId) {
 
             existing.quantity = oldQty + q;
             existing.costPrice = existing.quantity > 0 ? (oldTotalValue + newTotalValue) / existing.quantity : oldCost;
+
+            if ((!existing.category || existing.category === '') && categoryToSet) {
+                existing.category = categoryToSet;
+            }
         } else {
-            products.push({ name, quantity: q, costPrice: c });
+            products.push({ name, quantity: q, costPrice: c, category: categoryToSet || '' });
         }
     };
 
-    // ✅ إضافة باسم منفصل (عند returnAtSalePrice)
-    const addSeparated = (name, qty, unitCost) => {
+    const addSeparated = (name, qty, unitCost, categoryToSet) => {
         const q = Number(qty);
         const c = Number(unitCost) || 0;
         if (!name || !q || q <= 0) return;
@@ -4654,39 +5180,35 @@ function handleConfirmReceipt(pendingId) {
         products.push({
             name: `${name} - ${ret.customerName} (مرتجع)`,
             quantity: q,
-            costPrice: c
+            costPrice: c,
+            category: categoryToSet || ''
         });
     };
 
-    // ✅ 2) تحديث المخزون للمنتج الرئيسي
+    // المنتج الرئيسي
     ret.items.forEach(item => {
         const name = item?.name;
         const qty = item?.quantity ?? 0;
         const cost = item?.costPrice ?? 0;
 
-        if (ret.returnAtSalePrice) {
-            addSeparated(name, qty, cost);
-        } else {
-            mergeIntoStock(name, qty, cost);
-        }
+        if (costBasis === 'sale') addSeparated(name, qty, cost, selectedCategory);
+        else mergeIntoStock(name, qty, cost, selectedCategory);
     });
 
-    // ✅✅✅ 3) تحديث المخزون للملحقات (يرجعوا للاسم الأصلي دائمًا)
+    // الملحقات (ترجع باسمها الأصلي دائمًا)
     ret.additionalItems.forEach(att => {
         const attName = att?.name;
         const attQty = Number(att?.quantity ?? att?.qty ?? 0);
 
-        // لو costPrice ناقص لأي سبب، استخدم تكلفة المخزون الحالية إن وجدت
         const existing = products.find(p => p.name === attName);
         const attUnitCost = Number(att?.costPrice ?? existing?.costPrice ?? 0);
+        const attCategory = att?.category || existing?.category || selectedCategory || '';
 
-        mergeIntoStock(attName, attQty, attUnitCost);
+        mergeIntoStock(attName, attQty, attUnitCost, attCategory);
     });
 
-    // ✅ 4) نقل المرتجع إلى قائمة المكتملة
     completedReturns.push({ ...ret, status: 'Completed', timestamp: new Date().toISOString() });
 
-    // ✅ 5) تسجيل العملية
     const mainTxt = ret.items.map(i => `${Number(i.quantity || 0)}x ${i.name}`).join(', ');
     const attTxt = ret.additionalItems
         .map(a => `${Number(a.quantity ?? a.qty ?? 0)}x ${a.name}`)
@@ -4727,14 +5249,21 @@ function updateReturnFormVisibility() {
 function handleManualReturn() {
     saveStateToHistory();
     const returnMessage = d('return-message');
-    
+
     const productName = d('return-product-select').value || d('return-manual-product-name').value.trim();
     const quantity = parseInputNumber(d('return-quantity'));
     const customerName = d('return-customer-name').value.trim() || 'عميل';
     const returnedAmount = parseInputNumber(d('return-sale-price-input'));
     const financialType = document.querySelector('input[name="return-financial-type"]:checked').value;
     const receiveNow = d('return-receive-now').checked;
-    const returnAtSalePrice = d('return-at-sale-price').checked;
+
+    // ✅ NEW: cost basis (original/sale) — مع توافق للخلف
+    const costBasis = document.querySelector('input[name="return-cost-basis"]:checked')?.value
+        || (d('return-at-sale-price')?.checked ? 'sale' : 'original');
+
+    // ✅ NEW: category from UI
+    const selectedCategory = d('return-category-select') ? (d('return-category-select').value || '') : '';
+
     const selectedAccountId = d('return-from-account-select').value;
     const account = accounts.find(acc => acc.id === selectedAccountId);
 
@@ -4747,25 +5276,31 @@ function handleManualReturn() {
     if (financialType === 'cash' && !account) {
         showMessage(returnMessage, "للإرجاع النقدي، يجب اختيار الحساب الذي سيتم الخصم منه.", true); return;
     }
-    
+
     const productData = products.find(p => p.name === productName);
     let costOfGoods = 0;
 
-    if (returnAtSalePrice) {
+    // ✅ NEW: حساب التكلفة حسب اختيارك
+    if (costBasis === 'sale') {
         costOfGoods = returnedAmount;
-    } else if (productData) {
-        costOfGoods = (productData.costPrice || 0) * quantity;
     } else {
-        costOfGoods = returnedAmount;
+        // الأصلية: الأولوية لتكلفة البيع المؤقت (لو موجودة) ثم المخزون
+        const originalUnit =
+            Number(returnSourceData?.mainProduct?.costPrice ?? 0) ||
+            Number(productData?.costPrice ?? 0);
+
+        costOfGoods = originalUnit * quantity;
+        // لو ما لقيناش تكلفة أصلية لأي سبب، نرجع للاحتياط
+        if (!isFinite(costOfGoods) || costOfGoods <= 0) costOfGoods = returnedAmount;
     }
 
     let logDetails = "";
 
     // --- الإجراء المالي ---
     if (financialType === 'cash') {
-        if (returnedAmount > account.balance) { 
-            showMessage(returnMessage, `رصيد حساب "${account.name}" غير كافٍ.`, true); 
-            return; 
+        if (returnedAmount > account.balance) {
+            showMessage(returnMessage, `رصيد حساب "${account.name}" غير كافٍ.`, true);
+            return;
         }
         account.balance -= returnedAmount;
         logDetails = `إرجاع نقدي ${formatCurrency(returnedAmount)} للعميل "${customerName}" من حساب "${account.name}".`;
@@ -4783,27 +5318,17 @@ function handleManualReturn() {
         }
     }
 
-    // --- إجراء المخزون ---
     const newUnitCost = (quantity > 0) ? (costOfGoods / quantity) : 0;
 
-    // ✅✅✅ نقل الملحقات من البيع المؤقت (إن وجد)
+    // الملحقات
     const extrasItems = (returnSourceData && Array.isArray(returnSourceData.additionalItems)) ? returnSourceData.additionalItems : [];
     const extrasCosts = (returnSourceData && Array.isArray(returnSourceData.additionalCosts)) ? returnSourceData.additionalCosts : [];
 
-    // ✅✅✅ NEW: دالة داخلية آمنة لتسجيل الملحقات في المخزون (تحافظ على متوسط التكلفة)
-    const addItemToStock = (name, qty, unitCost, asSeparatedReturnName) => {
+    // ✅ إضافة/دمج صنف للمخزون + حفظ category
+    const mergeIntoStock = (name, qty, unitCost, categoryToSet) => {
         const q = Number(qty);
         const c = Number(unitCost) || 0;
         if (!name || !q || q <= 0) return;
-
-        if (asSeparatedReturnName) {
-            products.push({
-                name: `${name} - ${customerName} (مرتجع)`,
-                quantity: q,
-                costPrice: c
-            });
-            return;
-        }
 
         const idx = products.findIndex(p => p.name === name);
         if (idx !== -1) {
@@ -4816,25 +5341,45 @@ function handleManualReturn() {
 
             existing.quantity = oldQty + q;
             existing.costPrice = existing.quantity > 0 ? (oldTotalValue + newTotalValue) / existing.quantity : oldCost;
+
+            // لو التصنيف فاضي و المستخدم اختار تصنيف -> ثبتّه
+            if ((!existing.category || existing.category === '') && categoryToSet) {
+                existing.category = categoryToSet;
+            }
         } else {
-            products.push({ name, quantity: q, costPrice: c });
+            products.push({ name, quantity: q, costPrice: c, category: categoryToSet || '' });
         }
     };
 
-    if (receiveNow) {
-        // ✅ 1) إدخال المنتج الرئيسي للمخزون (كما هو منطقك)
-        if (returnAtSalePrice) {
-            addItemToStock(productName, quantity, newUnitCost, true);
-        } else {
-            addItemToStock(productName, quantity, newUnitCost, false);
-        }
+    // ✅ (اختياري) منتج منفصل لو costBasis === sale (نفس سلوكك القديم)
+    const addSeparated = (name, qty, unitCost, categoryToSet) => {
+        const q = Number(qty);
+        const c = Number(unitCost) || 0;
+        if (!name || !q || q <= 0) return;
 
-        // ✅✅✅ 2) إدخال الملحقات للمخزون فورًا (الجديد)
+        products.push({
+            name: `${name} - ${customerName} (مرتجع)`,
+            quantity: q,
+            costPrice: c,
+            category: categoryToSet || ''
+        });
+    };
+
+    if (receiveNow) {
+        // المنتج الرئيسي للمخزون
+        if (costBasis === 'sale') addSeparated(productName, quantity, newUnitCost, selectedCategory);
+        else mergeIntoStock(productName, quantity, newUnitCost, selectedCategory);
+
+        // الملحقات للمخزون (ترجع باسمها الأصلي دائمًا)
         extrasItems.forEach(att => {
             const attName = att?.name;
             const attQty = Number(att?.quantity ?? att?.qty ?? 0);
-            const attUnitCost = Number(att?.costPrice ?? 0);
-            addItemToStock(attName, attQty, attUnitCost, !!returnAtSalePrice);
+            const existing = products.find(p => p.name === attName);
+            const attUnitCost = Number(att?.costPrice ?? existing?.costPrice ?? 0);
+
+            // لو الملحق له category محفوظة استخدمها وإلا استخدم اللي اختاره المستخدم
+            const attCategory = att?.category || existing?.category || selectedCategory || '';
+            mergeIntoStock(attName, attQty, attUnitCost, attCategory);
         });
 
         completedReturns.push({
@@ -4844,7 +5389,8 @@ function handleManualReturn() {
             additionalCosts: extrasCosts,
             customerName,
             returnedAmount,
-            returnAtSalePrice,
+            costBasis,                 // ✅ NEW
+            category: selectedCategory, // ✅ NEW
             timestamp: new Date().toISOString()
         });
 
@@ -4852,9 +5398,8 @@ function handleManualReturn() {
         showMessage(returnMessage, "تم تسجيل المرتجع واستلامه بالمخزن (مع الملحقات) بنجاح.", false);
 
     } else {
-        // --- مرتجع قيد الاستلام ---
         if (typeof pendingReturnsValue !== 'undefined') {
-             pendingReturnsValue += returnedAmount;
+            pendingReturnsValue += returnedAmount;
         }
 
         pendingReturns.push({
@@ -4864,14 +5409,15 @@ function handleManualReturn() {
             additionalCosts: extrasCosts,
             customerName,
             returnedAmount,
-            returnAtSalePrice,
+            costBasis,                 // ✅ NEW
+            category: selectedCategory, // ✅ NEW
             timestamp: new Date().toISOString()
         });
 
         logOperation("مرتجع قيد الاستلام", logDetails + " والبضاعة (وملحقاتها إن وجدت) قيد الاستلام.");
         showMessage(returnMessage, "تم تسجيل المرتجع كـ 'قيد الاستلام' بنجاح. سيتم إضافة البضاعة والملحقات للمخزن عند تأكيد الاستلام.", false, true);
     }
-    
+
     resetReturnForm();
     updateUI();
 }
@@ -6235,24 +6781,35 @@ async function handleSaveInvoice() {
         }
     });
 
-    if (inv_deductibleCostsContainer) {
-        const checkedBoxes = inv_deductibleCostsContainer.querySelectorAll('input[type="checkbox"]:checked');
-        checkedBoxes.forEach(checkbox => {
-            const name = checkbox.value;
-            const cost = parseFloat(checkbox.dataset.cost) || 0;
-            const parentLabel = checkbox.parentElement;
-            const quantityInput = parentLabel.querySelector('.inv-deducted-item-quantity');
-            const qtyToDeduct = parseInt(quantityInput?.value || '0');
-            
-            if (qtyToDeduct > 0) {
-                deductedItemsData.push({ name, quantity: qtyToDeduct, costPrice: cost });
-                totalInvoiceCost += (cost * qtyToDeduct);
-                if (!isInvoiceFromPending) {
-                    quantitiesToDeduct[name] = (quantitiesToDeduct[name] || 0) + qtyToDeduct;
-                }
+  if (inv_deductibleCostsContainer) {
+    const checkedBoxes = inv_deductibleCostsContainer.querySelectorAll('input[type="checkbox"]:checked');
+    checkedBoxes.forEach(checkbox => {
+        const name = checkbox.value;
+
+        // ✅ قراءة التكلفة من أكثر من اسم محتمل + fallback من المخزون
+        const ds = checkbox.dataset || {};
+        let unitCost =
+            Number(ds.cost ?? ds.costprice ?? ds.costPrice ?? ds.unitCost ?? ds.price ?? 0) || 0;
+
+        if (!unitCost) {
+            const prod = (products || []).find(p => (p.name || '').toLowerCase() === String(name).toLowerCase());
+            unitCost = Number(prod?.costPrice ?? 0) || 0;
+        }
+
+        const parentLabel = checkbox.closest('label') || checkbox.parentElement;
+        const quantityInput = parentLabel ? parentLabel.querySelector('.inv-deducted-item-quantity') : null;
+        const qtyToDeduct = parseInt(quantityInput?.value || '0');
+
+        if (qtyToDeduct > 0) {
+            deductedItemsData.push({ name, quantity: qtyToDeduct, costPrice: unitCost });
+            totalInvoiceCost += (unitCost * qtyToDeduct);
+
+            if (!isInvoiceFromPending) {
+                quantitiesToDeduct[name] = (quantitiesToDeduct[name] || 0) + qtyToDeduct;
             }
-        });
-    }
+        }
+    });
+}
 
     // خصم المخزون (للفواتير الجديدة فقط)
     if (!isInvoiceFromPending) {
@@ -7122,9 +7679,31 @@ function displaySalesReport(salesToDisplay) {
                 </div>
             `).join('');
 
-            const saleAmount = Number(sale.grandTotal ?? sale.totalSellPrice) || 0;
-            const costAmount = Number(sale.totalCost) || 0;
-            const profitAmount = Number(sale.profit) || 0;
+        const saleAmount = Number(sale.grandTotal ?? sale.totalSellPrice) || 0;
+
+const baseCost = Number(sale.totalCost) || 0;
+
+// ✅ تكلفة الملحقات/التكاليف المخصومة (من الفاتورة نفسها)
+const deductedCost = Array.isArray(sale.deductedItems)
+  ? sale.deductedItems.reduce((sum, x) => {
+      const q = Number(x?.quantity ?? x?.qty ?? 0) || 0;
+      const c = Number(x?.costPrice ?? x?.cost ?? 0) || 0;
+      return sum + (q * c);
+    }, 0)
+  : 0;
+
+// ✅ لو الفاتورة قديمة وكانت totalCost ناقصة الملحقات
+// نضيف deductedCost للتكلفة (لكن فقط إذا كانت موجودة)
+const fixedCost = baseCost + (deductedCost > 0 ? deductedCost : 0);
+
+const costAmount = fixedCost;
+
+// ✅ الربح الصح المحسوب
+const computedProfit = saleAmount - fixedCost;
+
+// ✅ لو الربح المحفوظ مش متوافق مع الحساب (فرق كبير) اعرض المحسوب
+const savedProfit = Number(sale.profit) || 0;
+const profitAmount = (Math.abs(savedProfit - computedProfit) > 0.01) ? computedProfit : savedProfit;
 
             totalMonthSales += saleAmount;
             totalMonthCost += costAmount;
@@ -9713,6 +10292,31 @@ async function performSmartGlobalSearch() {
     }
 }
 
+
+function openReturnCostModal() {
+    const modal = document.getElementById('return-cost-modal');
+    if (!modal) {
+        console.error("return-cost-modal not found in HTML");
+        return;
+    }
+    // يدعم نظام hidden + display
+    modal.classList.remove('hidden');
+    modal.style.display = 'flex';
+}
+
+function closeReturnCostModal() {
+    const modal = document.getElementById('return-cost-modal');
+    if (!modal) return;
+
+    modal.classList.add('hidden');
+    modal.style.display = 'none';
+}
+
+
+
+
+
+
 // START: دالة بدء التشغيل النهائية (متصلة بالإنترنت)
 // =======================================================
 async function initializeApp() {
@@ -11751,9 +12355,8 @@ if (returnProductSelect) {
 
 
 
-if (confirmManualReturnBtn) {
-    confirmManualReturnBtn.addEventListener('click', handleManualReturn);
-}
+// ✅ بدل تنفيذ المرتجع مباشرة: اربط نظام المودال
+bindReturnModalSystem();
 // أضف هذا الكود داخل دالة initializeApp
 if (d('return-type-selector')) {
     d('return-type-selector').addEventListener('change', updateReturnFormVisibility);
@@ -12182,7 +12785,10 @@ if (returnProductSelect) {
 
 
 if (confirmManualReturnBtn) {
-    confirmManualReturnBtn.addEventListener('click', handleManualReturn);
+    confirmManualReturnBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        openReturnCostModal(); // يفتح نافذة اختيار التكلفة
+    });
 }
 // =======================================================
 // END: Returns Section Event Listeners
@@ -13268,6 +13874,79 @@ window.handleDebtTypeChange = function() {
         }
     }
 };
+function bindReturnCostModalButtons() {
+  const confirmBtn = document.getElementById('return-cost-modal-confirm');
+  const cancelBtn  = document.getElementById('return-cost-modal-cancel');
+  const closeBtn   = document.getElementById('return-cost-modal-close');
+  const backdrop   = document.getElementById('return-cost-modal-backdrop');
+
+  if (!confirmBtn) {
+    console.error("❌ return-cost-modal-confirm not found");
+    return;
+  }
+
+  // ✅ امسح أي listeners قديمة (باستبدال الأزرار)
+  const freshConfirm = confirmBtn.cloneNode(true);
+  confirmBtn.parentNode.replaceChild(freshConfirm, confirmBtn);
+
+  if (cancelBtn) {
+    const freshCancel = cancelBtn.cloneNode(true);
+    cancelBtn.parentNode.replaceChild(freshCancel, cancelBtn);
+    freshCancel.addEventListener('click', closeReturnCostModal);
+  }
+
+  if (closeBtn) {
+    const freshClose = closeBtn.cloneNode(true);
+    closeBtn.parentNode.replaceChild(freshClose, closeBtn);
+    freshClose.addEventListener('click', closeReturnCostModal);
+  }
+
+  if (backdrop) {
+    const freshBackdrop = backdrop.cloneNode(true);
+    backdrop.parentNode.replaceChild(freshBackdrop, backdrop);
+    freshBackdrop.addEventListener('click', closeReturnCostModal);
+  }
+
+  // ✅ الربط الفعلي لزر "متابعة وتأكيد المرتجع"
+  freshConfirm.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    try {
+      const choice =
+        document.querySelector('input[name="return-cost-basis-modal"]:checked')?.value || 'original';
+
+      // مزامنة مع راديو الصفحة (لو موجود)
+      const pageRadio = document.querySelector(`input[name="return-cost-basis"][value="${choice}"]`);
+      if (pageRadio) pageRadio.checked = true;
+
+      // مزامنة مع checkbox القديم (توافق للخلف)
+      const oldCb = document.getElementById('return-at-sale-price');
+      if (oldCb) {
+        oldCb.checked = (choice === 'sale');
+        oldCb.dispatchEvent(new Event('change'));
+      }
+
+      closeReturnCostModal();
+
+      if (typeof handleManualReturn !== 'function') {
+        console.error("❌ handleManualReturn is not a function");
+        return;
+      }
+
+      console.log("✅ Executing handleManualReturn with choice:", choice);
+      handleManualReturn();
+
+    } catch (err) {
+      console.error("❌ Error while confirming return:", err);
+    }
+  });
+
+  console.log("✅ Return cost modal buttons bound successfully");
+}
+
+// ✅ شغّل الربط بعد تحميل الصفحة
+document.addEventListener('DOMContentLoaded', bindReturnCostModalButtons);
 
 }); // End DOMContentLoaded
 </script>
