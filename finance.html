@@ -3771,48 +3771,92 @@ function startRealTimeSync() {
 
 function calculateTotals() {
     // 1. قيمة المخزون (بسعر التكلفة)
-    const totalInventoryValue = products.reduce((sum, p) => sum + ((Number(p.quantity) || 0) * (Number(p.costPrice) || 0)), 0);
-    
-    // 2. قيمة البضاعة المؤقتة (أصل)
+    const totalInventoryValue = products.reduce(
+        (sum, p) => sum + ((Number(p.quantity) || 0) * (Number(p.costPrice) || 0)),
+        0
+    );
+
+    // 2. قيمة البضاعة المؤقتة الحالية (بسعر التكلفة)
     let goodsOnConsignmentValue = 0;
     if (typeof calculateConsignmentValue === 'function') {
-        goodsOnConsignmentValue = calculateConsignmentValue();
+        goodsOnConsignmentValue = Number(calculateConsignmentValue()) || 0;
     }
 
     // 3. الديون والالتزامات
-    const totalDebtsValue = calculateTotalDebts(); 
-    const totalLiabilitiesValue = calculateTotalLiabilities(); 
+    const totalDebtsValue = calculateTotalDebts();
+    const totalLiabilitiesValue = calculateTotalLiabilities();
 
     // 4. السيولة النقدية
-    const totalLiquidity = accounts.reduce((sum, acc) => sum + (acc.balance || 0), 0);
+    const totalLiquidity = accounts.reduce(
+        (sum, acc) => sum + (Number(acc.balance) || 0),
+        0
+    );
 
-    // 5. الأصول المعلقة الأخرى (المشتريات التي لم تصل)
-    const pendingPurchasesAssetValue = pendingPurchases.reduce((sum, p) => sum + (p.paidAmount || 0), 0);
-    
-    // 🔥 التصحيح: حساب قيمة المرتجعات مباشرة من المصفوفة لضمان الدقة حتى لو تفرغ المتغير
-    const pendingReturnsAssetValue = pendingReturns.reduce((sum, r) => sum + (Number(r.returnedAmount) || 0), 0);
+    // 5. قيمة عرض بطاقة مشتريات قيد الاستلام
+    const pendingPurchasesDisplayValue = pendingPurchases.reduce(
+        (sum, p) => sum + (Number(p.grandTotal) || 0),
+        0
+    );
 
-    // 6. العربونات المستلمة (التزام مؤقت)
-    const totalPendingDeposits = pendingSales.reduce((sum, sale) => sum + (Number(sale.depositPaid) || 0), 0);
+    // 6. القيمة التي تدخل في رأس المال فقط
+    const pendingPurchasesCapitalValue = pendingPurchases.reduce(
+        (sum, p) => sum + (Number(p.paidAmount) || 0),
+        0
+    );
 
-    // المعادلة المحاسبية الشاملة لرأس المال
-    const totalCapital = (totalInventoryValue + goodsOnConsignmentValue + totalLiquidity + totalDebtsValue + pendingPurchasesAssetValue + pendingReturnsAssetValue) - (totalLiabilitiesValue + totalPendingDeposits);
+    // 7. مرتجعات قيد الاستلام
+    const pendingReturnsAssetValue = pendingReturns.reduce(
+        (sum, r) => sum + (Number(r.returnedAmount) || 0),
+        0
+    );
+
+    // 8. العربونات المستلمة من المبيعات المؤقتة
+    const totalPendingDeposits = pendingSales.reduce(
+        (sum, sale) => sum + (Number(sale.depositPaid) || 0),
+        0
+    );
+
+    // 9. إجمالي قيمة المشتريات المدفوعة فقط
+    const totalPaidPurchasesValue = purchaseInvoices.reduce(
+        (sum, invoice) => sum + (Number(invoice.paidAmount) || 0),
+        0
+    );
+
+    // 10. المعادلة المحاسبية لرأس المال
+    const totalCapital =
+        (
+            totalInventoryValue +
+            goodsOnConsignmentValue +
+            totalLiquidity +
+            totalDebtsValue +
+            pendingPurchasesCapitalValue +
+            pendingReturnsAssetValue
+        ) -
+        (
+            totalLiabilitiesValue +
+            totalPendingDeposits
+        );
 
     return {
         totalInventoryValue,
+        goodsOnConsignmentValue,
         totalCapital,
         totalDebtsValue,
         totalLiabilitiesValue,
         totalPendingDeposits,
-        calculatedPendingReturnsValue: pendingReturnsAssetValue, // نمرر القيمة للملخص
-        calculatedPendingPurchasesValue: pendingPurchasesAssetValue // نمرر القيمة للملخص
+        totalPaidPurchasesValue,
+        calculatedPendingReturnsValue: pendingReturnsAssetValue,
+        calculatedPendingPurchasesValue: pendingPurchasesDisplayValue
     };
 }
 function calculateTotalPurchasesToday() {
-    if (!purchaseInvoices || purchaseInvoices.length === 0) {
+    if (!Array.isArray(purchaseInvoices) || purchaseInvoices.length === 0) {
         return 0;
     }
-    return purchaseInvoices.reduce((total, invoice) => total + (Number(invoice.grandTotal) || 0), 0);
+
+    return purchaseInvoices.reduce((total, invoice) => {
+        return total + (Number(invoice.grandTotal) || 0);
+    }, 0);
 }
         // --- Supplier Management Functions ---
         function resetSupplierForm() { editingSupplierId = null; if(supplierNameInput) supplierNameInput.value = ""; if(supplierContactInput) supplierContactInput.value = ""; if(supplierAddressInput) supplierAddressInput.value = ""; if(addSupplierButton) addSupplierButton.textContent = "إضافة / تحديث المورد"; if(supplierFormTitle) supplierFormTitle.textContent = "إضافة مورد جديد"; if(cancelEditSupplierButton) cancelEditSupplierButton.classList.add('hidden'); if(supplierMessage) { showMessage(supplierMessage,""); supplierMessage.classList.remove('visible','error','success','info'); } }
@@ -4833,13 +4877,16 @@ function updateUI() {
 populateReturnCategorySelect();
     console.log("updateUI called. Current loaded date:", currentLoadedDate);
    const { 
-        totalInventoryValue, 
-        totalCapital, 
-        totalDebtsValue, 
-        totalLiabilitiesValue, 
-        calculatedPendingReturnsValue, 
-        calculatedPendingPurchasesValue 
-    } = calculateTotals();
+    totalInventoryValue,
+    goodsOnConsignmentValue,
+    totalCapital, 
+    totalDebtsValue, 
+    totalLiabilitiesValue,
+    totalPendingDeposits,
+    totalPaidPurchasesValue,
+    calculatedPendingReturnsValue, 
+    calculatedPendingPurchasesValue 
+} = calculateTotals();
     const totalPurchases = calculateTotalPurchasesToday();
     renderAccounts(); // <-- السطر الأول الجديد
     const totalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0); // <-- السطر الثاني الجديد
@@ -4862,8 +4909,7 @@ populateReturnCategorySelect();
     if (d('summary-total-profit')) d('summary-total-profit').textContent = formatCurrency(totalProfit);
     if (d('summary-total-capital')) d('summary-total-capital').textContent = formatCurrency(totalCapital);
     if (d('summary-expected-capital')) d('summary-expected-capital').textContent = formatCurrency(expectedCapital);
-    if (d('summary-total-purchases')) d('summary-total-purchases').textContent = formatCurrency(totalPurchases);
-
+   if (d('summary-total-purchases')) d('summary-total-purchases').textContent = formatCurrency(totalPaidPurchasesValue);
     if (inventoryTotalInventoryValue) inventoryTotalInventoryValue.textContent = `إجمالي قيمة المخزون: ${formatCurrency(totalInventoryValue)}`;
     if (inventoryConsignmentValue) inventoryConsignmentValue.textContent = `قيمة مؤقتة: ${formatCurrency(goodsOnConsignmentValue)}`;
     if (inventoryTotalProfit) inventoryTotalProfit.textContent = `إجمالي الربح: ${formatCurrency(totalProfit)}`;
@@ -6086,7 +6132,15 @@ async function loadDataForDate(dateString) {
 }
 
         // --- تقرير الطباعة العام ---
-        function generateReportHTML(){ const {totalInventoryValue, totalCapital, totalDebtsValue, totalLiabilitiesValue} = calculateTotals(); const now = new Date(); const reportDate = currentLoadedDate ? formatDateForDisplay(currentLoadedDate) : "بيانات حالية غير محفوظة"; const printDateTime = now.toLocaleString('ar-EG', {timeZone: 'Africa/Cairo', dateStyle: 'full', timeStyle: 'medium'}); let productsTable = '<p>لا توجد منتجات في المخزون.</p>'; if(products.length > 0){ productsTable = `<table border="1" style="width:100%;border-collapse:collapse;margin-top:10px;font-size:.9em"><thead><tr style="background-color:#f2f2f2"><th style="padding:5px">اسم البضاعة</th><th style="padding:5px">الكمية</th><th style="padding:5px">المورد</th><th style="padding:5px">متوسط التكلفة</th><th style="padding:5px">إجمالي التكلفة</th></tr></thead><tbody>${[...products].sort((a, b) => a.name.localeCompare(b.name, 'ar')).map(p => { const supplier = suppliers.find(s => s.id === p.supplierId); return `<tr><td style="padding:5px">${p.name || 'غير مسمى'}</td><td style="padding:5px;text-align:center;">${Number(p.quantity) || 0}</td><td style="padding:5px">${supplier ? supplier.name : '-'}</td><td style="padding:5px;text-align:center;">${formatCurrency(p.costPrice)}</td><td style="padding:5px;text-align:center;">${formatCurrency((Number(p.quantity) || 0) * (Number(p.costPrice) || 0))}</td></tr>` }).join('')}</tbody><tfoot><tr style="background-color:#f2f2f2;font-weight:bold;"><td colspan="4" style="padding:5px;text-align:left;">إجمالي قيمة المخزون:</td><td style="padding:5px;text-align:center;">${formatCurrency(totalInventoryValue)}</td></tr></tfoot></table>` } let logList = '<p>لا توجد عمليات مسجلة.</p>'; if(operationLog.length > 0){ logList = `<ul style="list-style:none;padding-right:0;margin-top:10px;font-size:.85em">${[...operationLog].reverse().map(log => `<li style="border-bottom:1px dotted #ccc;margin-bottom:5px;padding-bottom:5px"><strong style="color:#333;">${log.type}:</strong> ${log.details}<br><small style="color:#555">${formatDateTime(log.timestamp)}</small></li>`).join('')}</ul>` } let debtorsTable = '<p>لا توجد ديون مستحقة.</p>'; if(debtors.length > 0){ const groupedDebtsForPrint = debtors.reduce((acc, debt) => { const name = debt.name; if (!acc[name]) acc[name] = { total: 0, items: [] }; const amount = Number(debt.amount) || 0; if(amount > 0.001){ acc[name].total += amount; acc[name].items.push({ reason: debt.reason || '-', amount: amount }); } return acc; }, {}); const sortedDebtorNames = Object.keys(groupedDebtsForPrint).filter(name => groupedDebtsForPrint[name].total > 0.001).sort((a, b) => a.localeCompare(b, 'ar')); if(sortedDebtorNames.length > 0) { debtorsTable = `<table border="1" style="width:100%;border-collapse:collapse;margin-top:10px;font-size:.9em"><thead><tr style="background-color:#f2f2f2"><th style="padding:5px">اسم المدين</th><th style="padding:5px">السبب</th><th style="padding:5px">المبلغ المستحق</th></tr></thead><tbody>`; sortedDebtorNames.forEach(name => { const data = groupedDebtsForPrint[name]; debtorsTable += `<tr style="background-color:#f9f9f9;"><td style="padding:5px; font-weight:bold;" colspan="2">${name} (الإجمالي)</td><td style="padding:5px; font-weight:bold;text-align:center;">${formatCurrency(data.total)}</td></tr>`; data.items.sort((a,b) => a.reason.localeCompare(b.reason, 'ar')).forEach(item => { debtorsTable += `<tr><td style="padding:5px; padding-right: 15px;"></td><td style="padding:5px;">${item.reason}</td><td style="padding:5px;text-align:center;">${formatCurrency(item.amount)}</td></tr>`; }); }); debtorsTable += `</tbody><tfoot><tr style="background-color:#f2f2f2;font-weight:bold;"><td colspan="2" style="padding:5px;text-align:left;">إجمالي الديون (لك):</td><td style="padding:5px;text-align:center;">${formatCurrency(totalDebtsValue)}</td></tr></tfoot></table>`; } } let liabilitiesTable = '<p>لا توجد التزامات مستحقة.</p>'; const validLiabilities = liabilities.filter(l => (Number(l.amount) || 0) > 0.001); if(validLiabilities.length > 0){ liabilitiesTable = `<table border="1" style="width:100%;border-collapse:collapse;margin-top:10px;font-size:.9em"><thead><tr style="background-color:#f2f2f2"><th style="padding:5px">اسم الدائن</th><th style="padding:5px">المبلغ المستحق</th></tr></thead><tbody>${[...validLiabilities].sort((a, b) => a.name.localeCompare(b.name, 'ar')).map(l => `<tr><td style="padding:5px">${l.name}</td><td style="padding:5px;text-align:center;">${formatCurrency(l.amount)}</td></tr>`).join('')}</tbody><tfoot><tr style="background-color:#f2f2f2;font-weight:bold;"><td style="padding:5px;text-align:left;">إجمالي الالتزامات (عليك):</td><td style="padding:5px;text-align:center;">${formatCurrency(totalLiabilitiesValue)}</td></tr></tfoot></table>` } let suppliersTable = '<p>لا يوجد موردين مسجلين.</p>'; if(suppliers.length > 0){ suppliersTable = `<table border="1" style="width:100%;border-collapse:collapse;margin-top:10px;font-size:.9em"><thead><tr style="background-color:#f2f2f2"><th style="padding:5px">اسم المورد</th><th style="padding:5px">الاتصال</th><th style="padding:5px">العنوان</th></tr></thead><tbody>${[...suppliers].sort((a, b) => a.name.localeCompare(b.name, 'ar')).map(s => `<tr><td style="padding:5px">${s.name}</td><td style="padding:5px">${s.contact || '-'}</td><td style="padding:5px">${s.address || '-'}</td></tr>`).join('')}</tbody></table>` } return `<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>تقرير العمليات - ${reportDate}</title><style>body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;margin:20px; line-height: 1.4;}h1,h2{color:#333;border-bottom:1px solid #ccc;padding-bottom:5px;margin-bottom:15px}h1{text-align:center;font-size:1.4em}h2{font-size:1.1em;margin-top:25px;margin-bottom:10px;}p{margin:5px 0;}table{width:100%;border-collapse:collapse;margin-top:10px;font-size:.9em}th,td{border:1px solid #ddd;padding:6px;text-align:right; vertical-align:top;}th{background-color:#f2f2f2;font-weight:bold;}.summary p{font-size:1em;margin:5px 0; padding-right: 10px;}.print-info{text-align:center;font-size:.8em;color:#666;margin-bottom:20px}ul{list-style:none; padding-right:0;} tfoot td {font-weight:bold;} @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } h2 { page-break-before: auto; page-break-after: avoid; } table { page-break-inside: auto; } tr { page-break-inside: avoid; page-break-after: auto; } thead { display: table-header-group; } tfoot { display: table-footer-group; } } </style></head><body><h1>تقرير العمليات</h1><p class="print-info">تاريخ بيانات التقرير: ${reportDate}<br>تاريخ ووقت الطباعة: ${printDateTime}</p><div class="summary"><h2>الملخص المالي</h2><p><strong>السيولة المتاحة:</strong> ${formatCurrency(liquidity)}</p><p><strong>إجمالي قيمة المخزون:</strong> ${formatCurrency(totalInventoryValue)}</p><p><strong>قيمة البضاعة المؤقتة:</strong> ${formatCurrency(goodsOnConsignmentValue)}</p><p><strong>إجمالي الديون المستحقة للشركة:</strong> ${formatCurrency(totalDebtsValue)}</p><p><strong>إجمالي الالتزامات المستحقة على الشركة:</strong> ${formatCurrency(totalLiabilitiesValue)}</p><p><strong>إجمالي المصروفات المسجلة:</strong> ${formatCurrency(expenses)}</p><p><strong>إجمالي الربح المحقق:</strong> ${formatCurrency(totalProfit)}</p><p><strong>رأس المال الحالي:</strong> ${formatCurrency(totalCapital)}</p></div><h2>تفاصيل الالتزامات المستحقة على الشركة</h2>${liabilitiesTable}<h2>تفاصيل الديون المستحقة للشركة</h2>${debtorsTable}<h2>تفاصيل المخزون</h2>${productsTable}<h2>تفاصيل الموردين</h2>${suppliersTable}<h2>سجل العمليات</h2>${logList}</body></html>` }
+        function generateReportHTML(){ const { 
+    totalInventoryValue,
+    goodsOnConsignmentValue,
+    totalCapital, 
+    totalDebtsValue, 
+    totalLiabilitiesValue, 
+    calculatedPendingReturnsValue, 
+    calculatedPendingPurchasesValue 
+} = calculateTotals(); const now = new Date(); const reportDate = currentLoadedDate ? formatDateForDisplay(currentLoadedDate) : "بيانات حالية غير محفوظة"; const printDateTime = now.toLocaleString('ar-EG', {timeZone: 'Africa/Cairo', dateStyle: 'full', timeStyle: 'medium'}); let productsTable = '<p>لا توجد منتجات في المخزون.</p>'; if(products.length > 0){ productsTable = `<table border="1" style="width:100%;border-collapse:collapse;margin-top:10px;font-size:.9em"><thead><tr style="background-color:#f2f2f2"><th style="padding:5px">اسم البضاعة</th><th style="padding:5px">الكمية</th><th style="padding:5px">المورد</th><th style="padding:5px">متوسط التكلفة</th><th style="padding:5px">إجمالي التكلفة</th></tr></thead><tbody>${[...products].sort((a, b) => a.name.localeCompare(b.name, 'ar')).map(p => { const supplier = suppliers.find(s => s.id === p.supplierId); return `<tr><td style="padding:5px">${p.name || 'غير مسمى'}</td><td style="padding:5px;text-align:center;">${Number(p.quantity) || 0}</td><td style="padding:5px">${supplier ? supplier.name : '-'}</td><td style="padding:5px;text-align:center;">${formatCurrency(p.costPrice)}</td><td style="padding:5px;text-align:center;">${formatCurrency((Number(p.quantity) || 0) * (Number(p.costPrice) || 0))}</td></tr>` }).join('')}</tbody><tfoot><tr style="background-color:#f2f2f2;font-weight:bold;"><td colspan="4" style="padding:5px;text-align:left;">إجمالي قيمة المخزون:</td><td style="padding:5px;text-align:center;">${formatCurrency(totalInventoryValue)}</td></tr></tfoot></table>` } let logList = '<p>لا توجد عمليات مسجلة.</p>'; if(operationLog.length > 0){ logList = `<ul style="list-style:none;padding-right:0;margin-top:10px;font-size:.85em">${[...operationLog].reverse().map(log => `<li style="border-bottom:1px dotted #ccc;margin-bottom:5px;padding-bottom:5px"><strong style="color:#333;">${log.type}:</strong> ${log.details}<br><small style="color:#555">${formatDateTime(log.timestamp)}</small></li>`).join('')}</ul>` } let debtorsTable = '<p>لا توجد ديون مستحقة.</p>'; if(debtors.length > 0){ const groupedDebtsForPrint = debtors.reduce((acc, debt) => { const name = debt.name; if (!acc[name]) acc[name] = { total: 0, items: [] }; const amount = Number(debt.amount) || 0; if(amount > 0.001){ acc[name].total += amount; acc[name].items.push({ reason: debt.reason || '-', amount: amount }); } return acc; }, {}); const sortedDebtorNames = Object.keys(groupedDebtsForPrint).filter(name => groupedDebtsForPrint[name].total > 0.001).sort((a, b) => a.localeCompare(b, 'ar')); if(sortedDebtorNames.length > 0) { debtorsTable = `<table border="1" style="width:100%;border-collapse:collapse;margin-top:10px;font-size:.9em"><thead><tr style="background-color:#f2f2f2"><th style="padding:5px">اسم المدين</th><th style="padding:5px">السبب</th><th style="padding:5px">المبلغ المستحق</th></tr></thead><tbody>`; sortedDebtorNames.forEach(name => { const data = groupedDebtsForPrint[name]; debtorsTable += `<tr style="background-color:#f9f9f9;"><td style="padding:5px; font-weight:bold;" colspan="2">${name} (الإجمالي)</td><td style="padding:5px; font-weight:bold;text-align:center;">${formatCurrency(data.total)}</td></tr>`; data.items.sort((a,b) => a.reason.localeCompare(b.reason, 'ar')).forEach(item => { debtorsTable += `<tr><td style="padding:5px; padding-right: 15px;"></td><td style="padding:5px;">${item.reason}</td><td style="padding:5px;text-align:center;">${formatCurrency(item.amount)}</td></tr>`; }); }); debtorsTable += `</tbody><tfoot><tr style="background-color:#f2f2f2;font-weight:bold;"><td colspan="2" style="padding:5px;text-align:left;">إجمالي الديون (لك):</td><td style="padding:5px;text-align:center;">${formatCurrency(totalDebtsValue)}</td></tr></tfoot></table>`; } } let liabilitiesTable = '<p>لا توجد التزامات مستحقة.</p>'; const validLiabilities = liabilities.filter(l => (Number(l.amount) || 0) > 0.001); if(validLiabilities.length > 0){ liabilitiesTable = `<table border="1" style="width:100%;border-collapse:collapse;margin-top:10px;font-size:.9em"><thead><tr style="background-color:#f2f2f2"><th style="padding:5px">اسم الدائن</th><th style="padding:5px">المبلغ المستحق</th></tr></thead><tbody>${[...validLiabilities].sort((a, b) => a.name.localeCompare(b.name, 'ar')).map(l => `<tr><td style="padding:5px">${l.name}</td><td style="padding:5px;text-align:center;">${formatCurrency(l.amount)}</td></tr>`).join('')}</tbody><tfoot><tr style="background-color:#f2f2f2;font-weight:bold;"><td style="padding:5px;text-align:left;">إجمالي الالتزامات (عليك):</td><td style="padding:5px;text-align:center;">${formatCurrency(totalLiabilitiesValue)}</td></tr></tfoot></table>` } let suppliersTable = '<p>لا يوجد موردين مسجلين.</p>'; if(suppliers.length > 0){ suppliersTable = `<table border="1" style="width:100%;border-collapse:collapse;margin-top:10px;font-size:.9em"><thead><tr style="background-color:#f2f2f2"><th style="padding:5px">اسم المورد</th><th style="padding:5px">الاتصال</th><th style="padding:5px">العنوان</th></tr></thead><tbody>${[...suppliers].sort((a, b) => a.name.localeCompare(b.name, 'ar')).map(s => `<tr><td style="padding:5px">${s.name}</td><td style="padding:5px">${s.contact || '-'}</td><td style="padding:5px">${s.address || '-'}</td></tr>`).join('')}</tbody></table>` } return `<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>تقرير العمليات - ${reportDate}</title><style>body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;margin:20px; line-height: 1.4;}h1,h2{color:#333;border-bottom:1px solid #ccc;padding-bottom:5px;margin-bottom:15px}h1{text-align:center;font-size:1.4em}h2{font-size:1.1em;margin-top:25px;margin-bottom:10px;}p{margin:5px 0;}table{width:100%;border-collapse:collapse;margin-top:10px;font-size:.9em}th,td{border:1px solid #ddd;padding:6px;text-align:right; vertical-align:top;}th{background-color:#f2f2f2;font-weight:bold;}.summary p{font-size:1em;margin:5px 0; padding-right: 10px;}.print-info{text-align:center;font-size:.8em;color:#666;margin-bottom:20px}ul{list-style:none; padding-right:0;} tfoot td {font-weight:bold;} @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } h2 { page-break-before: auto; page-break-after: avoid; } table { page-break-inside: auto; } tr { page-break-inside: avoid; page-break-after: auto; } thead { display: table-header-group; } tfoot { display: table-footer-group; } } </style></head><body><h1>تقرير العمليات</h1><p class="print-info">تاريخ بيانات التقرير: ${reportDate}<br>تاريخ ووقت الطباعة: ${printDateTime}</p><div class="summary"><h2>الملخص المالي</h2><p><strong>السيولة المتاحة:</strong> ${formatCurrency(liquidity)}</p><p><strong>إجمالي قيمة المخزون:</strong> ${formatCurrency(totalInventoryValue)}</p><p><strong>قيمة البضاعة المؤقتة:</strong> ${formatCurrency(goodsOnConsignmentValue)}</p><p><strong>إجمالي الديون المستحقة للشركة:</strong> ${formatCurrency(totalDebtsValue)}</p><p><strong>إجمالي الالتزامات المستحقة على الشركة:</strong> ${formatCurrency(totalLiabilitiesValue)}</p><p><strong>إجمالي المصروفات المسجلة:</strong> ${formatCurrency(expenses)}</p><p><strong>إجمالي الربح المحقق:</strong> ${formatCurrency(totalProfit)}</p><p><strong>رأس المال الحالي:</strong> ${formatCurrency(totalCapital)}</p></div><h2>تفاصيل الالتزامات المستحقة على الشركة</h2>${liabilitiesTable}<h2>تفاصيل الديون المستحقة للشركة</h2>${debtorsTable}<h2>تفاصيل المخزون</h2>${productsTable}<h2>تفاصيل الموردين</h2>${suppliersTable}<h2>سجل العمليات</h2>${logList}</body></html>` }
         // =======================================================
 // START: Monthly Liabilities Functions
 // =======================================================
