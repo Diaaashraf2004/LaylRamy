@@ -5816,87 +5816,65 @@ async function loadDataForDate(dateString) {
     if (!window.currentUser || !dateString) return false;
     const userId = window.currentUser.uid;
 
-    // ✅ Helper لتثبيت التاريخ بتوقيت مصر (بدل UTC)
     const getCairoDateString = (isoOrDate = null) => {
         try {
             const dObj = isoOrDate ? new Date(isoOrDate) : new Date();
-            return dObj.toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' }); // YYYY-MM-DD
+            return dObj.toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' });
         } catch (e) {
             if (typeof isoOrDate === 'string' && isoOrDate.includes('T')) return isoOrDate.split('T')[0];
             return dateString;
         }
     };
 
-    // ✅ Helper: دمج فواتير اليوم من invoices داخل salesToday
     const syncInvoicesOfDayIntoSalesToday = async () => {
         try {
             const invoicesColRef = window.collection(window.db, "users", userId, "invoices");
             const q = window.query(invoicesColRef, window.where("saleDate", "==", dateString));
             const snap = await window.getDocs(q);
-
             const cloudInvoices = [];
             snap.forEach((docSnap) => {
                 const data = docSnap.data() || {};
-                // توحيد الـ id
                 const key = data.id || data.invoiceNumber || docSnap.id;
                 cloudInvoices.push({ ...data, id: key });
             });
-
-            // ✅ لو عندك بيانات محلية غير مرفوعة (needsCloudSync) أو أي سجلات محلية حديثة
             const localExisting = Array.isArray(salesToday) ? salesToday : [];
             const localById = new Map(localExisting.map(s => [String(s.id || ''), s]));
-
-            // ✅ ادمج: السحابة أساس، والمحلي يغلب فقط لو needsCloudSync أو نسخة أحدث
             cloudInvoices.forEach(ci => {
                 const idKey = String(ci.id || '');
                 const local = localById.get(idKey);
                 if (local) {
                     if (local.needsCloudSync) {
-                        // احتفظ بالمحلي لأنه لم يرفع
                         localById.set(idKey, local);
                     } else {
-                        // السحابة هي المصدر
                         localById.set(idKey, ci);
                     }
                 } else {
                     localById.set(idKey, ci);
                 }
             });
-
-            // اكتب الناتج في salesToday
             salesToday = Array.from(localById.values());
-
-            console.log(`✅ تم دمج ${cloudInvoices.length} فاتورة من السحابة داخل مبيعات يوم ${dateString}.`);
+            console.log(`✅ تم دمج ${cloudInvoices.length} فاتورة من السحابة.`);
         } catch (e) {
             console.warn("تعذر جلب فواتير اليوم من السحابة:", e);
         }
     };
 
     try {
-        // 1. محاولة جلب بيانات اليوم المختار من السحابة
         const docRef = window.doc(window.db, "users", userId, "days", dateString);
         const docSnap = await window.getDoc(docRef);
 
         if (docSnap.exists()) {
-            // الحالة أ: اليوم موجود بالفعل (تحميل يوم مسجل سابقاً)
             console.log("تم تحميل بيانات مسجلة لهذا اليوم.");
             loadState(docSnap.data(), dateString);
-
-            // ✅ مهم جدًا: بعد تحميل اليوم، ادمج فواتير هذا اليوم من invoices
             await syncInvoicesOfDayIntoSalesToday();
-
             if (loadMsg) showMessage(loadMsg, `تم تحميل بيانات يوم ${dateString} بنجاح.`, false);
             updateUI();
             return true;
-
         } else {
-            // الحالة ب: يوم جديد (بدء ترحيل الأرصدة من آخر وضع للبرنامج)
             console.log("يوم جديد.. جاري ترحيل الأصول والأرصدة...");
-            
             let dataToMigrate = null;
             let sourceName = "";
 
-            // البحث عن مصدر للبيانات (الأولوية لملخص الأرصدة السريع)
             const summaryDocRef = window.doc(window.db, "users", userId, "summaries", "latestBalances");
             const summarySnap = await window.getDoc(summaryDocRef);
             
@@ -5904,13 +5882,9 @@ async function loadDataForDate(dateString) {
                 dataToMigrate = summarySnap.data();
                 sourceName = "آخر أرصدة مسجلة بالسحابة";
             } else {
-                // محاولة جلب بيانات أمس إذا لم يوجد ملخص
                 const yesterday = new Date(dateString);
                 yesterday.setDate(yesterday.getDate() - 1);
-
-                // ✅ بدل UTC
                 const prevDateStr = getCairoDateString(yesterday);
-
                 const prevDocRef = window.doc(window.db, "users", userId, "days", prevDateStr);
                 const prevSnap = await window.getDoc(prevDocRef);
                 if (prevSnap.exists()) {
@@ -5920,25 +5894,26 @@ async function loadDataForDate(dateString) {
             }
 
             if (dataToMigrate) {
-                // 🛑🛑🛑 منطقة التطهير والتدقيق المالي 🛑🛑🛑
-                
-                // 1. تصفير السجلات اليومية (لا تنتقل لليوم الجديد)
+                // تصفير سجلات اليوم الجديد
                 dataToMigrate.salesToday = [];       
                 dataToMigrate.purchaseInvoices = []; 
                 dataToMigrate.completedReturns = []; 
                 dataToMigrate.expenses = 0;          
                 dataToMigrate.profit = 0;            
 
-                // 2. ✅ التأمين المالي للمرتجعات
-                dataToMigrate.pendingReturns = dataToMigrate.pendingReturns || [];
-                dataToMigrate.pendingReturnsValue = dataToMigrate.pendingReturns.reduce((sum, r) => {
-                    return sum + (Number(r.returnedAmount) || 0);
-                }, 0);
+                // 🛑 منطقة التعديل الجوهرية: تأمين نقل بيانات الالتزامات كاملة 🛑
+                if (dataToMigrate.liabilities && Array.isArray(dataToMigrate.liabilities)) {
+                    dataToMigrate.liabilities = dataToMigrate.liabilities.map(liab => ({
+                        ...liab,
+                        // التأكد من ترحيل معرف الفاتورة السحابي ليوم غد
+                        purchaseInvoiceId: liab.purchaseInvoiceId || null 
+                    })).filter(liab => liab.amount > 0.01); 
+                }
 
-                // 3. ✅ التأمين المالي للمشتريات
+                dataToMigrate.pendingReturns = dataToMigrate.pendingReturns || [];
+                dataToMigrate.pendingReturnsValue = dataToMigrate.pendingReturns.reduce((sum, r) => sum + (Number(r.returnedAmount) || 0), 0);
                 dataToMigrate.pendingPurchases = dataToMigrate.pendingPurchases || [];
 
-                // 4. السجلات الافتتاحية
                 dataToMigrate.log = [{
                     id: typeof generateUniqueId === 'function' ? generateUniqueId('LOG') : `log-${Date.now()}`,
                     timestamp: new Date().toISOString(),
@@ -5955,39 +5930,25 @@ async function loadDataForDate(dateString) {
                     description: `رصيد افتتاح مرحل من ${sourceName}`,
                     currentBalance: totalLiquidity
                 }];
-
-                console.log(`✅ تمت معالجة وترحيل قيمة المرتجعات: ${dataToMigrate.pendingReturnsValue}`);
                 
-                // تحميل البيانات المنقحة
                 loadState(dataToMigrate, dateString);
-
-                // ✅ حتى في اليوم الجديد: لو كان عندك فواتير اليوم موجودة بالفعل في invoices (مثلاً اتعملت من جهاز آخر)
                 await syncInvoicesOfDayIntoSalesToday();
-                
-                // حفظ فوري لليوم الجديد بالسحابة لتثبيته كـ "يوم مفتوح"
                 await saveSystemToCloud();
                 
                 if (loadMsg) showMessage(loadMsg, `تم بدء يوم جديد وترحيل كافة الأرصدة بنجاح.`, false);
                 updateUI();
                 return true;
-
             } else {
-                // بداية نظام فارغ
-                console.log("بداية نظام فارغ.");
                 resetState(); 
                 accounts = [{ id: 'main', name: 'الخزينة الرئيسية', balance: 0.00 }];
                 currentLoadedDate = dateString;
-
-                // ✅ مزامنة فواتير اليوم (لو موجودة)
                 await syncInvoicesOfDayIntoSalesToday();
-
                 await saveSystemToCloud();
                 updateUI();
                 if (loadMsg) showMessage(loadMsg, `بدء يوم جديد (نظام فارغ).`, false, true);
                 return true;
             }
         }
-
     } catch (error) {
         console.error("خطأ في التحميل المالي:", error);
         if (loadMsg) showMessage(loadMsg, "حدث خطأ أثناء الاتصال بالسحابة.", true);
@@ -6835,18 +6796,74 @@ async function handleSaveInvoice() {
         }
     });
 
-  if (inv_deductibleCostsContainer) {
+// 3.1 التكاليف الإضافية / البنود المخصومة
+if (isInvoiceFromPending && pendingSaleOriginData) {
+    let originalDeductedItems =
+        pendingSaleOriginData.deductedItems ||
+        pendingSaleOriginData.additionalItems ||
+        pendingSaleOriginData.invoiceData?.deductedItems ||
+        [];
+
+    // لو البيع المؤقت القديم جدًا ولم نجد البنود المخصومة بشكلها المعتاد
+    if (
+        (!Array.isArray(originalDeductedItems) || originalDeductedItems.length === 0) &&
+        Array.isArray(pendingSaleOriginData.additionalItems) &&
+        pendingSaleOriginData.additionalItems.length > 0
+    ) {
+        originalDeductedItems = pendingSaleOriginData.additionalItems.map(item => {
+            const productFromStock = (products || []).find(
+                p => (p.name || '').toLowerCase() === String(item.name || '').toLowerCase()
+            );
+
+            return {
+                name: item.name,
+                quantity: Number(item.quantity) || 0,
+                costPrice: Number(item.costPrice ?? item.cost ?? productFromStock?.costPrice ?? 0) || 0
+            };
+        });
+    }
+
+    // دائمًا انسخ البنود المخصومة للحفظ النهائي
+    deductedItemsData = Array.isArray(originalDeductedItems)
+        ? originalDeductedItems.map(item => ({
+            name: item.name,
+            quantity: Number(item.quantity) || 0,
+            costPrice: Number(item.costPrice ?? item.cost ?? 0) || 0
+        })).filter(item => item.quantity > 0)
+        : [];
+
+    deductedItemsData.forEach(item => {
+        if (item.quantity > 0 && item.costPrice <= 0) {
+            console.warn("تعذر تحديد تكلفة الملحق القديم:", item);
+        }
+    });
+
+    // مهم جدًا:
+    // إذا كانت التكلفة محفوظة بالفعل في البيع المؤقت، استخدمها كما هي
+    if (Number(pendingSaleOriginData.totalCost) > 0) {
+        totalInvoiceCost = Number(pendingSaleOriginData.totalCost) || 0;
+    } else {
+        // fallback للبيانات القديمة التي لا تحتوي totalCost صحيح
+        deductedItemsData.forEach(item => {
+            totalInvoiceCost += (Number(item.costPrice) || 0) * (Number(item.quantity) || 0);
+        });
+    }
+
+} else if (inv_deductibleCostsContainer) {
+    // لو فاتورة جديدة عادية، نقرأ من الـ checkboxes الحالية
     const checkedBoxes = inv_deductibleCostsContainer.querySelectorAll('input[type="checkbox"]:checked');
+
     checkedBoxes.forEach(checkbox => {
         const name = checkbox.value;
 
-        // ✅ قراءة التكلفة من أكثر من اسم محتمل + fallback من المخزون
         const ds = checkbox.dataset || {};
         let unitCost =
             Number(ds.cost ?? ds.costprice ?? ds.costPrice ?? ds.unitCost ?? ds.price ?? 0) || 0;
 
         if (!unitCost) {
-            const prod = (products || []).find(p => (p.name || '').toLowerCase() === String(name).toLowerCase());
+            const prod = (products || []).find(
+                p => (p.name || '').toLowerCase() === String(name).toLowerCase()
+            );
             unitCost = Number(prod?.costPrice ?? 0) || 0;
         }
 
@@ -6855,16 +6872,18 @@ async function handleSaveInvoice() {
         const qtyToDeduct = parseInt(quantityInput?.value || '0');
 
         if (qtyToDeduct > 0) {
-            deductedItemsData.push({ name, quantity: qtyToDeduct, costPrice: unitCost });
+            deductedItemsData.push({
+                name,
+                quantity: qtyToDeduct,
+                costPrice: unitCost
+            });
+
             totalInvoiceCost += (unitCost * qtyToDeduct);
 
-            if (!isInvoiceFromPending) {
-                quantitiesToDeduct[name] = (quantitiesToDeduct[name] || 0) + qtyToDeduct;
-            }
+            quantitiesToDeduct[name] = (quantitiesToDeduct[name] || 0) + qtyToDeduct;
         }
     });
 }
-
     // خصم المخزون (للفواتير الجديدة فقط)
     if (!isInvoiceFromPending) {
         Object.keys(quantitiesToDeduct).forEach(itemName => {
@@ -7733,11 +7752,11 @@ function displaySalesReport(salesToDisplay) {
                 </div>
             `).join('');
 
-        const saleAmount = Number(sale.grandTotal ?? sale.totalSellPrice) || 0;
+      const saleAmount = Number(sale.grandTotal ?? sale.totalSellPrice) || 0;
 
 const baseCost = Number(sale.totalCost) || 0;
 
-// ✅ تكلفة الملحقات/التكاليف المخصومة (من الفاتورة نفسها)
+// تكلفة الملحقات/التكاليف المخصومة
 const deductedCost = Array.isArray(sale.deductedItems)
   ? sale.deductedItems.reduce((sum, x) => {
       const q = Number(x?.quantity ?? x?.qty ?? 0) || 0;
@@ -7746,19 +7765,25 @@ const deductedCost = Array.isArray(sale.deductedItems)
     }, 0)
   : 0;
 
-// ✅ لو الفاتورة قديمة وكانت totalCost ناقصة الملحقات
-// نضيف deductedCost للتكلفة (لكن فقط إذا كانت موجودة)
-const fixedCost = baseCost + (deductedCost > 0 ? deductedCost : 0);
+// تحديد هل totalCost محفوظة بالفعل شاملة الملحقات أم لا
+// لو فيه deductedItems ومع ذلك الربح المحفوظ يطابق (saleAmount - baseCost)
+// فهذا يعني أن totalCost شاملة بالفعل، فلا نضيف deductedCost مرة ثانية
+const savedProfit = Number(sale.profit) || 0;
+const costAlreadyIncludesDeducted =
+  deductedCost > 0 && Math.abs(savedProfit - (saleAmount - baseCost)) <= 0.01;
+
+// لو totalCost غير شاملة الملحقات في البيانات القديمة، أضف deductedCost كحل احتياطي
+const fixedCost = costAlreadyIncludesDeducted
+  ? baseCost
+  : baseCost + (deductedCost > 0 ? deductedCost : 0);
 
 const costAmount = fixedCost;
-
-// ✅ الربح الصح المحسوب
 const computedProfit = saleAmount - fixedCost;
 
-// ✅ لو الربح المحفوظ مش متوافق مع الحساب (فرق كبير) اعرض المحسوب
-const savedProfit = Number(sale.profit) || 0;
-const profitAmount = (Math.abs(savedProfit - computedProfit) > 0.01) ? computedProfit : savedProfit;
-
+// لو الربح المحفوظ متوافق مع الحساب نستخدمه، وإلا نستخدم المحسوب
+const profitAmount = (Math.abs(savedProfit - computedProfit) > 0.01)
+  ? computedProfit
+  : savedProfit;
             totalMonthSales += saleAmount;
             totalMonthCost += costAmount;
             totalMonthProfit += profitAmount;
@@ -9595,23 +9620,31 @@ function handlePendingPurchaseActions(event) {
         });
     };
 
-    // --- باقي العمليات تبقى كما هي تماماً لضمان عدم تعطل النظام ---
-    if (target.classList.contains('receive-goods-btn')) {
-        if (!confirm(`هل أنت متأكد من استلام بضاعة الفاتورة من المورد "${supplier?.name || '-'}"؟ سيتم توزيع التكاليف الإضافية على البضاعة.`)) return;
-        saveStateToHistory();
-        updateInventoryFromPurchase(purchase);
-        
-        if (purchase.remainingBalance > 0.001) {
-            liabilities.push({ id: generateId('liab'), name: `متبقي فاتورة لـ: ${supplier.name} (${purchase.invoiceNumber || 'بدون رقم'})`, amount: purchase.remainingBalance, purchaseInvoiceId: purchase.id });
-        }
-        
-        purchase.status = 'Confirmed';
-        purchaseInvoices.push(purchase);
-        pendingPurchases.splice(purchaseIndex, 1);
-        logOperation("استلام بضاعة", `تم استلام بضاعة من "${supplier?.name}" وتوزيع التكاليف وتحديث التصنيفات.`);
-        showGlobalMessage("تم استلام البضاعة وتحديث المخزون بالتصنيفات والتكاليف الصحيحة.", false);
+    // البحث عن هذا الجزء داخل handlePendingPurchaseActions
+if (target.classList.contains('receive-goods-btn')) {
+    if (!confirm(`هل أنت متأكد من استلام بضاعة الفاتورة من المورد "${supplier?.name || '-'}"؟ سيتم توزيع التكاليف الإضافية على البضاعة.`)) return;
+    
+    saveStateToHistory();
+    updateInventoryFromPurchase(purchase);
 
-    } else if (target.classList.contains('receive-and-pay-btn')) {
+    // التعديل هنا: إضافة purchaseInvoiceId لضمان ظهور التفاصيل في الأيام التالية
+    if (purchase.remainingBalance > 0.001) {
+        liabilities.push({
+            id: generateId('liab'),
+            name: `متبقي فاتورة لـ: ${supplier.name} (${purchase.invoiceNumber || 'بدون رقم'})`,
+            amount: purchase.remainingBalance,
+            purchaseInvoiceId: purchase.id // 👈 السطر الأهم للربط السحابي
+        });
+    }
+
+    purchase.status = 'Confirmed';
+    purchaseInvoices.push(purchase);
+    pendingPurchases.splice(purchaseIndex, 1);
+    
+    logOperation("استلام بضاعة", `تم استلام بضاعة من "${supplier?.name}" وتحديث المخزون.`);
+    showGlobalMessage("تم استلام البضاعة وتحديث المخزون بالتكاليف الصحيحة.", false);
+}
+ else if (target.classList.contains('receive-and-pay-btn')) {
         const paymentForm = d('pending-purchase-payment-form');
         d('pp-payment-supplier-name').textContent = supplier?.name || 'غير محدد';
         d('pp-payment-remaining-amount').textContent = formatCurrency(purchase.remainingBalance);
@@ -9668,7 +9701,7 @@ async function pi_confirmPurchaseInvoice() {
     // 3. تجميع التكاليف الإضافية
     let extraCostsList = [];
     let totalExtraCostsVal = 0;
-    let totalLiabilitiesVal = 0; // مجموع التكاليف الآجلة (منفصلة عن المورد)
+    let totalLiabilitiesVal = 0;
 
     document.querySelectorAll('.pi-extra-cost-row').forEach(row => {
         const nameInput = row.querySelector('.pi-cost-name');
@@ -9691,8 +9724,6 @@ async function pi_confirmPurchaseInvoice() {
     });
 
     const trueGrandTotal = itemsSubtotal + totalExtraCostsVal;
-    
-    // المبلغ المستحق دفعه نقداً للمورد (الإجمالي - التكاليف الآجلة الخارجية)
     const maxCashPayment = trueGrandTotal - totalLiabilitiesVal;
 
     if (paidAmountValue > (maxCashPayment + 0.5)) {
@@ -9710,8 +9741,9 @@ async function pi_confirmPurchaseInvoice() {
     saveStateToHistory();
 
     // 4. إنشاء كائن الفاتورة
+    const invoiceId = generateId('pi'); // إنشاء الـ ID مسبقاً لاستخدامه في الربط
     const invoiceData = {
-        id: generateId('pi'),
+        id: invoiceId,
         supplierId: piSupplierSelect.value,
         invoiceNumber: piInvoiceNumberInput.value.trim(),
         date: piDateInput.value,
@@ -9720,19 +9752,17 @@ async function pi_confirmPurchaseInvoice() {
         extraCosts: extraCostsList,
         grandTotal: trueGrandTotal,
         paidAmount: paidAmountValue,
-        // المتبقي للمورد الأساسي = الإجمالي الكلي - المدفوع - التكاليف الآجلة (لأنها ديون لأطراف أخرى)
         remainingBalance: trueGrandTotal - paidAmountValue - totalLiabilitiesVal,
         status: goodsReceived ? 'Confirmed' : 'Pending',
-        deductedFromLiquidity: deductFromLiquidity && paidAmountValue > 0,
+        deductFromLiquidity: deductFromLiquidity && paidAmountValue > 0,
         paidFromAccountId: (deductFromLiquidity && paidAmountValue > 0) ? selectedAccountId : null
     };
 
     const supplier = suppliers.find(s => s.id === invoiceData.supplierId);
 
-    // 5. دالة معالجة المخزون وتوزيع التكاليف
+    // 5. دالة معالجة المخزون
     const processInventoryUpdate = () => {
         invoiceData.items.forEach(item => {
-            // توزيع التكاليف الإضافية (سواء نقدية أو آجلة) على تكلفة المنتج
             let extraCostPerUnit = 0;
             if (itemsSubtotal > 0) {
                 const itemTotalBaseCost = item.quantity * item.cost;
@@ -9748,7 +9778,6 @@ async function pi_confirmPurchaseInvoice() {
                 const oldCost = Number(existing.costPrice) || 0;
                 const totalQty = oldQty + item.quantity;
                 existing.quantity = totalQty;
-                // تحديث متوسط التكلفة
                 existing.costPrice = totalQty > 0 ? ((oldQty * oldCost) + (item.quantity * finalCostPerUnit)) / totalQty : finalCostPerUnit;
                 if(item.category) existing.category = item.category;
             } else {
@@ -9761,7 +9790,6 @@ async function pi_confirmPurchaseInvoice() {
                 });
             }
             
-            // إضافة السيريالات
             if (item.serials && item.serials.length > 0) {
                 item.serials.forEach(serial => {
                     if(!serialNumbersLog.some(s => s.serial === serial)) {
@@ -9788,7 +9816,7 @@ async function pi_confirmPurchaseInvoice() {
         logOperation("شراء معلق", `تم تسجيل شراء معلق من "${supplier ? supplier.name : '-'}".`);
     }
 
-    // 7. الخصم من السيولة (للمورد)
+    // 7. الخصم من السيولة
     if (deductFromLiquidity && paidAmountValue > 0) {
         account.balance -= paidAmountValue;
         const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
@@ -9803,54 +9831,52 @@ async function pi_confirmPurchaseInvoice() {
         });
     }
 
-    // 8. تسجيل الدين الأساسي للمورد (Remaining Balance)
+    // 8. تسجيل الدين الأساسي للمورد (مع الربط السحابي)
     if (invoiceData.remainingBalance > 0.001 && goodsReceived) {
         liabilities.push({
             id: generateId('liab'),
             name: `متبقي فاتورة شراء: ${supplier ? supplier.name : 'مورد'} (${invoiceData.invoiceNumber || 'بدون رقم'})`,
             amount: invoiceData.remainingBalance,
-            purchaseInvoiceId: invoiceData.id
+            purchaseInvoiceId: invoiceId, // 👈 تم تأكيد الربط هنا
+            date: invoiceData.date
         });
     }
 
-    // ========================================================================
-    // 🔥🔥 الإصلاح الأساسي: تسجيل التكاليف الإضافية الآجلة كالتزامات منفصلة 🔥🔥
-   // ========================================================================
-// 🔥🔥 الإصلاح: دمج التكلفة مع الالتزام القديم إذا تم اختياره 🔥🔥
-// ========================================================================
-if (goodsReceived || !goodsReceived) {
+    // 9. تسجيل التكاليف الإضافية الآجلة
     invoiceData.extraCosts.forEach(cost => {
         if (cost.isLiability) {
             let merged = false;
-
-            // 1. التحقق هل اختار المستخدم التزاماً قديماً (linkedLiabilityId)؟
             if (cost.linkedLiabilityId) {
                 const existingLiabIndex = liabilities.findIndex(l => l.id === cost.linkedLiabilityId);
                 if (existingLiabIndex !== -1) {
-                    // تحديث الالتزام القديم بإضافة المبلغ عليه
                     liabilities[existingLiabIndex].amount = (Number(liabilities[existingLiabIndex].amount) || 0) + cost.amount;
+                    // تحديث الربط حتى لو دمجنا مع قديم لضمان الوصول لآخر فاتورة
+                    liabilities[existingLiabIndex].purchaseInvoiceId = invoiceId; 
                     merged = true;
                 }
             }
 
-            // 2. إذا لم يتم الدمج (إما لم يختر قديماً، أو اختار "إنشاء جديد")، ننشئ واحداً جديداً
             if (!merged) {
                 liabilities.push({
                     id: generateId('liab'),
-                    // هنا سيظهر الاسم الجديد "ت. إضافية..." فقط إذا كان التزاماً جديداً
                     name: `ت. إضافية (${cost.name}) - فاتورة ${invoiceData.invoiceNumber || ''} (${supplier ? supplier.name : ''})`,
                     amount: cost.amount,
-                    purchaseInvoiceId: invoiceData.id
+                    purchaseInvoiceId: invoiceId, // 👈 تم تأكيد الربط هنا
+                    date: invoiceData.date
                 });
             }
         }
     });
-}
-    // ========================================================================
 
-    // 9. الأرشفة السحابية
+    // 10. الأرشفة السحابية (مهم جداً استخدام await)
     if(window.savePurchaseInvoiceToCloud) {
-        window.savePurchaseInvoiceToCloud(invoiceData);
+        await window.savePurchaseInvoiceToCloud(invoiceData); 
+        console.log("✅ تمت أرشفة الفاتورة سحابياً بنجاح.");
+    }
+
+    // 11. حفظ النظام بالكامل وتحديث الواجهة
+    if(window.saveSystemToCloud) {
+        await window.saveSystemToCloud();
     }
 
     updateUI();
@@ -12912,41 +12938,48 @@ if (d('liabilities-list-container')) {
         const target = e.target.closest('.view-purchase-invoice-btn');
         if (target) {
             const invoiceId = target.dataset.purchaseInvoiceId;
-            console.log("🔍 جاري محاولة جلب الفاتورة رقم:", invoiceId);
+            console.log("🔍 محاولة جلب الفاتورة:", invoiceId);
 
-            if (!invoiceId) {
-                alert("تنبيه: هذه الفاتورة قديمة ولا تملك معرّفاً سحابياً.");
+            if (!invoiceId || invoiceId === "undefined" || invoiceId === "null") {
+                alert("تنبيه: هذا الالتزام لا يملك معرّف فاتورة سحابي (ربما تم تسجيله يدوياً أو قبل التحديث).");
                 return;
             }
 
-            let invoice = purchaseInvoices.find(inv => inv.id === invoiceId);
+            // 1. البحث في فواتير المشتريات المحملة حالياً
+            let invoice = (purchaseInvoices || []).find(inv => inv.id === invoiceId);
 
+            // 2. إذا لم توجد (بسبب اختلاف الأيام)، نجلبها من الأرشيف السحابي
             if (!invoice && window.currentUser) {
                 const statusEl = document.getElementById('global-message');
-                if(statusEl) showMessage(statusEl, "جاري البحث في الأرشيف السحابي...", false, true);
+                if(statusEl) showMessage(statusEl, "جاري جلب تفاصيل الفاتورة من الأرشيف السحابي...", false, true);
                 
                 try {
                     const docRef = window.doc(window.db, "users", window.currentUser.uid, "purchase_archives", invoiceId);
                     const docSnap = await window.getDoc(docRef);
                     if (docSnap.exists()) {
                         invoice = docSnap.data();
-                        console.log("✅ تم العثور على الفاتورة في السحابة.");
+                        console.log("✅ تم العثور على الفاتورة في الأرشيف السحابي.");
                     }
                 } catch (err) {
-                    console.error("❌ خطأ في الاتصال بالسحابة:", err);
+                    console.error("❌ خطأ في جلب بيانات الأرشيف:", err);
                 }
                 if(statusEl) showMessage(statusEl, "");
             }
 
             if (invoice) {
-                // عرض التفاصيل (نفس منطق Alert السابق)
-                let details = `📦 تفاصيل الفاتورة من الأرشيف:\n----------------------------\n`;
-                details += `رقمها: ${invoice.invoiceNumber || 'N/A'}\nإجمالي: ${formatCurrency(invoice.grandTotal)}\n`;
-                details += `المتبقي: ${formatCurrency(invoice.remainingBalance)}\n\nالبنود:\n`;
-                invoice.items.forEach(item => details += `- ${item.quantity}x ${item.name} (${formatCurrency(item.cost)})\n`);
+                let details = `📦 تفاصيل الفاتورة:\n----------------------------\n`;
+                details += `رقم الفاتورة: ${invoice.invoiceNumber || 'N/A'}\n`;
+                details += `إجمالي الفاتورة: ${formatCurrency(invoice.grandTotal)}\n`;
+                details += `المبلغ المتبقي: ${formatCurrency(invoice.remainingBalance)}\n\n`;
+                details += `البنود:\n`;
+                if (invoice.items && Array.isArray(invoice.items)) {
+                    invoice.items.forEach(item => {
+                        details += `- ${item.quantity}x ${item.name} (${formatCurrency(item.cost)})\n`;
+                    });
+                }
                 alert(details);
             } else {
-                alert('عذراً، لم يتم العثور على تفاصيل هذه الفاتورة في الأرشيف السحابي.');
+                alert('عذراً، لم نتمكن من العثور على أصل هذه الفاتورة في السحاب.');
             }
         }
     });
