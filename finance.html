@@ -7717,7 +7717,137 @@ window.inv_calculateTotals = function() {
                 updateUI();
             }
 
-       
+       function reportNumbersClose(a, b, epsilon = 0.01) {
+    return Math.abs((Number(a) || 0) - (Number(b) || 0)) <= epsilon;
+}
+
+function getReportAttachmentItems(sale) {
+    if (Array.isArray(sale?.deductedItems) && sale.deductedItems.length > 0) {
+        return sale.deductedItems;
+    }
+
+    if (Array.isArray(sale?.additionalItems) && sale.additionalItems.length > 0) {
+        return sale.additionalItems;
+    }
+
+    if (Array.isArray(sale?.invoiceData?.deductedItems) && sale.invoiceData.deductedItems.length > 0) {
+        return sale.invoiceData.deductedItems;
+    }
+
+    return [];
+}
+
+function calcItemsCost(items) {
+    if (!Array.isArray(items) || items.length === 0) return 0;
+
+    return items.reduce((sum, item) => {
+        const qty = Number(item?.quantity ?? item?.qty ?? 0) || 0;
+        const cost = Number(item?.costPrice ?? item?.cost ?? 0) || 0;
+        return sum + (qty * cost);
+    }, 0);
+}
+
+function calcAttachmentItemsCost(items) {
+    if (!Array.isArray(items) || items.length === 0) return 0;
+
+    return items.reduce((sum, item) => {
+        const qty = Number(item?.quantity ?? item?.qty ?? 0) || 0;
+        const cost = Number(item?.costPrice ?? item?.cost ?? 0) || 0;
+        return sum + (qty * cost);
+    }, 0);
+}
+
+function itemsAlreadyContainAttachments(saleItems) {
+    if (!Array.isArray(saleItems) || saleItems.length === 0) return false;
+
+    return saleItems.some(item => {
+        const qty = Number(item?.quantity ?? item?.qty ?? 0) || 0;
+        const cost = Number(item?.costPrice ?? item?.cost ?? 0) || 0;
+        const subtotal = Number(item?.subtotal ?? 0) || 0;
+        const unitPrice = Number(item?.unitPrice ?? 0) || 0;
+
+        return qty > 0 && cost > 0 && subtotal === 0 && unitPrice === 0;
+    });
+}
+
+function computeSmartSaleMetricsForReport(sale) {
+    const saleAmount = Number(sale?.grandTotal ?? sale?.totalSellPrice ?? 0) || 0;
+
+    const savedCost = Number(sale?.totalCost ?? 0) || 0;
+
+    const savedProfitRaw =
+        sale?.profit ??
+        sale?.potentialProfit ??
+        null;
+
+    const hasSavedProfit =
+        savedProfitRaw !== null &&
+        savedProfitRaw !== undefined &&
+        savedProfitRaw !== '' &&
+        !isNaN(Number(savedProfitRaw));
+
+    const savedProfit = Number(savedProfitRaw) || 0;
+
+    const saleItems = Array.isArray(sale?.items) ? sale.items : [];
+    const attachmentItems = getReportAttachmentItems(sale);
+
+    const itemsCost = calcItemsCost(saleItems);
+    const attachmentCost = calcAttachmentItemsCost(attachmentItems);
+    const saleItemsContainAttachments = itemsAlreadyContainAttachments(saleItems);
+
+    let reconstructedCost = 0;
+
+    if (saleItems.length > 0) {
+        reconstructedCost = itemsCost + (saleItemsContainAttachments ? 0 : attachmentCost);
+    } else if (sale?.mainProduct) {
+        const mainQty = Number(sale.mainProduct?.quantity ?? sale.mainProduct?.qty ?? 0) || 0;
+        const mainCost = Number(sale.mainProduct?.costPrice ?? sale.mainProduct?.cost ?? 0) || 0;
+        reconstructedCost = (mainQty * mainCost) + attachmentCost;
+    } else {
+        reconstructedCost = 0;
+    }
+
+    let costAmount = 0;
+    let profitAmount = 0;
+
+    // 1) الأفضل دائمًا: لو الربح محفوظ، فهو المرجع الأول
+    if (hasSavedProfit) {
+        profitAmount = savedProfit;
+
+        // لو التكلفة المحفوظة متوافقة مع الربح، استخدمها
+        if (savedCost > 0 && reportNumbersClose(savedProfit, saleAmount - savedCost)) {
+            costAmount = savedCost;
+        } else {
+            // استخرج التكلفة من الربح المحفوظ
+            costAmount = saleAmount - savedProfit;
+        }
+    }
+    // 2) لو لا يوجد ربح محفوظ لكن توجد تكلفة محفوظة
+    else if (savedCost > 0) {
+        costAmount = savedCost;
+        profitAmount = saleAmount - savedCost;
+    }
+    // 3) fallback فقط للبيانات القديمة أو الناقصة
+    else {
+        costAmount = reconstructedCost;
+        profitAmount = saleAmount - reconstructedCost;
+    }
+
+    // تحذير فقط عند وجود تضارب واضح
+    if (
+        hasSavedProfit &&
+        savedCost > 0 &&
+        !reportNumbersClose(savedProfit, saleAmount - savedCost)
+    ) {
+        console.warn("تم العثور على تعارض بين الربح المحفوظ والتكلفة المحفوظة، وتم اعتماد الربح المحفوظ:", sale);
+    }
+
+    return {
+        saleAmount,
+        costAmount,
+        profitAmount
+    };
+}
 // salesToDisplay: هي مصفوفة المبيعات التي سيتم عرضها
 function displaySalesReport(salesToDisplay) {
     if (!salesReportTableBody || !reportTotalSales || !reportTotalCost || !reportTotalProfit) return;
@@ -7752,38 +7882,7 @@ function displaySalesReport(salesToDisplay) {
                 </div>
             `).join('');
 
-      const saleAmount = Number(sale.grandTotal ?? sale.totalSellPrice) || 0;
-
-const baseCost = Number(sale.totalCost) || 0;
-
-// تكلفة الملحقات/التكاليف المخصومة
-const deductedCost = Array.isArray(sale.deductedItems)
-  ? sale.deductedItems.reduce((sum, x) => {
-      const q = Number(x?.quantity ?? x?.qty ?? 0) || 0;
-      const c = Number(x?.costPrice ?? x?.cost ?? 0) || 0;
-      return sum + (q * c);
-    }, 0)
-  : 0;
-
-// تحديد هل totalCost محفوظة بالفعل شاملة الملحقات أم لا
-// لو فيه deductedItems ومع ذلك الربح المحفوظ يطابق (saleAmount - baseCost)
-// فهذا يعني أن totalCost شاملة بالفعل، فلا نضيف deductedCost مرة ثانية
-const savedProfit = Number(sale.profit) || 0;
-const costAlreadyIncludesDeducted =
-  deductedCost > 0 && Math.abs(savedProfit - (saleAmount - baseCost)) <= 0.01;
-
-// لو totalCost غير شاملة الملحقات في البيانات القديمة، أضف deductedCost كحل احتياطي
-const fixedCost = costAlreadyIncludesDeducted
-  ? baseCost
-  : baseCost + (deductedCost > 0 ? deductedCost : 0);
-
-const costAmount = fixedCost;
-const computedProfit = saleAmount - fixedCost;
-
-// لو الربح المحفوظ متوافق مع الحساب نستخدمه، وإلا نستخدم المحسوب
-const profitAmount = (Math.abs(savedProfit - computedProfit) > 0.01)
-  ? computedProfit
-  : savedProfit;
+    const { saleAmount, costAmount, profitAmount } = computeSmartSaleMetricsForReport(sale);
             totalMonthSales += saleAmount;
             totalMonthCost += costAmount;
             totalMonthProfit += profitAmount;
@@ -8380,7 +8479,7 @@ async function handlePendingSaleActions(event) {
                     newRow.dataset.itemQty = 1;
                     newRow.dataset.itemPrice = sale.totalSellPrice.toFixed(2);
                     newRow.dataset.itemSubtotal = subtotal.toFixed(2);
-                    newRow.dataset.itemCost = (mainCost + addCost).toFixed(2);
+                    newRow.dataset.itemCost = mainCost.toFixed(2);
                     newRow.innerHTML = `
                         <td class="item-name">${description}</td>
                         <td class="item-qty">1</td>
@@ -11648,6 +11747,7 @@ async function sellProduct() {
         const pendingData = {
             id: `pending-${Date.now()}`,
             timestamp: new Date().toISOString(),
+            saleDate: saleDateStr,
             customerName,
             mainProduct: { name: mainProductName, quantity: quantitySold, costPrice: mainProduct.costPrice },
             additionalItems: itemsForRecord.slice(1),
