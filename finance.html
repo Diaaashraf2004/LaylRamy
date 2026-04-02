@@ -8365,9 +8365,7 @@ function pi_validateForm() {
     return true;
 }
 
-/**
- * Updates the list of recent purchases for the current day.
- */
+
 function pi_updateRecentPurchasesDisplay() {
     if (!piRecentPurchasesList) return;
 
@@ -8376,7 +8374,6 @@ function pi_updateRecentPurchasesDisplay() {
         return;
     }
 
-    // Sort by timestamp, newest first
     const sortedInvoices = [...purchaseInvoices].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
     piRecentPurchasesList.innerHTML = sortedInvoices.map(invoice => {
@@ -8397,11 +8394,7 @@ function pi_updateRecentPurchasesDisplay() {
         `;
     }).join('');
 }
-/**
- * Updates the list of pending purchases for the current day.
-/**
- * Updates the list of pending purchases for the current day.
- */
+
 function pi_updatePendingPurchasesDisplay() {
     if (!d('pending-purchases-list')) return;
     const container = d('pending-purchases-list');
@@ -8416,13 +8409,11 @@ function pi_updatePendingPurchasesDisplay() {
     container.innerHTML = sortedInvoices.map(invoice => {
         const supplier = suppliers.find(s => s.id === invoice.supplierId);
 
-        // --- ✅ الكود الجديد: متغير لتخزين زر التسديد الإضافي ---
         let receiveAndPayButtonHTML = '';
-        // أظهر زر "استلام وتسديد" فقط إذا كان هناك مبلغ متبقٍ
         if (invoice.remainingBalance > 0.001) {
             receiveAndPayButtonHTML = `<button data-pending-purchase-id="${invoice.id}" class="receive-and-pay-btn text-xs bg-purple-500 hover:bg-purple-600 text-white font-semibold py-1 px-3 rounded">استلام وتسديد المتبقي</button>`;
         }
-        
+
         const itemsTableHTML = `
             <table class="w-full text-sm mt-2" style="border-top: 1px dashed #e2e8f0;">
                 <thead>
@@ -8443,7 +8434,7 @@ function pi_updatePendingPurchasesDisplay() {
                 </tbody>
             </table>
         `;
-        
+
         return `
             <div class="p-3 border rounded-md bg-yellow-50 shadow-sm mb-2">
                 <div class="flex justify-between items-center flex-wrap gap-2">
@@ -8458,13 +8449,13 @@ function pi_updatePendingPurchasesDisplay() {
 
                 <div class="text-sm mt-2 pt-2 border-t flex justify-end gap-2">
                     <button data-pending-purchase-id="${invoice.id}" class="cancel-pending-purchase-btn text-xs bg-red-500 hover:bg-red-600 text-white font-semibold py-1 px-3 rounded">إلغاء الشراء</button>
-                    ${receiveAndPayButtonHTML} <button data-pending-purchase-id="${invoice.id}" class="receive-goods-btn text-xs bg-green-500 hover:bg-green-600 text-white font-semibold py-1 px-3 rounded">استلام (بقاء الدين)</button>
+                    ${receiveAndPayButtonHTML}
+                    <button data-pending-purchase-id="${invoice.id}" class="receive-goods-btn text-xs bg-green-500 hover:bg-green-600 text-white font-semibold py-1 px-3 rounded">استلام (بقاء الدين)</button>
                 </div>
             </div>
         `;
     }).join('');
-}
-// =======================================================
+}// =======================================================
 function handlePendingPurchaseActions(event) {
     const target = event.target.closest('button');
     if (!target) return;
@@ -8661,6 +8652,61 @@ async function pi_confirmPurchaseInvoice() {
     };
 
     const supplier = suppliers.find(s => s.id === invoiceData.supplierId);
+     extraCostsList.forEach(cost => {
+        if (!cost.isLiability || cost.amount <= 0) return;
+
+        // لو المستخدم اختار التزام موجود بالفعل
+        if (cost.linkedLiabilityId) {
+            const existingLiability = liabilities.find(l => l.id === cost.linkedLiabilityId);
+
+            if (existingLiability) {
+                existingLiability.amount = (Number(existingLiability.amount) || 0) + cost.amount;
+
+                logOperation(
+                    "ربط تكلفة إضافية بالتزام موجود",
+                    `تمت إضافة "${cost.name}" بقيمة ${formatCurrency(cost.amount)} إلى الالتزام "${existingLiability.name}" ضمن فاتورة الشراء رقم "${invoiceData.invoiceNumber || invoiceData.id}".`
+                );
+            } else {
+                // لو الـ ID موجود لكن الالتزام نفسه غير موجود لأي سبب
+                const newLiability = {
+                    id: generateId('liab'),
+                    name: `${cost.name} - ${supplier?.name || 'مورد غير محدد'}`,
+                    amount: cost.amount,
+                    purchaseInvoiceId: invoiceData.id,
+                    source: 'purchase_extra_cost',
+                    invoiceNumber: invoiceData.invoiceNumber || '',
+                    supplierId: invoiceData.supplierId,
+                    createdAt: new Date().toISOString()
+                };
+
+                liabilities.push(newLiability);
+
+                logOperation(
+                    "إنشاء التزام تلقائي",
+                    `تم إنشاء التزام جديد للتكلفة الإضافية "${cost.name}" بقيمة ${formatCurrency(cost.amount)} لأن الالتزام المرتبط لم يتم العثور عليه.`
+                );
+            }
+        } else {
+            // لو المستخدم اختار "كالتزام" لكن لم يربطه بالتزام موجود
+            const newLiability = {
+                id: generateId('liab'),
+                name: `${cost.name} - ${supplier?.name || 'مورد غير محدد'}`,
+                amount: cost.amount,
+                purchaseInvoiceId: invoiceData.id,
+                source: 'purchase_extra_cost',
+                invoiceNumber: invoiceData.invoiceNumber || '',
+                supplierId: invoiceData.supplierId,
+                createdAt: new Date().toISOString()
+            };
+
+            liabilities.push(newLiability);
+
+            logOperation(
+                "إنشاء التزام تكلفة إضافية",
+                `تم إنشاء التزام جديد باسم "${newLiability.name}" بقيمة ${formatCurrency(cost.amount)} من فاتورة الشراء رقم "${invoiceData.invoiceNumber || invoiceData.id}".`
+            );
+        }
+    });
 
     // دالة تحديث المخزون
     const processInventoryUpdate = () => {
