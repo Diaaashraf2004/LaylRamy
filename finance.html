@@ -1966,11 +1966,20 @@ input:checked:active + .slider:before {
 
                 <div class="mb-6 pb-4 border-b">
                     <h3 class="text-lg font-medium text-gray-700 mb-3">تسجيل دين / سلفة جديدة</h3>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                    <div class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
                         <div>
                             <label for="debtor-name" class="block text-gray-700 text-sm font-bold mb-1">اسم المدين:<span class="required">*</span></label>
                             <input type="text" id="debtor-name" placeholder="اسم الشخص أو الجهة" class="shadow-sm w-full">
                         </div>
+                        <div>
+    <label for="debtor-phone" class="block text-gray-700 text-sm font-bold mb-1">رقم الهاتف:</label>
+    <input type="text" id="debtor-phone" placeholder="اختياري" class="shadow-sm w-full">
+</div>
+
+<div>
+    <label for="debtor-address" class="block text-gray-700 text-sm font-bold mb-1">العنوان:</label>
+    <input type="text" id="debtor-address" placeholder="اختياري" class="shadow-sm w-full">
+</div>
                         <div>
                             <label for="add-debt-reason" class="block text-gray-700 text-sm font-bold mb-1">سبب الدين:</label>
                             <input type="text" id="add-debt-reason" placeholder="مثال: أدوات، أسنان، سلفة..." class="shadow-sm w-full">
@@ -2016,12 +2025,38 @@ input:checked:active + .slider:before {
 </div>
 
                 <div id="debts-message" class="section-message mt-3"></div>
-                <div id="debtors-list-container">
-                    <h3 class="text-lg font-medium text-gray-700 mb-3">قائمة الديون الحالية (مجمعة حسب الشخص)</h3>
-                    <div id="debtors-list" class="space-y-2">
-                        <p class="text-center text-gray-500 py-4">لا توجد ديون مسجلة حاليًا.</p>
-                    </div>
-                </div>
+              <div id="debtors-list-container">
+    <h3 class="text-lg font-medium text-gray-700 mb-3">قائمة الديون الحالية (مجمعة حسب الشخص)</h3>
+
+    <div id="debts-controls" class="grid grid-cols-1 md:grid-cols-3 gap-4 my-4 p-4 bg-gray-50 rounded-lg border">
+        <div class="form-group">
+            <label for="debts-search-input" class="block text-sm font-medium text-gray-700 mb-1">بحث:</label>
+            <input type="text" id="debts-search-input" placeholder="ابحث بالاسم أو الهاتف أو السبب" class="shadow-sm w-full">
+        </div>
+
+        <div class="form-group">
+            <label for="debts-notes-filter" class="block text-sm font-medium text-gray-700 mb-1">فلترة:</label>
+            <select id="debts-notes-filter" class="shadow-sm w-full">
+                <option value="all">كل العملاء</option>
+                <option value="with_notes">عليهم ملاحظات</option>
+                <option value="without_notes">بدون ملاحظات</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="debts-sort-select" class="block text-sm font-medium text-gray-700 mb-1">ترتيب:</label>
+            <select id="debts-sort-select" class="shadow-sm w-full">
+                <option value="amount_desc">الأعلى مديونية</option>
+                <option value="amount_asc">الأقل مديونية</option>
+                <option value="name_asc">الاسم أ - ي</option>
+            </select>
+        </div>
+    </div>
+
+    <div id="debtors-list" class="space-y-2">
+        <p class="text-center text-gray-500 py-4">لا توجد ديون مسجلة حاليًا.</p>
+    </div>
+</div>
             </section><section id="liabilities-section" class="widget-card content-section hidden">
                 <h2>الديون المستحقة على الشركة (للاخرين)</h2>
                 <div id="total-liabilities-display" class="text-2xl font-bold text-pink-700 mb-4">إجمالي الالتزامات: 0.00 جنيه</div>
@@ -2765,6 +2800,56 @@ input:checked:active + .slider:before {
         </div>
     </div>
 </div>
+<div id="customerProfileModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 650px;">
+        <div class="modal-header">
+            <span class="modal-close-btn">&times;</span>
+            <h2>ملف العميل</h2>
+        </div>
+        <div class="modal-body" id="customer-profile-content"></div>
+        <div class="modal-footer">
+            <button type="button" class="modal-close-btn-footer">إغلاق</button>
+        </div>
+    </div>
+</div>
+
+<div id="collectionNotesModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 700px;">
+        <div class="modal-header">
+            <span class="modal-close-btn">&times;</span>
+            <h2>ملاحظات التحصيل</h2>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label for="collection-note-text">الملاحظة:</label>
+                <textarea id="collection-note-text" rows="4" placeholder="اكتب ملاحظة التحصيل..."></textarea>
+            </div>
+            <div class="form-group mt-3">
+                <label for="collection-note-followup-date">تاريخ المتابعة القادمة:</label>
+                <input type="date" id="collection-note-followup-date">
+            </div>
+            <div id="collection-notes-history" class="mt-4"></div>
+            <div id="collection-notes-message" class="section-message mt-3"></div>
+        </div>
+        <div class="modal-footer">
+            <button id="save-collection-note-btn" class="bg-blue-500 hover:bg-blue-600 text-white">حفظ الملاحظة</button>
+            <button type="button" class="modal-close-btn-footer">إغلاق</button>
+        </div>
+    </div>
+</div>
+
+<div id="customerStatementModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 800px;">
+        <div class="modal-header">
+            <span class="modal-close-btn">&times;</span>
+            <h2>كشف حساب العميل</h2>
+        </div>
+        <div class="modal-body" id="customer-statement-content"></div>
+        <div class="modal-footer">
+            <button type="button" class="modal-close-btn-footer">إغلاق</button>
+        </div>
+    </div>
+</div>
 <script>
     document.addEventListener("DOMContentLoaded", function() {
         console.log("البرنامج بدأ بنجاح - الخطوة 1 تمت");
@@ -2810,8 +2895,10 @@ let redoHistory = [];  // لتخزين الحالات التي تم التراج
         let suppliers = [];
         let accounts = []; // سيخزن هذا كل حساباتك (خزائنك)
         let expenses = 0;
-        let debtors = []; // Array of {id, name, reason, amount}
-        let liabilities = []; // Array of {id, name, amount}
+      let debtors = []; // Array of {id, customerId, name, reason, amount, createdAt}
+let debtorProfiles = []; // Array of {id, name, phone, address, generalNotes, createdAt}
+let debtCollectionNotes = []; // Array of {id, customerId, debtId, note, createdAt, nextFollowUpDate}
+  let liabilities = []; // Array of {id, name, amount}
         let totalProfit = 0;
         let operationLog = []; // Array of {timestamp, type, details}
         let currentLoadedDate = null; // Stores the YYYY-MM-DD string of the loaded data
@@ -2910,7 +2997,12 @@ let fc_main_tabs, fc_tab_buttons, fc_tab_contents, fc_month_select, fc_expenses_
     let openBackupHistoryButton, autoBackupMessage, backupHistoryModal, backupHistoryList;
     let productCategoryInput, categoryDatalist, inventorySearchInput, inventoryCategoryFilter;
     let sellSerialContainer, sellSerialInput, sellSerialsDatalist;
-
+let debtorPhoneInput, debtorAddressInput;
+let debtsSearchInput, debtsNotesFilter, debtsSortSelect;
+let customerProfileModal, collectionNotesModal, customerStatementModal;
+let customerProfileContent, customerStatementContent, collectionNotesHistory;
+let collectionNoteText, collectionNoteFollowupDate, saveCollectionNoteBtn, collectionNotesMessage;
+let activeCustomerForNotes = null;
 
 
         // --- الدوال المساعدة (Helper Functions) ---
@@ -3024,7 +3116,58 @@ async function fetchOnlineDataForDate(dateString) {
 }
         function saveData(key, data){ console.log(`saveData: Saving data for key: ${key}`); try { localStorage.setItem(key, JSON.stringify(data)) } catch(e) { console.error(`Error saving data for key "${key}":`, e); showGlobalMessage("حدث خطأ أثناء حفظ البيانات. قد يكون التخزين ممتلئًا.", true) } }
         function formatCurrency(amount){ const numAmount = Number(amount); return isNaN(numAmount) ? '0.00 جنيه' : `${numAmount.toFixed(2)} جنيه` }
-      
+      function normalizeArabicText(text) {
+    return String(text || "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function generateId(prefix = "id") {
+    return `${prefix}_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+}
+
+function getDebtorProfileById(customerId) {
+    return debtorProfiles.find(p => p.id === customerId) || null;
+}
+
+function getOrCreateDebtorProfile(name, phone = "", address = "") {
+    const normalizedName = normalizeArabicText(name);
+    let existing = debtorProfiles.find(p => normalizeArabicText(p.name) === normalizedName);
+
+    if (existing) {
+        if (phone && !existing.phone) existing.phone = phone;
+        if (address && !existing.address) existing.address = address;
+        return existing;
+    }
+
+    const newProfile = {
+        id: generateId("cust"),
+        name: String(name || "").trim(),
+        phone: String(phone || "").trim(),
+        address: String(address || "").trim(),
+        generalNotes: "",
+        createdAt: new Date().toISOString()
+    };
+
+    debtorProfiles.push(newProfile);
+    return newProfile;
+}
+
+function getCustomerDebts(customerId) {
+    return debtors.filter(d => d.customerId === customerId);
+}
+
+function getCustomerNotes(customerId) {
+    return debtCollectionNotes
+        .filter(n => n.customerId === customerId)
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+}
+
+function getCustomerTotalDebt(customerId) {
+    return getCustomerDebts(customerId).reduce((sum, d) => sum + Number(d.amount || 0), 0);
+}
+
+function getLatestCustomerNote(customerId) {
+    return getCustomerNotes(customerId)[0] || null;
+}
 function sanitizeDataForFirebase(obj) {
     if (obj === null || typeof obj !== 'object') {
         return obj;
@@ -3246,6 +3389,8 @@ function createStateSnapshot() {
         accounts: JSON.parse(JSON.stringify(accounts)),
         expenses: expenses,
         debtors: JSON.parse(JSON.stringify(debtors)),
+        debtorProfiles: JSON.parse(JSON.stringify(debtorProfiles)),
+debtCollectionNotes: JSON.parse(JSON.stringify(debtCollectionNotes)),
         liabilities: JSON.parse(JSON.stringify(liabilities)),
         monthlyLiabilities: JSON.parse(JSON.stringify(monthlyLiabilities)),
         totalProfit: totalProfit,
@@ -3260,6 +3405,21 @@ function createStateSnapshot() {
         pendingReturns: JSON.parse(JSON.stringify(pendingReturns))
     };
 }
+function migrateDebtorsToProfiles() {
+    if (!Array.isArray(debtors) || debtors.length === 0) return;
+
+    debtors.forEach(debt => {
+        if (!debt.customerId) {
+            const profile = getOrCreateDebtorProfile(debt.name || "عميل بدون اسم");
+            debt.customerId = profile.id;
+            if (!debt.createdAt) debt.createdAt = new Date().toISOString();
+        }
+    });
+}
+
+
+
+
 
 function loadStateFromSnapshot(snapshot) {
     products = snapshot.products || [];
@@ -3267,9 +3427,13 @@ function loadStateFromSnapshot(snapshot) {
     accounts = snapshot.accounts || [];
     expenses = snapshot.expenses || 0;
     debtors = snapshot.debtors || [];
+    debtorProfiles = snapshot.debtorProfiles || [];
+debtCollectionNotes = snapshot.debtCollectionNotes || [];
+        migrateDebtorsToProfiles();
     liabilities = snapshot.liabilities || [];
     monthlyLiabilities = snapshot.monthlyLiabilities || [];
     totalProfit = snapshot.totalProfit || 0;
+
     operationLog = snapshot.operationLog || [];
     pendingSales = snapshot.pendingSales || [];
     liquidityLog = snapshot.liquidityLog || [];
@@ -3477,6 +3641,8 @@ function loadState(data, dateString) {
 
     expenses = parseFloat(data.expenses) || 0;
     debtors = data.debtors || [];
+    debtorProfiles = data.debtorProfiles || [];
+debtCollectionNotes = data.debtCollectionNotes || [];
     liabilities = data.liabilities || [];
     monthlyLiabilities = data.monthlyLiabilities || [];
     totalProfit = parseFloat(data.profit) || 0;
@@ -3831,68 +3997,361 @@ function updateProductListDisplay() {
         window.updateQuickSaleDebt();
     }
 }
-        // =====================================================================
+    
+
+function openCollectionNotesModal(customerId) {
+    let customer = getDebtorProfileById(customerId);
+    const customerDebts = getCustomerDebts(customerId);
+
+    if (!customer && customerDebts.length) {
+        customer = getOrCreateDebtorProfile(customerDebts[0].name || "عميل");
+    }
+
+    if (!customer) {
+        showGlobalMessage("تعذر العثور على بيانات العميل.", true);
+        return;
+    }
+
+    activeCustomerForNotes = customer.id;
+
+    const customerNameEl = d('collection-notes-customer-name');
+    if (customerNameEl) {
+        customerNameEl.textContent = customer.name || "عميل";
+    }
+
+    if (collectionNoteText) collectionNoteText.value = "";
+    if (collectionNoteFollowupDate) collectionNoteFollowupDate.value = "";
+
+    renderCollectionNotesHistory(customer.id);
+
+    if (collectionNotesMessage) {
+        showMessage(collectionNotesMessage, "");
+    }
+
+    if (collectionNotesModal) {
+        collectionNotesModal.style.display = 'block';
+    } else {
+        showGlobalMessage("مودال ملاحظات التحصيل غير موجود.", true);
+    }
+}
+
+function renderCollectionNotesHistory(customerId) {
+    if (!collectionNotesHistory) return;
+
+    const notes = getCustomerNotes(customerId);
+
+    if (!notes.length) {
+        collectionNotesHistory.innerHTML = `<p class="text-center text-gray-500">لا توجد ملاحظات تحصيل لهذا العميل.</p>`;
+        return;
+    }
+
+    collectionNotesHistory.innerHTML = notes.map(note => `
+        <div class="p-3 border rounded mb-2 bg-gray-50">
+            <div><strong>الملاحظة:</strong> ${note.note}</div>
+            <div class="text-sm text-gray-600 mt-1">التاريخ: ${new Date(note.createdAt).toLocaleString('ar-EG')}</div>
+            <div class="text-sm text-blue-700 mt-1">متابعة: ${note.nextFollowUpDate || 'لا يوجد'}</div>
+        </div>
+    `).join("");
+}
+
+function saveCollectionNote() {
+    if (!activeCustomerForNotes) {
+        showMessage(collectionNotesMessage, "لم يتم تحديد العميل.", true);
+        return;
+    }
+
+    const noteText = collectionNoteText ? collectionNoteText.value.trim() : "";
+    const followUpDate = collectionNoteFollowupDate ? collectionNoteFollowupDate.value : "";
+
+    if (!noteText) {
+        showMessage(collectionNotesMessage, "اكتب ملاحظة أولًا.", true);
+        return;
+    }
+
+    if (!Array.isArray(debtCollectionNotes)) {
+        debtCollectionNotes = [];
+    }
+
+    saveStateToHistory();
+
+    debtCollectionNotes.push({
+        id: generateId("note"),
+        customerId: activeCustomerForNotes,
+        debtId: null,
+        note: noteText,
+        createdAt: new Date().toISOString(),
+        nextFollowUpDate: followUpDate || ""
+    });
+
+    if (collectionNoteText) collectionNoteText.value = "";
+    if (collectionNoteFollowupDate) collectionNoteFollowupDate.value = "";
+
+    renderCollectionNotesHistory(activeCustomerForNotes);
+    updateUI();
+    showMessage(collectionNotesMessage, "تم حفظ ملاحظة التحصيل بنجاح.", false);
+}
+
+
+
+
+function getCustomerNotes(customerId) {
+    return debtCollectionNotes
+        .filter(note => note.customerId === customerId)
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+}
+
+function getLatestCustomerNote(customerId) {
+    return getCustomerNotes(customerId)[0] || null;
+}
+
+
+function openCustomerStatement(customerId) {
+    let customer = getDebtorProfileById(customerId);
+    const customerDebts = getCustomerDebts(customerId);
+    const customerNotes = getCustomerNotes(customerId);
+    const totalDebt = getCustomerTotalDebt(customerId);
+
+    if (!customer && customerDebts.length) {
+        customer = {
+            name: customerDebts[0].name || 'عميل',
+            phone: '',
+            address: ''
+        };
+    }
+
+    if (!customer || !customerStatementContent || !customerStatementModal) return;
+
+    customerStatementContent.innerHTML = `
+        <div class="space-y-3">
+            <div><strong>الاسم:</strong> ${customer.name}</div>
+            <div><strong>الهاتف:</strong> ${customer.phone || 'غير مسجل'}</div>
+            <div><strong>العنوان:</strong> ${customer.address || 'غير مسجل'}</div>
+            <div><strong>إجمالي الدين الحالي:</strong> ${formatCurrency(totalDebt)}</div>
+
+            <hr style="margin: 12px 0;">
+
+            <div>
+                <strong>تفاصيل الديون:</strong>
+                ${
+                    customerDebts.length
+                    ? customerDebts.map(debt => `
+                        <div style="margin-top:8px;">
+                            - ${debt.reason || 'بدون سبب'} : ${formatCurrency(Number(debt.amount || 0))}
+                        </div>
+                    `).join("")
+                    : `<div style="margin-top:8px;">لا توجد ديون حالية</div>`
+                }
+            </div>
+
+            <hr style="margin: 12px 0;">
+
+            <div>
+                <strong>ملاحظات التحصيل:</strong>
+                ${
+                    customerNotes.length
+                    ? customerNotes.map(note => `
+                        <div style="margin-top:8px;">
+                            - ${note.note} | متابعة: ${note.nextFollowUpDate || 'لا يوجد'} | ${new Date(note.createdAt).toLocaleString('ar-EG')}
+                        </div>
+                    `).join("")
+                    : `<div style="margin-top:8px;">لا توجد ملاحظات تحصيل</div>`
+                }
+            </div>
+        </div>
+    `;
+
+    customerStatementModal.style.display = 'block';
+}
+
+function openCustomerProfile(customerId) {
+    let customer = getDebtorProfileById(customerId);
+    const customerDebts = getCustomerDebts(customerId);
+    const totalDebt = getCustomerTotalDebt(customerId);
+    const latestNote = getLatestCustomerNote(customerId);
+
+    if (!customer && customerDebts.length) {
+        customer = {
+            name: customerDebts[0].name || 'عميل',
+            phone: '',
+            address: '',
+            generalNotes: ''
+        };
+    }
+
+    if (!customer || !customerProfileContent || !customerProfileModal) return;
+
+    customerProfileContent.innerHTML = `
+        <div class="space-y-3">
+            <div><strong>الاسم:</strong> ${customer.name}</div>
+            <div><strong>الهاتف:</strong> ${customer.phone || 'غير مسجل'}</div>
+            <div><strong>العنوان:</strong> ${customer.address || 'غير مسجل'}</div>
+            <div><strong>عدد البنود:</strong> ${customerDebts.length}</div>
+            <div><strong>إجمالي الديون:</strong> ${formatCurrency(totalDebt)}</div>
+            <div><strong>آخر ملاحظة:</strong> ${latestNote ? latestNote.note : 'لا توجد'}</div>
+            <div><strong>تاريخ المتابعة:</strong> ${latestNote && latestNote.nextFollowUpDate ? latestNote.nextFollowUpDate : 'لا يوجد'}</div>
+        </div>
+    `;
+
+    customerProfileModal.style.display = 'block';
+}
+window.openCustomerProfile = openCustomerProfile;
+window.openCustomerStatement = openCustomerStatement;
+window.openCollectionNotesModal = openCollectionNotesModal;
+
+
+
+
+// =====================================================================
 function updateDebtorsListDisplay() {
     if (!debtorsListContainer) return;
-    debtorsListContainer.innerHTML = ''; // Clear previous content
 
-    const groupedDebts = debtors.reduce((acc, debt) => {
-        const name = debt.name;
-        if (!acc[name]) {
-            acc[name] = { total: 0, items: [] };
-        }
+    const searchValue = normalizeArabicText(debtsSearchInput ? debtsSearchInput.value : "");
+    const notesFilterValue = debtsNotesFilter ? debtsNotesFilter.value : "all";
+    const sortValue = debtsSortSelect ? debtsSortSelect.value : "amount_desc";
+
+    debtorsListContainer.innerHTML = "";
+
+    const grouped = {};
+
+    debtors.forEach(debt => {
         const amount = Number(debt.amount) || 0;
-        if (amount > 0.001) { // Only include non-zero amounts
-            acc[name].total += amount;
-            acc[name].items.push({ id: debt.id, reason: debt.reason || 'سبب غير محدد', amount: amount });
+        if (amount <= 0.001) return;
+
+        let customerId = debt.customerId;
+
+        if (!customerId) {
+            const profile = getOrCreateDebtorProfile(debt.name || "عميل بدون اسم");
+            customerId = profile.id;
+            debt.customerId = profile.id;
         }
-        return acc;
-    }, {});
 
-    const sortedNames = Object.keys(groupedDebts).filter(name => groupedDebts[name].total > 0.001)
-        .sort((a, b) => a.localeCompare(b, 'ar'));
+        const profile = getDebtorProfileById(customerId);
 
-    if (sortedNames.length === 0) {
+        if (!grouped[customerId]) {
+            grouped[customerId] = {
+                customerId,
+                profile,
+                debts: [],
+                total: 0
+            };
+        }
+
+        grouped[customerId].debts.push(debt);
+        grouped[customerId].total += amount;
+    });
+
+    let customers = Object.values(grouped);
+
+    customers = customers.filter(group => {
+        const profile = group.profile || {};
+        const latestNote = getLatestCustomerNote(group.customerId);
+
+        const searchName = profile.name || (group.debts[0] && group.debts[0].name) || "";
+        const searchPhone = profile.phone || "";
+        const searchAddress = profile.address || "";
+
+        const searchableText = normalizeArabicText(`
+            ${searchName}
+            ${searchPhone}
+            ${searchAddress}
+            ${group.debts.map(d => d.reason || "").join(" ")}
+            ${latestNote ? latestNote.note : ""}
+        `);
+
+        const matchesSearch = !searchValue || searchableText.includes(searchValue);
+
+        let matchesNotes = true;
+        if (notesFilterValue === "with_notes") {
+            matchesNotes = !!latestNote;
+        } else if (notesFilterValue === "without_notes") {
+            matchesNotes = !latestNote;
+        } else if (notesFilterValue === "with_followup") {
+            matchesNotes = !!(latestNote && latestNote.nextFollowUpDate);
+        }
+
+        return matchesSearch && matchesNotes;
+    });
+
+    if (sortValue === "amount_desc") customers.sort((a, b) => b.total - a.total);
+    if (sortValue === "amount_asc") customers.sort((a, b) => a.total - b.total);
+    if (sortValue === "name_asc") {
+        customers.sort((a, b) => {
+            const nameA = a.profile?.name || (a.debts[0] && a.debts[0].name) || "";
+            const nameB = b.profile?.name || (b.debts[0] && b.debts[0].name) || "";
+            return nameA.localeCompare(nameB, 'ar');
+        });
+    }
+
+    if (!customers.length) {
         debtorsListContainer.innerHTML = '<p class="text-center text-gray-500 py-4">لا توجد ديون مسجلة حاليًا بمبالغ ظاهرة.</p>';
         return;
     }
 
-    sortedNames.forEach(name => {
-        const debtorData = groupedDebts[name];
+    customers.forEach(group => {
+        const profile = group.profile || {};
+        const latestNote = getLatestCustomerNote(group.customerId);
+
+        const displayName = profile.name || (group.debts[0] && group.debts[0].name) || 'عميل';
+        const displayPhone = profile.phone || 'بدون هاتف';
+
         const detailsElement = document.createElement('details');
         detailsElement.className = 'mb-2 border border-gray-200 rounded overflow-hidden shadow-sm';
 
         const summaryElement = document.createElement('summary');
         summaryElement.className = 'p-3 bg-gray-50 hover:bg-gray-100 cursor-pointer flex justify-between items-center font-medium text-gray-800';
-        summaryElement.innerHTML = `<span>${name}</span><span class="text-purple-700 font-semibold">${formatCurrency(debtorData.total)}</span>`;
+        summaryElement.innerHTML = `
+            <div>
+                <div><strong>${displayName}</strong></div>
+                <div class="text-sm text-gray-500">${displayPhone}</div>
+            </div>
+            <span class="text-purple-700 font-semibold">${formatCurrency(group.total)}</span>
+        `;
 
         const ulElement = document.createElement('ul');
         ulElement.className = 'p-3 pt-2 border-t border-gray-200 bg-white';
 
-        debtorData.items.sort((a, b) => a.reason.localeCompare(b.reason, 'ar')).forEach(item => {
-            const liElement = document.createElement('li');
-            liElement.className = 'text-sm text-gray-600 py-1.5 border-b border-gray-100 flex justify-between items-center flex-wrap gap-2';
-            
-            liElement.innerHTML = `
-                <div class="flex-grow">
-                    <span>${item.reason}</span>
-                    <span class="font-mono text-xs text-gray-500">${formatCurrency(item.amount)}</span>
-                </div>
-                <div class="actions flex-shrink-0">
-                    <button data-debt-id="${item.id}" class="pay-partial-debt-btn text-xs bg-teal-500 hover:bg-teal-600 text-white font-semibold py-1 px-2 rounded">تسديد جزئي</button>
-                </div>
-            `;
-            ulElement.appendChild(liElement);
-        });
+        const topInfoLi = document.createElement('li');
+        topInfoLi.style.listStyle = 'none';
+        topInfoLi.style.marginBottom = '10px';
+        topInfoLi.innerHTML = `
+            <div class="actions flex flex-wrap gap-2 mb-3">
+                <button onclick="openCustomerProfile('${group.customerId}')" class="bg-blue-500 text-white">ملف العميل</button>
+                <button onclick="openCustomerStatement('${group.customerId}')" class="bg-indigo-500 text-white">كشف حساب</button>
+                <button onclick="openCollectionNotesModal('${group.customerId}')" class="bg-yellow-500 text-white">إضافة ملاحظة</button>
+            </div>
+            ${
+                latestNote
+                ? `<div class="text-sm p-2 rounded bg-yellow-50 border border-yellow-200"><strong>آخر ملاحظة:</strong> ${latestNote.note}<br><strong>متابعة:</strong> ${latestNote.nextFollowUpDate || 'لا يوجد'}</div>`
+                : `<div class="text-sm text-gray-500">لا توجد ملاحظات تحصيل.</div>`
+            }
+        `;
+        ulElement.appendChild(topInfoLi);
+
+        group.debts
+            .sort((a, b) => (a.reason || "").localeCompare((b.reason || ""), 'ar'))
+            .forEach(item => {
+                const liElement = document.createElement('li');
+                liElement.className = 'text-sm text-gray-600 py-1.5 border-b border-gray-100 flex justify-between items-center flex-wrap gap-2';
+
+                liElement.innerHTML = `
+                    <div class="flex-grow">
+                        <div><strong>${item.reason || 'سبب غير محدد'}</strong></div>
+                        <div class="debt-details">${formatCurrency(Number(item.amount || 0))}</div>
+                        <div class="debt-details">${item.createdAt ? new Date(item.createdAt).toLocaleString('ar-EG') : ''}</div>
+                    </div>
+                    <div class="actions flex-shrink-0">
+                        <button class="pay-partial-debt-btn bg-green-500 text-white" data-debt-id="${item.id}">سداد جزئي</button>
+                    </div>
+                `;
+
+                ulElement.appendChild(liElement);
+            });
 
         detailsElement.appendChild(summaryElement);
         detailsElement.appendChild(ulElement);
         debtorsListContainer.appendChild(detailsElement);
     });
 }
-
-
-
 function toggleInlinePaymentForm(debtorName) {
     console.log(`toggleInlinePaymentForm called for: ${debtorName}`);
 
@@ -4176,6 +4635,9 @@ function updatePendingSalesDisplay() {
                     <button data-pending-id="${sale.id}" class="edit-pending bg-blue-500 hover:bg-blue-600 text-white rounded px-2 py-1 text-xs border border-blue-700">تعديل</button>
                     <button data-pending-id="${sale.id}" class="confirm-pending bg-green-500 hover:bg-green-600 text-white rounded px-2 py-1 text-xs border border-green-700">تأكيد</button>
                     <button data-pending-id="${sale.id}" class="cancel-pending bg-red-500 hover:bg-red-600 text-white rounded px-2 py-1 text-xs border border-red-700">إلغاء</button>
+                <button data-pending-id="${sale.id}" class="convert-pending-to-debt text-xs bg-purple-500 hover:bg-purple-600 text-white font-semibold py-1 px-3 rounded">
+    تحويل إلى دين
+</button>
                     <button data-pending-id="${sale.id}" class="initiate-return-from-pending bg-orange-500 hover:bg-orange-600 text-white rounded px-2 py-1 text-xs border border-orange-700">مرتجع</button>
                 </div>
             </div>
@@ -4346,6 +4808,155 @@ function initiateReturnFromPendingSale(pendingId) {
     
     updateUI();
     showGlobalMessage("تم حذف البيع المؤقت. بيانات المرتجع جاهزة للتأكيد.", false, true);
+}
+
+function convertPendingSaleToDebt(pendingSaleId, mode = 'new', targetDebtId = null, confirmSale = true, accountId = null) {
+    const pendingSaleIndex = pendingSales.findIndex(s => s.id === pendingSaleId);
+    if (pendingSaleIndex === -1) {
+        showGlobalMessage("خطأ: لم يتم العثور على البيع المؤقت.", true);
+        return;
+    }
+
+    const pendingSale = pendingSales[pendingSaleIndex];
+    const totalAmount = Number(pendingSale.totalSellPrice || pendingSale.grandTotal || 0);
+    const paidAmount = Number(pendingSale.depositPaid || pendingSale.paidAmount || pendingSale.depositAmount || 0);
+    const remainingAmount = Math.max(0, totalAmount - paidAmount);
+
+    if (remainingAmount <= 0) {
+        showGlobalMessage("لا يوجد مبلغ متبقٍ لتحويله إلى دين.", true);
+        return;
+    }
+
+    saveStateToHistory();
+
+    // 1) تأكيد البيعة وإضافتها لقائمة المبيعات مع حساب التكلفة والربح
+    if (confirmSale) {
+        const account = accounts.find(a => a.id === accountId);
+        if (!account) {
+            showGlobalMessage("لم يتم العثور على حساب الإيداع.", true);
+            return;
+        }
+
+        let costOfGoodsSold = 0;
+
+        if (pendingSale.mainProduct) {
+            costOfGoodsSold +=
+                (Number(pendingSale.mainProduct.costPrice) || 0) *
+                (Number(pendingSale.mainProduct.quantity) || 0);
+        }
+
+        if (Array.isArray(pendingSale.additionalItems)) {
+            pendingSale.additionalItems.forEach(item => {
+                costOfGoodsSold +=
+                    (Number(item.costPrice) || 0) *
+                    (Number(item.quantity) || 0);
+            });
+        }
+
+        const calculatedProfit = totalAmount - costOfGoodsSold;
+
+        const confirmedSale = {
+            ...pendingSale,
+            id: generateId('sale'),
+            type: 'pending-confirmed',
+            saleType: 'deferred_from_pending',
+            paymentStatus: remainingAmount > 0 ? 'partial' : 'paid',
+            totalSellPrice: totalAmount,
+            totalCost: costOfGoodsSold,
+            profit: calculatedProfit,
+            remainingAmount: remainingAmount,
+            paidAmount: paidAmount,
+            depositPaid: paidAmount,
+            accountId: account.id,
+            accountName: account.name,
+            timestamp: new Date().toISOString()
+        };
+
+        if (!Array.isArray(salesToday)) {
+            window.salesToday = [];
+        }
+
+        salesToday.push(confirmedSale);
+
+        if (paidAmount > 0) {
+            account.balance = Number(account.balance || 0) + paidAmount;
+
+            const totalLiquidity = accounts.reduce((sum, a) => sum + Number(a.balance || 0), 0);
+            liquidityLog.push({
+                id: `liq-sale-confirm-${Date.now()}`,
+                timestamp: new Date().toISOString(),
+                type: "add",
+                amount: paidAmount,
+                description: `تأكيد بيع مؤقت للعميل: ${pendingSale.customerName || '-'}`,
+                currentBalance: totalLiquidity,
+                accountId: account.id
+            });
+        }
+
+        if (typeof logOperation === 'function') {
+            logOperation(
+                "تأكيد بيع مؤقت وتحويله إلى دين",
+                `تم تأكيد البيعة للعميل "${pendingSale.customerName || '-'}" وإضافتها إلى قائمة المبيعات مع تسجيل المتبقي كدين.`
+            );
+        }
+    }
+
+    // 2) إنشاء دين جديد أو إنشاء دين فرعي جديد تحت اسم قديم
+    if (mode === 'existing' && targetDebtId) {
+        const selectedDebtName = targetDebtId;
+
+        debtors.push({
+            id: generateId('debt'),
+            name: selectedDebtName,
+            customerName: selectedDebtName,
+            amount: remainingAmount,
+            reason: `بيعة باسم ${pendingSale.customerName || 'عميل غير محدد'}`,
+            timestamp: new Date().toISOString(),
+            entries: [
+                {
+                    id: generateId('debt_entry'),
+                    source: 'pending_sale_conversion',
+                    saleId: pendingSale.id,
+                    saleCustomerName: pendingSale.customerName || 'عميل غير محدد',
+                    amount: remainingAmount,
+                    timestamp: new Date().toISOString(),
+                    note: `تم إنشاء دين فرعي تحت ${selectedDebtName} من بيعة باسم ${pendingSale.customerName || 'عميل غير محدد'}`
+                }
+            ]
+        });
+
+    } else {
+        debtors.push({
+            id: generateId('debt'),
+            name: pendingSale.customerName || 'عميل غير محدد',
+            customerName: pendingSale.customerName || 'عميل غير محدد',
+            amount: remainingAmount,
+            reason: `تحويل بيع مؤقت رقم ${pendingSale.id}`,
+            timestamp: new Date().toISOString(),
+            entries: [
+                {
+                    id: generateId('debt_entry'),
+                    source: 'pending_sale_conversion',
+                    saleId: pendingSale.id,
+                    saleCustomerName: pendingSale.customerName || 'عميل غير محدد',
+                    amount: remainingAmount,
+                    timestamp: new Date().toISOString(),
+                    note: `تم إنشاء الدين من بيعة مؤقتة باسم ${pendingSale.customerName || 'عميل غير محدد'}`
+                }
+            ]
+        });
+    }
+
+    // 3) حذف البيعة من المؤقت
+    pendingSales.splice(pendingSaleIndex, 1);
+
+    updateUI();
+
+    if (confirmSale) {
+        showGlobalMessage("تم تأكيد البيعة وتحويل المبلغ المتبقي إلى دين بنجاح.");
+    } else {
+        showGlobalMessage("تم تحويل البيع المؤقت إلى دين بدون تأكيد البيعة.");
+    }
 }
 
 function populateReturnProductSelect() {
@@ -4967,6 +5578,7 @@ async function loadDataForDate(dateString) {
             // الحالة أ: اليوم موجود بالفعل (تحميل يوم مسجل سابقاً)
             console.log("تم تحميل بيانات مسجلة لهذا اليوم.");
             loadState(docSnap.data(), dateString);
+            migrateDebtorsToProfiles();
             if(loadMsg) showMessage(loadMsg, `تم تحميل بيانات يوم ${dateString} بنجاح.`, false);
             updateUI();
             return true;
@@ -6377,6 +6989,71 @@ function printPendingSaleAsInvoice(pendingId) {
         </div>
     </div>
 </div>
+<div id="collectionNotesModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 700px;">
+        <div class="modal-header">
+            <span class="modal-close-btn">&times;</span>
+            <h2>ملاحظات التحصيل</h2>
+        </div>
+
+        <div class="modal-body">
+            <p>العميل: <strong id="collection-notes-customer-name"></strong></p>
+            <hr style="margin: 1rem 0;">
+
+            <div class="form-group">
+                <label for="collection-note-text">الملاحظة:</label>
+                <textarea id="collection-note-text" rows="4" placeholder="اكتب ملاحظة التحصيل هنا..."></textarea>
+            </div>
+
+            <div class="form-group" style="margin-top: 1rem;">
+                <label for="collection-note-followup-date">تاريخ المتابعة القادمة:</label>
+                <input type="date" id="collection-note-followup-date">
+            </div>
+
+            <div id="collection-notes-message" class="section-message" style="margin-top: 1rem;"></div>
+
+            <div class="mt-4 border-t pt-4">
+                <h4 class="text-md font-semibold mb-2">سجل الملاحظات</h4>
+                <div id="collection-notes-history">
+                    <p class="text-center text-gray-500">لا توجد ملاحظات تحصيل لهذا العميل.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <button id="save-collection-note-btn" class="bg-blue-500 hover:bg-blue-600 text-white">حفظ الملاحظة</button>
+            <button type="button" class="modal-close-btn-footer">إغلاق</button>
+        </div>
+    </div>
+</div>
+
+<div id="customerProfileModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 650px;">
+        <div class="modal-header">
+            <span class="modal-close-btn">&times;</span>
+            <h2>ملف العميل</h2>
+        </div>
+        <div class="modal-body" id="customer-profile-content"></div>
+        <div class="modal-footer">
+            <button type="button" class="modal-close-btn-footer">إغلاق</button>
+        </div>
+    </div>
+</div>
+
+<div id="customerStatementModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 800px;">
+        <div class="modal-header">
+            <span class="modal-close-btn">&times;</span>
+            <h2>كشف حساب العميل</h2>
+        </div>
+        <div class="modal-body" id="customer-statement-content"></div>
+        <div class="modal-footer">
+            <button type="button" class="modal-close-btn-footer">إغلاق</button>
+        </div>
+    </div>
+</div>
+
+
                   </body>
                   </html>
                   `;
@@ -7210,7 +7887,11 @@ async function handlePendingSaleActions(event) {
         initiateReturnFromPendingSale(pendingId);
         return;
     }
-
+    // --- زر تحويل البيع المؤقت إلى دين ---
+if (button.classList.contains('convert-pending-to-debt')) {
+    openConvertPendingSaleToDebtDialog(pendingId);
+    return;
+}
     const saleIndex = pendingSales.findIndex(s => s.id === pendingId);
     if (saleIndex === -1) {
         showGlobalMessage("خطأ: لم يتم العثور على البيع المؤقت.", true);
@@ -9342,11 +10023,65 @@ categoryDatalist = d('category-names-list');
 inventorySearchInput = d('inventory-search');
 inventoryCategoryFilter = d('inventory-category-filter');
                  sellProductNameInput = d("sell-product-name");
-     // ============================================================
-    // >>> انسخ هذا البلوك وضعه تحت السطر السابق مباشرة <<<
-    // ============================================================
-    // --- ضع هذا الكود داخل دالة initializeApp ---
+    debtorPhoneInput = d("debtor-phone");
+debtorAddressInput = d("debtor-address");
 
+debtsSearchInput = d("debts-search-input");
+debtsNotesFilter = d("debts-notes-filter");
+debtsSortSelect = d("debts-sort-select");
+
+customerProfileModal = d("customerProfileModal");
+collectionNotesModal = d("collectionNotesModal");
+customerStatementModal = d("customerStatementModal");
+
+customerProfileContent = d("customer-profile-content");
+customerStatementContent = d("customer-statement-content");
+if (customerProfileModal) {
+    customerProfileModal.querySelectorAll('.modal-close-btn, .modal-close-btn-footer').forEach(btn => {
+        btn.addEventListener('click', () => {
+            customerProfileModal.style.display = 'none';
+        });
+    });
+}
+
+if (customerStatementModal) {
+    customerStatementModal.querySelectorAll('.modal-close-btn, .modal-close-btn-footer').forEach(btn => {
+        btn.addEventListener('click', () => {
+            customerStatementModal.style.display = 'none';
+        });
+    });
+}
+
+window.addEventListener('click', (event) => {
+    if (event.target === customerProfileModal) {
+        customerProfileModal.style.display = 'none';
+    }
+    if (event.target === customerStatementModal) {
+        customerStatementModal.style.display = 'none';
+    }
+});
+
+collectionNotesHistory = d("collection-notes-history");
+collectionNoteText = d("collection-note-text");
+collectionNoteFollowupDate = d("collection-note-followup-date");
+saveCollectionNoteBtn = d("save-collection-note-btn");
+collectionNotesMessage = d("collection-notes-message");
+if (saveCollectionNoteBtn) {
+    saveCollectionNoteBtn.onclick = saveCollectionNote;
+}
+if (collectionNotesModal) {
+    collectionNotesModal.querySelectorAll('.modal-close-btn, .modal-close-btn-footer').forEach(btn => {
+        btn.addEventListener('click', () => {
+            collectionNotesModal.style.display = 'none';
+        });
+    });
+}
+
+window.addEventListener('click', (event) => {
+    if (event.target === collectionNotesModal) {
+        collectionNotesModal.style.display = 'none';
+    }
+});
 // تعريف العناصر الجديدة
  piItemQuantityInput = d('pi_item_quantity');
 piItemCostInput = d('pi_item_cost');
@@ -9602,6 +10337,12 @@ if (piItemTotalCostInput) {
                  receivePaymentButton = d("receive-payment-button");
                  debtsMessage = d("debts-message");
                  debtorsListContainer = d("debtors-list");
+                 collectionNotesModal = d("collectionNotesModal");
+collectionNotesHistory = d("collection-notes-history");
+collectionNoteText = d("collection-note-text");
+collectionNoteFollowupDate = d("collection-note-followup-date");
+saveCollectionNoteBtn = d("save-collection-note-btn");
+collectionNotesMessage = d("collection-notes-message");
                  totalLiabilitiesDisplay = d("total-liabilities-display");
                  creditorNameInput = d("creditor-name");
                  addLiabilityAmountInput = d("add-liability-amount");
@@ -10169,6 +10910,8 @@ if (debtorsListContainer) {
         }
     });
 }
+
+
 // =======================================================
 // END: Debt Actions Event Listener
 // =======================================================
@@ -10717,18 +11460,33 @@ if (addDebtButton) {
             }
         }
 
-        const existingDebtIndex = debtors.findIndex(d => d.name === name && d.reason === reason);
-        let logMsg = "";
-        if (existingDebtIndex !== -1) {
-            debtors[existingDebtIndex].amount = (Number(debtors[existingDebtIndex].amount) || 0) + amount;
-            logMsg = `زيادة دين قائم على "${name}" بمبلغ ${formatCurrency(amount)}.`;
-            showMessage(debtsMessage, `تمت زيادة الدين لـ "${name}".`);
-        } else {
-            debtors.push({ id: generateId('debt'), name, reason, amount });
-            logMsg = `تسجيل دين جديد على "${name}" بمبلغ ${formatCurrency(amount)}.`;
-            showMessage(debtsMessage, `تم تسجيل دين جديد لـ "${name}".`);
-        }
+       const debtorPhone = debtorPhoneInput ? debtorPhoneInput.value.trim() : "";
+const debtorAddress = debtorAddressInput ? debtorAddressInput.value.trim() : "";
 
+const customerProfile = getOrCreateDebtorProfile(name, debtorPhone, debtorAddress);
+
+const existingDebtIndex = debtors.findIndex(
+    d => d.customerId === customerProfile.id && d.reason === reason
+);
+
+let logMsg = "";
+
+if (existingDebtIndex !== -1) {
+    debtors[existingDebtIndex].amount = (Number(debtors[existingDebtIndex].amount) || 0) + amount;
+    logMsg = `زيادة دين قائم على "${customerProfile.name}" بمبلغ ${formatCurrency(amount)}.`;
+    showMessage(debtsMessage, `تمت زيادة الدين لـ "${customerProfile.name}".`);
+} else {
+    debtors.push({
+        id: generateId('debt'),
+        customerId: customerProfile.id,
+        name: customerProfile.name,
+        reason,
+        amount,
+        createdAt: new Date().toISOString()
+    });
+    logMsg = `تسجيل دين جديد على "${customerProfile.name}" بمبلغ ${formatCurrency(amount)}.`;
+    showMessage(debtsMessage, `تم تسجيل دين جديد لـ "${customerProfile.name}".`);
+}
         // --- ✅ كود جديد: الخصم من الحساب المحدد ---
         if (deductLiquidity) {
             account.balance -= amount;
@@ -10739,10 +11497,12 @@ if (addDebtButton) {
         
         logOperation("تسجيل/زيادة دين", logMsg);
         updateUI();
-        debtorNameInput.value = "";
-        addDebtReasonInput.value = "";
-        addDebtAmountInput.value = "0";
-        debtDeductLiquidityCheckbox.checked = false;
+       debtorNameInput.value = "";
+if (debtorPhoneInput) debtorPhoneInput.value = "";
+if (debtorAddressInput) debtorAddressInput.value = "";
+addDebtReasonInput.value = "";
+addDebtAmountInput.value = "0";
+ debtDeductLiquidityCheckbox.checked = false;
         d('debt-advance-account-container').classList.add('hidden'); // إخفاء قائمة الحسابات
         debtorNameInput.focus();
     });
@@ -10752,8 +11512,24 @@ if (addDebtButton) {
         d('debt-advance-account-container').classList.toggle('hidden', !e.target.checked);
     });
 }
-  // استبدل هذا الكود بالكامل داخل دالة initializeApp
-// استبدل هذا الكود بالكامل داخل دالة initializeApp
+
+
+if (debtsSearchInput) {
+    debtsSearchInput.addEventListener("input", updateDebtorsListDisplay);
+}
+
+if (debtsNotesFilter) {
+    debtsNotesFilter.addEventListener("change", updateDebtorsListDisplay);
+}
+
+if (debtsSortSelect) {
+    debtsSortSelect.addEventListener("change", updateDebtorsListDisplay);
+}
+
+
+
+
+
 if (receivePaymentButton) {
     receivePaymentButton.addEventListener("click", () => {
         const checkedDebts = d('payment-debtor-list-container').querySelectorAll('.debt-payment-checkbox:checked');
@@ -11879,6 +12655,8 @@ d('confirm-partial-liability-payment-btn').addEventListener('click', () => {
     showGlobalMessage(`تم تسديد مبلغ ${formatCurrency(amountToPay)} بنجاح.`, false);
 });
 
+
+
 // Event listeners for closing the modal
 partialLiabilityPaymentModal.querySelectorAll('.modal-close-btn, .modal-close-btn-footer').forEach(btn => {
     btn.addEventListener('click', closePartialLiabilityPaymentModal);
@@ -11955,6 +12733,24 @@ if (debtorsListContainer) {
     });
 }
 
+if (collectionNotesModal) {
+    collectionNotesModal.querySelectorAll('.modal-close-btn, .modal-close-btn-footer').forEach(btn => {
+        btn.addEventListener('click', () => {
+            collectionNotesModal.style.display = 'none';
+        });
+    });
+}
+
+window.addEventListener('click', (event) => {
+    if (event.target === collectionNotesModal) {
+        collectionNotesModal.style.display = 'none';
+    }
+});
+
+
+
+
+
 // Event listener for the modal's confirm button
 d('confirm-partial-debt-payment-btn').addEventListener('click', () => {
     const debtId = d('confirm-partial-debt-payment-btn').dataset.debtId;
@@ -12014,10 +12810,6 @@ window.addEventListener('click', (event) => {
         closePartialDebtPaymentModal();
     }
 });
-// =======================================================
-// نظام العربونات الآمن (Safe Deposit System)
-// =======================================================
-
 
 // 2. تنفيذ العربون (حفظ)
 window.confirmDeposit = function() {
@@ -12186,6 +12978,204 @@ window.showPendingSaleDetails = function(pendingId) {
 // ==========================================
 // دالة المزامنة اليدوية (لإصلاح الفواتير غير المرفوعة)
 // ==========================================
+
+window.openConvertPendingSaleToDebtDialog = function(pendingSaleId) {
+    const sale = pendingSales.find(s => s.id === pendingSaleId);
+    if (!sale) {
+        showGlobalMessage("خطأ: لم يتم العثور على البيع المؤقت.", true);
+        return;
+    }
+
+    const totalAmount = Number(sale.totalSellPrice || sale.grandTotal || 0);
+    const paidAmount = Number(sale.depositPaid || sale.paidAmount || sale.depositAmount || 0);
+    const remainingAmount = Math.max(0, totalAmount - paidAmount);
+
+    let modal = document.getElementById('convertPendingToDebtModal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'convertPendingToDebtModal';
+        modal.className = 'modal';
+        modal.style.cssText = "display:none; position:fixed; z-index:99999; left:0; top:0; width:100%; height:100%; background-color:rgba(0,0,0,0.55); backdrop-filter: blur(3px);";
+
+        modal.innerHTML = `
+            <div class="modal-content" style="background:#fff; margin:4% auto; width:92%; max-width:650px; border-radius:16px; overflow:hidden; box-shadow:0 20px 50px rgba(0,0,0,0.25);">
+                <div style="background:linear-gradient(to left,#4f46e5,#7c3aed); color:#fff; padding:16px 20px; display:flex; justify-content:space-between; align-items:center;">
+                    <div>
+                        <div style="font-size:1.15rem; font-weight:800;">تحويل البيع المؤقت إلى دين</div>
+                        <div style="font-size:.9rem; opacity:.9;">راجع التفاصيل وحدد طريقة التنفيذ</div>
+                    </div>
+                    <button onclick="document.getElementById('convertPendingToDebtModal').style.display='none'" style="background:transparent; color:#fff; border:none; font-size:1.6rem; cursor:pointer;">×</button>
+                </div>
+
+                <div style="padding:20px; max-height:75vh; overflow-y:auto;">
+                    <input type="hidden" id="cpd_pending_id">
+
+                    <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:14px; margin-bottom:16px;">
+                        <div style="font-weight:700; color:#0f172a; margin-bottom:8px;">تفاصيل البيعة</div>
+                        <div id="cpd_sale_summary" style="font-size:.95rem; line-height:1.9; color:#334155;"></div>
+                    </div>
+
+                    <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:12px; padding:14px; margin-bottom:16px;">
+                        <div style="font-weight:700; color:#1d4ed8; margin-bottom:10px;">1) طريقة التحويل</div>
+                        <label style="display:flex; gap:8px; align-items:flex-start; margin-bottom:10px; cursor:pointer;">
+                            <input type="radio" name="cpd_confirm_sale" value="yes" checked onchange="toggleConvertPendingDebtOptions()">
+                            <span><strong>تأكيد البيعة ثم تحويل المتبقي إلى دين</strong><br><small style="color:#475569;">ستظهر البيعة في قائمة المبيعات ويتم تحويل الباقي إلى دين.</small></span>
+                        </label>
+                        <label style="display:flex; gap:8px; align-items:flex-start; cursor:pointer;">
+                            <input type="radio" name="cpd_confirm_sale" value="no" onchange="toggleConvertPendingDebtOptions()">
+                            <span><strong>تحويل إلى دين بدون تأكيد البيعة</strong><br><small style="color:#475569;">لن تظهر البيعة في قائمة المبيعات، وسيتم فقط إنشاء/تحديث الدين.</small></span>
+                        </label>
+                    </div>
+
+                    <div id="cpd_account_section" style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:12px; padding:14px; margin-bottom:16px;">
+                        <div style="font-weight:700; color:#15803d; margin-bottom:10px;">2) حساب الإيداع عند تأكيد البيعة</div>
+                        <label style="display:block; font-weight:600; margin-bottom:6px;">اختر الحساب / الخزنة</label>
+                        <select id="cpd_account_id" style="width:100%; border:1px solid #cbd5e1; border-radius:10px; padding:10px;"></select>
+                    </div>
+
+                    <div style="background:#fff7ed; border:1px solid #fed7aa; border-radius:12px; padding:14px; margin-bottom:16px;">
+                        <div style="font-weight:700; color:#c2410c; margin-bottom:10px;">3) معالجة المبلغ المتبقي</div>
+                        <label style="display:block; margin-bottom:10px;">
+                            <span style="font-weight:600; display:block; margin-bottom:6px;">المتبقي الحالي</span>
+                            <input id="cpd_remaining_amount" type="text" readonly style="width:100%; background:#f8fafc; border:1px solid #cbd5e1; border-radius:10px; padding:10px;">
+                        </label>
+
+                        <label style="display:flex; gap:8px; align-items:flex-start; margin-bottom:10px; cursor:pointer;">
+                            <input type="radio" name="cpd_debt_mode" value="new" checked onchange="toggleConvertPendingDebtModes()">
+                            <span><strong>إنشاء دين جديد</strong><br><small style="color:#475569;">سيتم إنشاء سجل دين مستقل للعميل.</small></span>
+                        </label>
+
+                        <label style="display:flex; gap:8px; align-items:flex-start; cursor:pointer;">
+                            <input type="radio" name="cpd_debt_mode" value="existing" onchange="toggleConvertPendingDebtModes()">
+                          
+                          <span><strong>إضافة إلى دين قديم</strong><br><small style="color:#475569;">سيتم إضافة المبلغ إلى الدين الذي تختاره، وسيُستخدم اسم العميل الموجود على هذا الدين.</small></span>
+                        <div id="cpd_existing_debt_section" style="display:none; margin-top:12px;">
+                            <label style="display:block; font-weight:600; margin-bottom:6px;">اختر الدين القديم</label>
+                            <select id="cpd_existing_debt_id" style="width:100%; border:1px solid #cbd5e1; border-radius:10px; padding:10px;"></select>
+                        </div>
+                    </div>
+
+                    <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end;">
+                        <button onclick="document.getElementById('convertPendingToDebtModal').style.display='none'" style="background:#e5e7eb; color:#111827; border:none; border-radius:10px; padding:10px 16px; font-weight:700; cursor:pointer;">إلغاء</button>
+                        <button onclick="confirmConvertPendingSaleToDebt()" style="background:linear-gradient(to left,#4f46e5,#7c3aed); color:#fff; border:none; border-radius:10px; padding:10px 18px; font-weight:700; cursor:pointer;">تنفيذ التحويل</button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+    }
+
+    document.getElementById('cpd_pending_id').value = pendingSaleId;
+
+    const summaryEl = document.getElementById('cpd_sale_summary');
+    summaryEl.innerHTML = `
+        <div><strong>العميل:</strong> ${sale.customerName || '-'}</div>
+        <div><strong>إجمالي البيعة:</strong> ${formatCurrency(totalAmount)}</div>
+        <div><strong>المدفوع / العربون:</strong> ${formatCurrency(paidAmount)}</div>
+        <div><strong>المتبقي:</strong> ${formatCurrency(remainingAmount)}</div>
+        <div><strong>عدد البنود:</strong> ${Array.isArray(sale.items) ? sale.items.length : 1}</div>
+    `;
+
+    document.getElementById('cpd_remaining_amount').value = formatCurrency(remainingAmount);
+
+    const accountSelect = document.getElementById('cpd_account_id');
+    accountSelect.innerHTML = '<option value="">اختر الحساب</option>';
+    (accounts || []).forEach(acc => {
+        const option = document.createElement('option');
+        option.value = acc.id;
+        option.textContent = `${acc.name} - الرصيد: ${formatCurrency(Number(acc.balance || 0))}`;
+        accountSelect.appendChild(option);
+    });
+
+   const existingDebtSelect = document.getElementById('cpd_existing_debt_id');
+existingDebtSelect.innerHTML = '<option value="">اختر اسم صاحب الدين</option>';
+
+const uniqueDebtNames = [...new Set(
+    (debtors || [])
+        .map(d => d.name || d.customerName || '')
+        .filter(Boolean)
+)];
+
+uniqueDebtNames.forEach(name => {
+    const totalForName = (debtors || [])
+        .filter(d => (d.name || d.customerName) === name)
+        .reduce((sum, d) => sum + Number(d.amount || 0), 0);
+
+    const option = document.createElement('option');
+    option.value = name;
+    option.textContent = `${name} - ${formatCurrency(totalForName)}`;
+    existingDebtSelect.appendChild(option);
+});
+
+const existingDebtRadio = document.querySelector('input[name="cpd_debt_mode"][value="existing"]');
+if (uniqueDebtNames.length === 0) {
+    existingDebtRadio.disabled = true;
+    existingDebtRadio.parentElement.style.opacity = '0.5';
+} else {
+    existingDebtRadio.disabled = false;
+    existingDebtRadio.parentElement.style.opacity = '1';
+}
+
+    document.querySelector('input[name="cpd_confirm_sale"][value="yes"]').checked = true;
+    document.querySelector('input[name="cpd_debt_mode"][value="new"]').checked = true;
+    toggleConvertPendingDebtOptions();
+    toggleConvertPendingDebtModes();
+
+    modal.style.display = 'block';
+};
+
+window.toggleConvertPendingDebtOptions = function() {
+    const confirmSale = document.querySelector('input[name="cpd_confirm_sale"]:checked')?.value === 'yes';
+    const accountSection = document.getElementById('cpd_account_section');
+    if (accountSection) {
+        accountSection.style.display = confirmSale ? 'block' : 'none';
+    }
+};
+
+window.toggleConvertPendingDebtModes = function() {
+    const mode = document.querySelector('input[name="cpd_debt_mode"]:checked')?.value;
+    const section = document.getElementById('cpd_existing_debt_section');
+    if (section) {
+        section.style.display = mode === 'existing' ? 'block' : 'none';
+    }
+};
+
+window.confirmConvertPendingSaleToDebt = function() {
+    const pendingSaleId = document.getElementById('cpd_pending_id').value;
+    const confirmSale = document.querySelector('input[name="cpd_confirm_sale"]:checked')?.value === 'yes';
+    const debtMode = document.querySelector('input[name="cpd_debt_mode"]:checked')?.value || 'new';
+    const targetDebtId = document.getElementById('cpd_existing_debt_id').value || null;
+    const accountId = document.getElementById('cpd_account_id').value || null;
+
+    const sale = pendingSales.find(s => s.id === pendingSaleId);
+    if (!sale) {
+        showGlobalMessage("لم يتم العثور على البيعة المؤقتة.", true);
+        return;
+    }
+
+    const totalAmount = Number(sale.totalSellPrice || sale.grandTotal || 0);
+    const paidAmount = Number(sale.depositPaid || sale.paidAmount || sale.depositAmount || 0);
+    const remainingAmount = Math.max(0, totalAmount - paidAmount);
+
+    if (remainingAmount <= 0) {
+        showGlobalMessage("لا يوجد مبلغ متبقٍ لتحويله إلى دين.", true);
+        return;
+    }
+
+    if (confirmSale && !accountId) {
+        showGlobalMessage("يجب اختيار حساب الإيداع عند تأكيد البيعة.", true);
+        return;
+    }
+
+    if (debtMode === 'existing' && !targetDebtId) {
+        showGlobalMessage("يجب اختيار الدين القديم أولاً.", true);
+        return;
+    }
+
+    convertPendingSaleToDebt(pendingSaleId, debtMode, targetDebtId, confirmSale, accountId);
+    document.getElementById('convertPendingToDebtModal').style.display = 'none';
+};
 async function syncLocalSalesToCloud() {
     if (!window.currentUser) {
         alert("يجب تسجيل الدخول أولاً.");
@@ -12586,6 +13576,12 @@ window.deleteAllReportData = async function() {
     }
 };
 }); // End DOMContentLoaded
+
+
+
+
+
+
 </script>
 
 <script type="module">
