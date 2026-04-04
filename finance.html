@@ -4837,24 +4837,42 @@ function convertPendingSaleToDebt(pendingSaleId, mode = 'new', targetDebtId = nu
             return;
         }
 
-        let costOfGoodsSold = 0;
+      let costOfGoodsSold = 0;
 
-        if (pendingSale.mainProduct) {
+// لو البيع المؤقت جاي من فاتورة مفصلة ومحفوظ فيه إجمالي التكلفة
+if (pendingSale.totalCost !== undefined && pendingSale.totalCost !== null) {
+    costOfGoodsSold = Number(pendingSale.totalCost) || 0;
+}
+// لو فيه items لكن totalCost غير موجود
+else if (Array.isArray(pendingSale.items) && pendingSale.items.length > 0) {
+    pendingSale.items.forEach(item => {
+        costOfGoodsSold +=
+            (Number(item.costPrice) || 0) *
+            (Number(item.quantity) || 0);
+    });
+}
+// fallback للبيع السريع القديم
+else {
+    if (pendingSale.mainProduct) {
+        costOfGoodsSold +=
+            (Number(pendingSale.mainProduct.costPrice) || 0) *
+            (Number(pendingSale.mainProduct.quantity) || 0);
+    }
+
+    if (Array.isArray(pendingSale.additionalItems)) {
+        pendingSale.additionalItems.forEach(item => {
             costOfGoodsSold +=
-                (Number(pendingSale.mainProduct.costPrice) || 0) *
-                (Number(pendingSale.mainProduct.quantity) || 0);
-        }
+                (Number(item.costPrice) || 0) *
+                (Number(item.quantity) || 0);
+        });
+    }
+}
 
-        if (Array.isArray(pendingSale.additionalItems)) {
-            pendingSale.additionalItems.forEach(item => {
-                costOfGoodsSold +=
-                    (Number(item.costPrice) || 0) *
-                    (Number(item.quantity) || 0);
-            });
-        }
-
-        const calculatedProfit = totalAmount - costOfGoodsSold;
-
+const calculatedProfit =
+    pendingSale.potentialProfit !== undefined
+        ? (Number(pendingSale.potentialProfit) || 0)
+        : (totalAmount - costOfGoodsSold);
+        
         const confirmedSale = {
             ...pendingSale,
             id: generateId('sale'),
