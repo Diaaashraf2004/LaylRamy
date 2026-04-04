@@ -3116,10 +3116,16 @@ async function fetchOnlineDataForDate(dateString) {
 }
         function saveData(key, data){ console.log(`saveData: Saving data for key: ${key}`); try { localStorage.setItem(key, JSON.stringify(data)) } catch(e) { console.error(`Error saving data for key "${key}":`, e); showGlobalMessage("حدث خطأ أثناء حفظ البيانات. قد يكون التخزين ممتلئًا.", true) } }
         function formatCurrency(amount){ const numAmount = Number(amount); return isNaN(numAmount) ? '0.00 جنيه' : `${numAmount.toFixed(2)} جنيه` }
-      function normalizeArabicText(text) {
-    return String(text || "").trim().replace(/\s+/g, " ").toLowerCase();
+     function normalizeArabicText(text) {
+    if (!text) return "";
+    return String(text)
+        .trim()
+        .replace(/[أإآ]/g, "ا") // توحيد الألفات
+        .replace(/ة/g, "ه")    // توحيد الهاء والتاء المربوطة
+        .replace(/ى/g, "ي")    // توحيد الياء
+        .replace(/\s+/g, " ")  // إزالة المسافات الزائدة
+        .toLowerCase();
 }
-
 function generateId(prefix = "id") {
     return `${prefix}_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
 }
@@ -3129,28 +3135,31 @@ function getDebtorProfileById(customerId) {
 }
 
 function getOrCreateDebtorProfile(name, phone = "", address = "") {
-    const normalizedName = normalizeArabicText(name);
-    let existing = debtorProfiles.find(p => normalizeArabicText(p.name) === normalizedName);
-
+    if (!name) return null;
+    const normalizedTarget = normalizeArabicText(name);
+    
+    // البحث في البروفايلات الحالية باستخدام الاسم الموحد
+    let existing = debtorProfiles.find(p => normalizeArabicText(p.name) === normalizedTarget);
+    
     if (existing) {
+        // تحديث البيانات الناقصة فقط للبروفايل القديم
         if (phone && !existing.phone) existing.phone = phone;
         if (address && !existing.address) existing.address = address;
         return existing;
     }
-
+    
+    // إنشاء بروفايل جديد فقط إذا لم يوجد تطابق تماماً
     const newProfile = {
         id: generateId("cust"),
-        name: String(name || "").trim(),
+        name: String(name).trim(),
         phone: String(phone || "").trim(),
         address: String(address || "").trim(),
         generalNotes: "",
         createdAt: new Date().toISOString()
     };
-
     debtorProfiles.push(newProfile);
     return newProfile;
 }
-
 function getCustomerDebts(customerId) {
     return debtors.filter(d => d.customerId === customerId);
 }
@@ -3311,9 +3320,13 @@ async function saveInvoiceToFirestore(invoiceRecord) {
     const userId = window.currentUser.uid;
     
     // ضمان وجود تاريخ البيع
-    if (!invoiceRecord.saleDate) {
-        invoiceRecord.saleDate = currentLoadedDate || new Date().toISOString().split('T')[0];
-    }
+   if (!invoiceRecord.saleDate) {
+    invoiceRecord.saleDate =
+        (invoiceRecord.createdAt ? invoiceRecord.createdAt.split('T')[0] : null) ||
+        (invoiceRecord.timestamp ? invoiceRecord.timestamp.split('T')[0] : null) ||
+        currentLoadedDate ||
+        new Date().toISOString().split('T')[0];
+}
 
     try {
         const invoiceDocRef = window.doc(window.db, "users", userId, "invoices", invoiceRecord.id);
@@ -3409,14 +3422,38 @@ function migrateDebtorsToProfiles() {
     if (!Array.isArray(debtors) || debtors.length === 0) return;
 
     debtors.forEach(debt => {
-        if (!debt.customerId) {
-            const profile = getOrCreateDebtorProfile(debt.name || "عميل بدون اسم");
+        const rawName = debt.name || debt.customerName || "عميل بدون اسم";
+        const normalizedName = normalizeArabicText(rawName);
+
+        const linkedProfile = debt.customerId
+            ? debtorProfiles.find(p => p.id === debt.customerId)
+            : null;
+
+        // لو customerId غير موجود أو موجود لكنه مكسور/لا يشير لبروفايل فعلي
+        if (!linkedProfile) {
+            let profile = debtorProfiles.find(p =>
+                normalizeArabicText(p.name || "") === normalizedName
+            );
+
+            if (!profile) {
+                profile = getOrCreateDebtorProfile(rawName);
+            }
+
             debt.customerId = profile.id;
-            if (!debt.createdAt) debt.createdAt = new Date().toISOString();
+        }
+
+        // توحيد الاسم المخزن داخل الدين نفسه
+        const finalProfile = debtorProfiles.find(p => p.id === debt.customerId);
+        if (finalProfile) {
+            debt.name = finalProfile.name;
+            debt.customerName = finalProfile.name;
+        }
+
+        if (!debt.createdAt) {
+            debt.createdAt = new Date().toISOString();
         }
     });
 }
-
 
 
 
@@ -3430,6 +3467,7 @@ function loadStateFromSnapshot(snapshot) {
     debtorProfiles = snapshot.debtorProfiles || [];
 debtCollectionNotes = snapshot.debtCollectionNotes || [];
         migrateDebtorsToProfiles();
+        mergeDuplicateDebtorProfiles();
     liabilities = snapshot.liabilities || [];
     monthlyLiabilities = snapshot.monthlyLiabilities || [];
     totalProfit = snapshot.totalProfit || 0;
@@ -3643,6 +3681,8 @@ function loadState(data, dateString) {
     debtors = data.debtors || [];
     debtorProfiles = data.debtorProfiles || [];
 debtCollectionNotes = data.debtCollectionNotes || [];
+migrateDebtorsToProfiles();
+mergeDuplicateDebtorProfiles();
     liabilities = data.liabilities || [];
     monthlyLiabilities = data.monthlyLiabilities || [];
     totalProfit = parseFloat(data.profit) || 0;
@@ -3912,14 +3952,25 @@ function updateProductListDisplay() {
 
     const mainProductName = sellProductNameInput.value.trim().toLowerCase();
 
-    // أسماء الملحقات المختارة سابقًا في حالة التعديل
-    const selectedMap = new Map(
-        (selectedAttachments || []).map(item => [
-            String(item.name || '').trim().toLowerCase(),
-            item
-        ])
-    );
+   const safeAttachments = Array.isArray(selectedAttachments)
+    ? selectedAttachments
+    : selectedAttachments
+        ? [selectedAttachments]
+        : [];
 
+const selectedMap = new Map(
+    safeAttachments
+        .map(item => {
+            const normalizedItem = typeof item === 'string'
+                ? { name: item, quantity: 1, costPrice: 0, supplierId: '' }
+                : item;
+
+            const key = String(normalizedItem?.name || '').trim().toLowerCase();
+
+            return key ? [key, normalizedItem] : null;
+        })
+        .filter(Boolean)
+);
     // المنتجات العادية المتاحة بالمخزون
     const availableProducts = products.filter(p =>
         p.name.trim().toLowerCase() !== mainProductName &&
@@ -3958,7 +4009,10 @@ function updateProductListDisplay() {
         return;
     }
 
-    otherProducts.sort((a, b) => a.name.localeCompare(b.name, 'ar')).forEach(product => {
+   otherProducts
+    .filter(product => product && product.name)
+    .sort((a, b) => String(a.name).localeCompare(String(b.name), 'ar'))
+    .forEach(product => {
         const key = product.name.trim().toLowerCase();
         const selectedItem = selectedMap.get(key);
         const isPreviouslySelected = !!selectedItem;
@@ -4219,12 +4273,23 @@ function updateDebtorsListDisplay() {
 
         let customerId = debt.customerId;
 
-        if (!customerId) {
-            const profile = getOrCreateDebtorProfile(debt.name || "عميل بدون اسم");
-            customerId = profile.id;
-            debt.customerId = profile.id;
-        }
+      if (!customerId) {
+    const rawName = debt.name || debt.customerName || "";
+    const normalizedName = normalizeArabicText(rawName);
 
+    const existingProfile = debtorProfiles.find(p =>
+        normalizeArabicText(p.name || "") === normalizedName
+    );
+
+    if (existingProfile) {
+        customerId = existingProfile.id;
+        debt.customerId = existingProfile.id;
+    } else {
+        const profile = getOrCreateDebtorProfile(rawName || "عميل بدون اسم");
+        customerId = profile.id;
+        debt.customerId = profile.id;
+    }
+}
         const profile = getDebtorProfileById(customerId);
 
         if (!grouped[customerId]) {
@@ -4728,6 +4793,7 @@ renderLiabilityPaymentList();
     updateReturnsUI();
     populateReturnProductSelect();
     updateMonthlyLiabilitiesDisplay();
+    refreshNamesDatalists();
     
     if (totalDebtsDisplay) totalDebtsDisplay.textContent = `إجمالي الديون: ${formatCurrency(totalDebtsValue)}`;
     if (currentLiquidityDisplay) currentLiquidityDisplay.textContent = formatCurrency(liquidity);
@@ -4872,24 +4938,32 @@ const calculatedProfit =
     pendingSale.potentialProfit !== undefined
         ? (Number(pendingSale.potentialProfit) || 0)
         : (totalAmount - costOfGoodsSold);
-        
-        const confirmedSale = {
-            ...pendingSale,
-            id: generateId('sale'),
-            type: 'pending-confirmed',
-            saleType: 'deferred_from_pending',
-            paymentStatus: remainingAmount > 0 ? 'partial' : 'paid',
-            totalSellPrice: totalAmount,
-            totalCost: costOfGoodsSold,
-            profit: calculatedProfit,
-            remainingAmount: remainingAmount,
-            paidAmount: paidAmount,
-            depositPaid: paidAmount,
-            accountId: account.id,
-            accountName: account.name,
-            timestamp: new Date().toISOString()
-        };
 
+const originalSaleDate =
+    pendingSale.saleDate ||
+    (pendingSale.createdAt ? pendingSale.createdAt.split('T')[0] : null) ||
+    (pendingSale.timestamp ? pendingSale.timestamp.split('T')[0] : null) ||
+    currentLoadedDate ||
+    new Date().toISOString().split('T')[0];
+
+const confirmedSale = {
+    ...pendingSale,
+    id: generateId('sale'),
+    type: 'pending-confirmed',
+    saleType: 'deferred_from_pending',
+    paymentStatus: remainingAmount > 0 ? 'partial' : 'paid',
+    totalSellPrice: totalAmount,
+    totalCost: costOfGoodsSold,
+    profit: calculatedProfit,
+    remainingAmount: remainingAmount,
+    paidAmount: paidAmount,
+    depositPaid: paidAmount,
+    accountId: account.id,
+    accountName: account.name,
+    saleDate: originalSaleDate,
+    timestamp: pendingSale.timestamp || pendingSale.createdAt || new Date().toISOString(),
+    createdAt: pendingSale.createdAt || pendingSale.timestamp || new Date().toISOString()
+};
         if (!Array.isArray(salesToday)) {
             window.salesToday = [];
         }
@@ -4919,51 +4993,59 @@ const calculatedProfit =
         }
     }
 
-    // 2) إنشاء دين جديد أو إنشاء دين فرعي جديد تحت اسم قديم
-    if (mode === 'existing' && targetDebtId) {
-        const selectedDebtName = targetDebtId;
+if (mode === 'existing' && targetDebtId) {
+    const selectedDebt = debtors.find(d => d.id === targetDebtId);
 
-        debtors.push({
-            id: generateId('debt'),
-            name: selectedDebtName,
-            customerName: selectedDebtName,
-            amount: remainingAmount,
-            reason: `بيعة باسم ${pendingSale.customerName || 'عميل غير محدد'}`,
-            timestamp: new Date().toISOString(),
-            entries: [
-                {
-                    id: generateId('debt_entry'),
-                    source: 'pending_sale_conversion',
-                    saleId: pendingSale.id,
-                    saleCustomerName: pendingSale.customerName || 'عميل غير محدد',
-                    amount: remainingAmount,
-                    timestamp: new Date().toISOString(),
-                    note: `تم إنشاء دين فرعي تحت ${selectedDebtName} من بيعة باسم ${pendingSale.customerName || 'عميل غير محدد'}`
-                }
-            ]
-        });
-
-    } else {
-        debtors.push({
-            id: generateId('debt'),
-            name: pendingSale.customerName || 'عميل غير محدد',
-            customerName: pendingSale.customerName || 'عميل غير محدد',
-            amount: remainingAmount,
-            reason: `تحويل بيع مؤقت رقم ${pendingSale.id}`,
-            timestamp: new Date().toISOString(),
-            entries: [
-                {
-                    id: generateId('debt_entry'),
-                    source: 'pending_sale_conversion',
-                    saleId: pendingSale.id,
-                    saleCustomerName: pendingSale.customerName || 'عميل غير محدد',
-                    amount: remainingAmount,
-                    timestamp: new Date().toISOString(),
-                    note: `تم إنشاء الدين من بيعة مؤقتة باسم ${pendingSale.customerName || 'عميل غير محدد'}`
-                }
-            ]
-        });
+    if (!selectedDebt) {
+        showGlobalMessage("لم يتم العثور على الدين القديم المحدد.", true);
+        return;
     }
+
+    selectedDebt.amount = Number(selectedDebt.amount || 0) + remainingAmount;
+    selectedDebt.timestamp = new Date().toISOString();
+
+    if (!Array.isArray(selectedDebt.entries)) {
+        selectedDebt.entries = [];
+    }
+
+    selectedDebt.entries.push({
+        id: generateId('debt_entry'),
+        source: 'pending_sale_conversion',
+        saleId: pendingSale.id,
+        saleCustomerName: pendingSale.customerName || 'عميل غير محدد',
+        amount: remainingAmount,
+        timestamp: new Date().toISOString(),
+        note: `تمت إضافة بيعة باسم ${pendingSale.customerName || 'عميل غير محدد'} إلى الدين القائم: ${selectedDebt.name || 'عميل غير محدد'}`
+    });
+
+    selectedDebt.reason = `آخر إضافة: بيعة باسم ${pendingSale.customerName || 'عميل غير محدد'}`;
+
+} else {
+    const customerProfile = getOrCreateDebtorProfile(
+        pendingSale.customerName || 'عميل غير محدد'
+    );
+
+    debtors.push({
+        id: generateId('debt'),
+        customerId: customerProfile.id,
+        name: customerProfile.name,
+        customerName: customerProfile.name,
+        amount: remainingAmount,
+        reason: `تحويل بيع مؤقت رقم ${pendingSale.id}`,
+        timestamp: new Date().toISOString(),
+        entries: [
+            {
+                id: generateId('debt_entry'),
+                source: 'pending_sale_conversion',
+                saleId: pendingSale.id,
+                saleCustomerName: pendingSale.customerName || 'عميل غير محدد',
+                amount: remainingAmount,
+                timestamp: new Date().toISOString(),
+                note: `تم إنشاء الدين من بيعة مؤقتة باسم ${pendingSale.customerName || 'عميل غير محدد'}`
+            }
+        ]
+    });
+}
 
     // 3) حذف البيعة من المؤقت
     pendingSales.splice(pendingSaleIndex, 1);
@@ -6574,35 +6656,33 @@ async function handleSaveInvoice() {
     // 4. الحفظ
     if (isPending) {
         // --- حفظ الفاتورة المؤقتة ---
-        const pendingInvoiceData = {
-            id: isInvoiceFromPending && pendingSaleOriginData ? pendingSaleOriginData.id : `pending-inv-${Date.now()}`,
-            timestamp: new Date().toISOString(),
-            customerName,
-            customerAddress,
-            phones,
-            items: invoiceItems,
-            shippingCost,
-            warranty,
-            notes,
-            deductedItems: deductedItemsData, // ✅ الملحقات محفوظة
-            
-            totalSellPrice: grandTotal,
-            totalCost: totalInvoiceCost, // ✅ التكلفة دقيقة
-            potentialProfit: finalInvoiceProfit,
-            
-            depositPaid: depositAlreadyPaid, // ✅ العربون محفوظ
-            status: 'pending',
-            
-            invoiceData: {
-                customerAddress,
-                phones,
-                warranty,
-                notes,
-                deductedItems: deductedItemsData
-            }
-        };
-
-        // حذف القديم إذا كان تعديل
+   const pendingInvoiceData = {
+    id: isInvoiceFromPending && pendingSaleOriginData ? pendingSaleOriginData.id : `pending-inv-${Date.now()}`,
+    createdAt: pendingSaleOriginData?.createdAt || new Date().toISOString(),
+    timestamp: new Date().toISOString(),
+    saleDate: pendingSaleOriginData?.saleDate || currentLoadedDate || new Date().toISOString().split('T')[0],
+    customerName,
+    customerAddress,
+    phones,
+    items: invoiceItems,
+    shippingCost,
+    warranty,
+    notes,
+    deductedItems: deductedItemsData,
+    totalSellPrice: grandTotal,
+    totalCost: totalInvoiceCost,
+    potentialProfit: finalInvoiceProfit,
+    depositPaid: depositAlreadyPaid,
+    status: 'pending',
+    invoiceData: {
+        customerAddress,
+        phones,
+        warranty,
+        notes,
+        deductedItems: deductedItemsData
+    }
+};
+   // حذف القديم إذا كان تعديل
         if (isInvoiceFromPending && pendingSaleOriginData && pendingSaleOriginData.id) {
             const idx = pendingSales.findIndex(s => String(s.id).trim() === String(pendingSaleOriginData.id).trim());
             if (idx !== -1) pendingSales.splice(idx, 1);
@@ -6665,24 +6745,37 @@ async function handleSaveInvoice() {
         });
         const generatedInvoiceNumber = `${todayStr}-${(maxSeq + 1).toString().padStart(3, '0')}`;
 
-        const invoiceRecord = {
-            id: isInvoiceFromPending && pendingSaleOriginData ? pendingSaleOriginData.id.replace('pending','inv') : `inv-${Date.now()}`,
-            invoiceNumber: generatedInvoiceNumber,
-            type: 'invoice',
-            timestamp: new Date().toISOString(),
-            saleDate: currentLoadedDate || getTodayDateString(),
-            customerName, customerAddress, phones, items: invoiceItems,
-            shippingCost, 
-            totalGoodsPrice: totalGoods, 
-            grandTotal, 
-            paidAmount: grandTotal, 
-            depositPaid: depositAlreadyPaid, 
-            warranty, notes, 
-            deductedItems: deductedItemsData, // ✅ سيتم حفظ الملحقات هنا
-            totalCost: totalInvoiceCost,
-            profit: finalInvoiceProfit, 
-            accountId: selectedAccountId
-        };
+
+        const originalSaleDate =
+    pendingSaleOriginData?.saleDate ||
+    (pendingSaleOriginData?.createdAt ? pendingSaleOriginData.createdAt.split('T')[0] : null) ||
+    (pendingSaleOriginData?.timestamp ? pendingSaleOriginData.timestamp.split('T')[0] : null) ||
+    currentLoadedDate ||
+    getTodayDateString();
+
+    const invoiceRecord = {
+    id: isInvoiceFromPending && pendingSaleOriginData ? pendingSaleOriginData.id.replace('pending','inv') : `inv-${Date.now()}`,
+    invoiceNumber: generatedInvoiceNumber,
+    type: 'invoice',
+    timestamp: new Date().toISOString(),
+    createdAt: pendingSaleOriginData?.createdAt || new Date().toISOString(),
+    saleDate: originalSaleDate,
+    customerName,
+    customerAddress,
+    phones,
+    items: invoiceItems,
+    shippingCost,
+    totalGoodsPrice: totalGoods,
+    grandTotal,
+    paidAmount: grandTotal,
+    depositPaid: depositAlreadyPaid,
+    warranty,
+    notes,
+    deductedItems: deductedItemsData,
+    totalCost: totalInvoiceCost,
+    profit: finalInvoiceProfit,
+    accountId: selectedAccountId
+};
         
         salesToday.push(invoiceRecord);
         await saveInvoiceToFirestore(invoiceRecord); 
@@ -11134,14 +11227,21 @@ function sellProduct() {
     // 7. الحفظ
     if (isPendingSale) {
         goodsOnConsignmentValue += costOfGoodsSold;
-        const pendingSaleData = { 
-            id: generateId('pending'), 
-            timestamp: new Date().toISOString(), 
-            customerName, 
-            mainProduct: { name: productNameWithSerial, quantity: quantitySold, costPrice: mainProduct.costPrice, supplierId: mainProduct.supplierId }, 
-            additionalItems: additionalItemsDataForPending, 
-            totalSellPrice, potentialProfit: profit, status: 'pending' 
-        };
+   const pendingSaleData = {
+    id: `pending-${Date.now()}`,
+    createdAt: new Date().toISOString(),
+    timestamp: new Date().toISOString(),
+    saleDate: currentLoadedDate || new Date().toISOString().split('T')[0],
+    customerName,
+    mainProduct,
+    additionalItems: additionalItemsDataForPending,
+    totalSellPrice,
+    totalCost: costOfGoodsSold,
+    potentialProfit: profit,
+    depositPaid: 0,
+    paidAmount: 0,
+    status: 'pending'
+};
         pendingSales.push(pendingSaleData);
         logOperation("بيع مؤقت", `بيع مؤقت: ${productNameWithSerial}`);
         showMessage(sellMessage, "تم تسجيل البيع المؤقت.");
@@ -11483,14 +11583,28 @@ const debtorAddress = debtorAddressInput ? debtorAddressInput.value.trim() : "";
 
 const customerProfile = getOrCreateDebtorProfile(name, debtorPhone, debtorAddress);
 
-const existingDebtIndex = debtors.findIndex(
-    d => d.customerId === customerProfile.id && d.reason === reason
-);
+const normalizedCustomerName = normalizeArabicText(customerProfile.name || '');
+const searchReason = normalizeArabicText(reason || '');
+
+const existingDebtIndex = debtors.findIndex(d => {
+    const debtName = normalizeArabicText(d.name || d.customerName || '');
+    const sameCustomer =
+        d.customerId === customerProfile.id ||
+        debtName === normalizedCustomerName;
+
+    const sameReason =
+        normalizeArabicText(d.reason || '') === searchReason;
+
+    return sameCustomer && sameReason;
+});
 
 let logMsg = "";
 
 if (existingDebtIndex !== -1) {
+    debtors[existingDebtIndex].customerId = customerProfile.id;
+    debtors[existingDebtIndex].name = customerProfile.name;
     debtors[existingDebtIndex].amount = (Number(debtors[existingDebtIndex].amount) || 0) + amount;
+
     logMsg = `زيادة دين قائم على "${customerProfile.name}" بمبلغ ${formatCurrency(amount)}.`;
     showMessage(debtsMessage, `تمت زيادة الدين لـ "${customerProfile.name}".`);
 } else {
@@ -11498,10 +11612,12 @@ if (existingDebtIndex !== -1) {
         id: generateId('debt'),
         customerId: customerProfile.id,
         name: customerProfile.name,
+        customerName: customerProfile.name,
         reason,
         amount,
         createdAt: new Date().toISOString()
     });
+
     logMsg = `تسجيل دين جديد على "${customerProfile.name}" بمبلغ ${formatCurrency(amount)}.`;
     showMessage(debtsMessage, `تم تسجيل دين جديد لـ "${customerProfile.name}".`);
 }
@@ -13106,28 +13222,36 @@ window.openConvertPendingSaleToDebtDialog = function(pendingSaleId) {
         accountSelect.appendChild(option);
     });
 
-   const existingDebtSelect = document.getElementById('cpd_existing_debt_id');
+ const existingDebtSelect = document.getElementById('cpd_existing_debt_id');
 existingDebtSelect.innerHTML = '<option value="">اختر اسم صاحب الدين</option>';
 
-const uniqueDebtNames = [...new Set(
-    (debtors || [])
-        .map(d => d.name || d.customerName || '')
-        .filter(Boolean)
-)];
+const groupedDebts = {};
 
-uniqueDebtNames.forEach(name => {
-    const totalForName = (debtors || [])
-        .filter(d => (d.name || d.customerName) === name)
-        .reduce((sum, d) => sum + Number(d.amount || 0), 0);
+(debtors || []).forEach(debt => {
+    const key = debt.customerId || normalizeArabicText(debt.name || debt.customerName || '');
 
+    if (!groupedDebts[key]) {
+        groupedDebts[key] = {
+            id: debt.id,
+            name: debt.name || debt.customerName || 'عميل غير محدد',
+            total: 0
+        };
+    }
+
+    groupedDebts[key].total += Number(debt.amount || 0);
+});
+
+const debtOptions = Object.values(groupedDebts);
+
+debtOptions.forEach(item => {
     const option = document.createElement('option');
-    option.value = name;
-    option.textContent = `${name} - ${formatCurrency(totalForName)}`;
+    option.value = item.id;
+    option.textContent = `${item.name} - ${formatCurrency(item.total)}`;
     existingDebtSelect.appendChild(option);
 });
 
 const existingDebtRadio = document.querySelector('input[name="cpd_debt_mode"][value="existing"]');
-if (uniqueDebtNames.length === 0) {
+if (debtOptions.length === 0) {
     existingDebtRadio.disabled = true;
     existingDebtRadio.parentElement.style.opacity = '0.5';
 } else {
@@ -13216,8 +13340,14 @@ async function syncLocalSalesToCloud() {
 
     for (const sale of salesToday) {
         // التأكد من وجود تاريخ صالح
-        if (!sale.saleDate) sale.saleDate = sale.timestamp.split('T')[0];
-        
+      if (!sale.saleDate) {
+    sale.saleDate =
+        (sale.createdAt ? sale.createdAt.split('T')[0] : null) ||
+        (sale.timestamp ? sale.timestamp.split('T')[0] : null) ||
+        currentLoadedDate ||
+        new Date().toISOString().split('T')[0];
+}
+
         try {
             // نستخدم setDoc مع merge لضمان عدم مسح بيانات إضافية إن وجدت
             const docRef = window.doc(window.db, "users", userId, "invoices", sale.id);
@@ -13593,6 +13723,62 @@ window.deleteAllReportData = async function() {
         alert("حدث خطأ أثناء الحذف.");
     }
 };
+
+
+
+
+function refreshNamesDatalists() {
+    // تحديث قائمة المدينين
+    const debtorDatalist = document.getElementById('debtor-names-datalist');
+    if (debtorDatalist) {
+        const uniqueNames = [...new Set(debtorProfiles.map(p => p.name))];
+        debtorDatalist.innerHTML = uniqueNames.map(name => `<option value="${name}">`).join('');
+    }
+    // تحديث قائمة الدائنين
+    const creditorDatalist = document.getElementById('creditor-names-datalist');
+    if (creditorDatalist) {
+        const uniqueCreditors = [...new Set(liabilities.map(l => l.name))];
+        creditorDatalist.innerHTML = uniqueCreditors.map(name => `<option value="${name}">`).join('');
+    }
+}
+
+function mergeDuplicateDebtorProfiles() {
+    if (!Array.isArray(debtorProfiles) || debtorProfiles.length === 0) return;
+
+    const profileMap = new Map();
+    const duplicateMap = new Map();
+    const uniqueProfiles = [];
+
+    debtorProfiles.forEach(profile => {
+        const normalizedName = normalizeArabicText(profile.name || "");
+
+        if (!normalizedName) return;
+
+        if (!profileMap.has(normalizedName)) {
+            profileMap.set(normalizedName, profile);
+            uniqueProfiles.push(profile);
+        } else {
+            const mainProfile = profileMap.get(normalizedName);
+
+            // احتفظ بعلاقة القديم -> الرئيسي
+            duplicateMap.set(profile.id, mainProfile.id);
+
+            // دمج البيانات الناقصة
+            if (!mainProfile.phone && profile.phone) mainProfile.phone = profile.phone;
+            if (!mainProfile.address && profile.address) mainProfile.address = profile.address;
+            if (!mainProfile.generalNotes && profile.generalNotes) mainProfile.generalNotes = profile.generalNotes;
+        }
+    });
+
+    // تحديث الديون لتشير إلى البروفايل الرئيسي
+    debtors.forEach(debt => {
+        if (debt.customerId && duplicateMap.has(debt.customerId)) {
+            debt.customerId = duplicateMap.get(debt.customerId);
+        }
+    });
+
+    debtorProfiles = uniqueProfiles;
+}
 }); // End DOMContentLoaded
 
 
