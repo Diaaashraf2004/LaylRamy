@@ -11211,6 +11211,7 @@ function sellProduct() {
 
     // 5. تنفيذ الخصم من المخزون
     products[mainProductIndex].quantity -= quantitySold;
+    products = products.filter(p => Number(p.quantity) > 0);
     additionalItemsToUpdate.forEach(item => {
         products[item.index].quantity -= item.quantity;
     });
@@ -11227,20 +11228,31 @@ function sellProduct() {
     // 7. الحفظ
     if (isPendingSale) {
         goodsOnConsignmentValue += costOfGoodsSold;
-   const pendingSaleData = {
-    id: `pending-${Date.now()}`,
-    createdAt: new Date().toISOString(),
-    timestamp: new Date().toISOString(),
-    saleDate: currentLoadedDate || new Date().toISOString().split('T')[0],
-    customerName,
-    mainProduct,
-    additionalItems: additionalItemsDataForPending,
-    totalSellPrice,
-    totalCost: costOfGoodsSold,
-    potentialProfit: profit,
-    depositPaid: 0,
-    paidAmount: 0,
-    status: 'pending'
+  const pendingSaleData = {
+  id: `pending-${Date.now()}`,
+  createdAt: new Date().toISOString(),
+  timestamp: new Date().toISOString(),
+  saleDate: currentLoadedDate || new Date().toISOString().split('T')[0],
+  customerName,
+
+  mainProduct: {
+    ...mainProduct,
+    quantity: Number(quantitySold) || 0,
+    costPrice: Number(mainProduct.costPrice) || 0
+  },
+
+  additionalItems: (additionalItemsDataForPending || []).map(item => ({
+    ...item,
+    quantity: Number(item.quantity) || 0,
+    costPrice: Number(item.costPrice) || 0
+  })),
+
+  totalSellPrice: Number(totalSellPrice) || 0,
+  totalCost: Number(costOfGoodsSold) || 0,
+  potentialProfit: Number(profit) || 0,
+  depositPaid: 0,
+  paidAmount: 0,
+  status: 'pending'
 };
         pendingSales.push(pendingSaleData);
         logOperation("بيع مؤقت", `بيع مؤقت: ${productNameWithSerial}`);
