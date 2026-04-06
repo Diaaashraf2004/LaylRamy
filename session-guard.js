@@ -3,6 +3,7 @@
   const HEARTBEAT_MS = 15000;
   const STALE_MS = 45000;
   const SESSION_KEY = "finance_app_session_id";
+  const DEVICE_KEY = "finance_app_device_id";
 
   let heartbeatTimer = null;
   let currentSessionId = null;
@@ -11,6 +12,15 @@
 
   function nowIso() {
     return new Date().toISOString();
+  }
+
+  function getOrCreateDeviceId() {
+    let existing = localStorage.getItem(DEVICE_KEY);
+    if (existing) return existing;
+
+    const id = "dev_" + Date.now() + "_" + Math.random().toString(36).slice(2, 10);
+    localStorage.setItem(DEVICE_KEY, id);
+    return id;
   }
 
   function makeSessionId() {
@@ -58,9 +68,11 @@
 
   async function clearOwnLock() {
     if (!lockDocRef || !currentSessionId) return;
+
     try {
       const snap = await window.getDoc(lockDocRef);
       if (!snap.exists()) return;
+
       const data = snap.data();
       if (data.sessionId === currentSessionId) {
         await window.setDoc(lockDocRef, {
@@ -82,18 +94,27 @@
       if (!snap.exists()) return;
 
       const data = snap.data();
+      const localDeviceId = getOrCreateDeviceId();
 
+      // لو نفس الجهاز، حدث بيانات الجلسة بصمت
+      if (data.deviceId === localDeviceId) {
+        currentSessionId = makeSessionId();
+        await window.setDoc(lockDocRef, {
+          sessionId: currentSessionId,
+          deviceId: localDeviceId,
+          deviceName: getDeviceName(),
+          lastHeartbeat: nowIso(),
+          status: "active"
+        }, { merge: true });
+        return;
+      }
+
+      // لو جهاز آخر استحوذ على الجلسة
       if (data.sessionId !== currentSessionId) {
-        const localSessionId = makeSessionId();
-
-        if (data.sessionId === localSessionId) {
-          currentSessionId = localSessionId;
-        } else {
-          stopHeartbeat();
-          showForceLogoutMessage("تم إنهاء هذه الجلسة لأن الحساب تم فتحه من جهاز آخر.");
-          await window.signOut(window.auth);
-          return;
-        }
+        stopHeartbeat();
+        showForceLogoutMessage("تم إنهاء هذه الجلسة لأن الحساب تم فتحه من جهاز آخر.");
+        await window.signOut(window.auth);
+        return;
       }
 
       await window.setDoc(lockDocRef, {
@@ -121,6 +142,7 @@
   async function claimSession(user) {
     currentUserId = user.uid;
     currentSessionId = makeSessionId();
+    const deviceId = getOrCreateDeviceId();
 
     const result = await readLock(user.uid);
     lockDocRef = result.ref;
@@ -128,6 +150,7 @@
     await writeLock(lockDocRef, {
       sessionId: currentSessionId,
       userId: user.uid,
+      deviceId: deviceId,
       deviceName: getDeviceName(),
       startedAt: nowIso(),
       lastHeartbeat: nowIso(),
@@ -147,14 +170,11 @@
     }
 
     const existing = result.data;
-    const localSessionId = makeSessionId();
+    const localDeviceId = getOrCreateDeviceId();
 
-    if (existing.sessionId === localSessionId) {
-      currentUserId = user.uid;
-      currentSessionId = localSessionId;
-      lockDocRef = result.ref;
-      await startHeartbeat();
-      return true;
+    // لو نفس الجهاز، اسمح بالدخول بدون رسالة
+    if (existing.deviceId === localDeviceId) {
+      return await claimSession(user);
     }
 
     const answer = confirm(
@@ -179,15 +199,14 @@
       if (!snap.exists()) return false;
 
       const data = snap.data();
+      const localDeviceId = getOrCreateDeviceId();
+
+      // نفس الجهاز يقدر يكتب عادي
+      if (data.deviceId === localDeviceId) {
+        return true;
+      }
 
       if (data.sessionId !== currentSessionId) {
-        const localSessionId = makeSessionId();
-
-        if (data.sessionId === localSessionId) {
-          currentSessionId = localSessionId;
-          return true;
-        }
-
         showForceLogoutMessage("تم إيقاف الحفظ لأن هناك جلسة أحدث على جهاز آخر.");
         stopHeartbeat();
         await window.signOut(window.auth);
