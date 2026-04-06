@@ -2,6 +2,7 @@
 (function () {
   const HEARTBEAT_MS = 15000;
   const STALE_MS = 45000;
+  const SESSION_KEY = "finance_app_session_id";
 
   let heartbeatTimer = null;
   let currentSessionId = null;
@@ -13,7 +14,12 @@
   }
 
   function makeSessionId() {
-    return "sess_" + Date.now() + "_" + Math.random().toString(36).slice(2, 10);
+    let existing = sessionStorage.getItem(SESSION_KEY);
+    if (existing) return existing;
+
+    const id = "sess_" + Date.now() + "_" + Math.random().toString(36).slice(2, 10);
+    sessionStorage.setItem(SESSION_KEY, id);
+    return id;
   }
 
   function getDeviceName() {
@@ -76,11 +82,18 @@
       if (!snap.exists()) return;
 
       const data = snap.data();
+
       if (data.sessionId !== currentSessionId) {
-        stopHeartbeat();
-        showForceLogoutMessage("تم إنهاء هذه الجلسة لأن الحساب تم فتحه من جهاز آخر.");
-        await window.signOut(window.auth);
-        return;
+        const localSessionId = makeSessionId();
+
+        if (data.sessionId === localSessionId) {
+          currentSessionId = localSessionId;
+        } else {
+          stopHeartbeat();
+          showForceLogoutMessage("تم إنهاء هذه الجلسة لأن الحساب تم فتحه من جهاز آخر.");
+          await window.signOut(window.auth);
+          return;
+        }
       }
 
       await window.setDoc(lockDocRef, {
@@ -134,6 +147,15 @@
     }
 
     const existing = result.data;
+    const localSessionId = makeSessionId();
+
+    if (existing.sessionId === localSessionId) {
+      currentUserId = user.uid;
+      currentSessionId = localSessionId;
+      lockDocRef = result.ref;
+      await startHeartbeat();
+      return true;
+    }
 
     const answer = confirm(
       "يوجد جلسة شغالة حاليًا لهذا الحساب على جهاز آخر.\n\n" +
@@ -157,7 +179,15 @@
       if (!snap.exists()) return false;
 
       const data = snap.data();
+
       if (data.sessionId !== currentSessionId) {
+        const localSessionId = makeSessionId();
+
+        if (data.sessionId === localSessionId) {
+          currentSessionId = localSessionId;
+          return true;
+        }
+
         showForceLogoutMessage("تم إيقاف الحفظ لأن هناك جلسة أحدث على جهاز آخر.");
         stopHeartbeat();
         await window.signOut(window.auth);
@@ -174,6 +204,7 @@
   async function stop() {
     stopHeartbeat();
     await clearOwnLock();
+    sessionStorage.removeItem(SESSION_KEY);
     currentSessionId = null;
     currentUserId = null;
     lockDocRef = null;
