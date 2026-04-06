@@ -5366,6 +5366,8 @@ function resetReturnForm() {
     returnSourceData = null; 
 }
 async function saveCurrentStateByDate(dateString) {
+    const canWrite = await window.SessionGuard.assertCanWrite();
+if (!canWrite) return;
     // 1. التحقق من تسجيل الدخول
     if (!window.currentUser) {
         showGlobalMessage("تنبيه: أنت غير مسجل دخول. يتم الحفظ على الجهاز فقط.", false, true);
@@ -12676,36 +12678,36 @@ if (d('liabilities-list-container')) {
                 .catch(error => { showMessage(authError, "فشل التسجيل: " + error.message, true); });
         });
     }
-    if (logoutBtn) {
-        logoutBtn.addEventListener('click', () => {
-            window.signOut(window.auth);
-        });
-    }
-
-    // 3. تشغيل "حارس البوابة" الذي يقرر ما سيظهر للمستخدم
-    window.onAuthStateChanged(window.auth, (user) => {
-        if (user) {
-            // المستخدم مسجل دخوله
-            if(authContainer) authContainer.classList.add('hidden');
-            if(mainContent) mainContent.classList.remove('hidden');
-            if(logoutBtn) logoutBtn.classList.remove('hidden');
-            
-            window.currentUser = user; 
-
-            // تشغيل البرنامج الرئيسي مرة واحدة فقط
-            if (!window.appInitialized) {
-                initializeApp(); 
-                window.appInitialized = true;
-            }
-        } else {
-            // المستخدم غير مسجل
-            if(authContainer) authContainer.classList.remove('hidden');
-            if(mainContent) mainContent.classList.add('hidden');
-            if(logoutBtn) logoutBtn.classList.add('hidden');
-            window.currentUser = null;
-            window.appInitialized = false;
-        }
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', async () => {
+        await window.SessionGuard.stop();
+        await window.signOut(window.auth);
     });
+}    // 3. تشغيل "حارس البوابة" الذي يقرر ما سيظهر للمستخدم
+    window.onAuthStateChanged(window.auth, async (user) => {
+    if (user) {
+        const allowed = await window.SessionGuard.checkBeforeEntering(user);
+        if (!allowed) return;
+
+        if(authContainer) authContainer.classList.add('hidden');
+        if(mainContent) mainContent.classList.remove('hidden');
+        if(logoutBtn) logoutBtn.classList.remove('hidden');
+
+        window.currentUser = user;
+
+        if (!window.appInitialized) {
+            initializeApp();
+            window.appInitialized = true;
+        }
+    } else {
+        if (authContainer) authContainer.classList.remove('hidden');
+        if (mainContent) mainContent.classList.add('hidden');
+        if (logoutBtn) logoutBtn.classList.add('hidden');
+
+        window.currentUser = null;
+        window.appInitialized = false;
+    }
+});
     // --- START: PARTIAL LIABILITY PAYMENT LOGIC ---
 
 partialLiabilityPaymentModal = d('partialLiabilityPaymentModal');
@@ -13474,9 +13476,12 @@ window.fixInvoiceDates = async function() {
     const msgBox = document.getElementById('global-message');
     if(msgBox) showMessage(msgBox, "جاري تصحيح التواريخ والمزامنة...", false, true);
 
-    let count = 0;
-    const userId = window.currentUser ? window.currentUser.uid : null;
+   let count = 0;
 
+const canWrite = await window.SessionGuard.assertCanWrite();
+if (!canWrite) return;
+
+const userId = window.currentUser ? window.currentUser.uid : null;
     // 3. المرور على الفواتير وتصحيحها
     for (const inv of salesToday) {
         // تحديث التاريخ في الذاكرة المحلية
@@ -13508,6 +13513,9 @@ window.fixInvoiceDates = async function() {
 async function saveSystemToCloud() {
     // التحقق من وجود مستخدم
     if (!window.currentUser) return;
+
+    const canWrite = await window.SessionGuard.assertCanWrite();
+    if (!canWrite) retur
     const userId = window.currentUser.uid;
     
     // تحديد تاريخ اليوم للعمليات
@@ -13799,7 +13807,7 @@ function mergeDuplicateDebtorProfiles() {
 
 
 </script>
-
+<script src="session-guard.js"></script>
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
     
