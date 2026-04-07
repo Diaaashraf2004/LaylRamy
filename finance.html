@@ -7165,9 +7165,7 @@ function printPendingSaleAsInvoice(pendingId) {
         </div>
     </div>
 </div>
-
-
-                  </body>
+            </body>
                   </html>
                   `;
 
@@ -8100,56 +8098,35 @@ if (button.classList.contains('convert-pending-to-debt')) {
         }
 
     // --- زر إلغاء البيع المؤقت ---
-    } else if (button.classList.contains('cancel-pending')) {
-        if (confirm(`هل أنت متأكد من إلغاء هذا البيع المؤقت وإرجاع البضاعة للمخزون؟`)) {
-            saveStateToHistory();
-            const saleCost = calculateSinglePendingSaleCost(sale);
+   } else if (button.classList.contains('cancel-pending')) {
+    const depositToRefund = Number(sale.depositPaid) || 0;
 
-            // <<< --- هذا هو السطر المعدل --- >>>
-            // يجمع البنود الأساسية (items) والبنود المخصومة (deductedItems) معًا لإرجاعها
-            let itemsToReturn = [];
-            if (sale.items) {
-                // فاتورة مفصلة: أرجع البنود الأساسية + البنود المخصومة
-                itemsToReturn = (sale.items || []).concat(sale.deductedItems || sale.invoiceData?.deductedItems || []);
-            } else if (sale.mainProduct) {
-                // بيع سريع: أرجع المنتج الرئيسي + الملحقات
-                itemsToReturn = [sale.mainProduct, ...(sale.additionalItems || [])];
-            }
-            // <<< --- نهاية السطر المعدل --- >>>
+    if (depositToRefund > 0) {
+        // فتح نافذة اختيار الحساب لاسترداد العربون (المودال)
+        const refundModal = document.getElementById('refundModal');
+        if (refundModal) {
+            document.getElementById('refund_pending_id').value = sale.id;
+            document.getElementById('refund_amount_val').value = depositToRefund;
+            document.getElementById('refund_info_text').innerText = 
+                `سيتم إلغاء عملية العميل: ${sale.customerName || '-'} \n ورد مبلغ: ${formatCurrency(depositToRefund)}`;
             
-            itemsToReturn.forEach(item => {
-                if(!item) return; // تجاهل أي عناصر فارغة
-                const productIndex = products.findIndex(p => p.name === item.name);
-                if (productIndex !== -1) {
-                    products[productIndex].quantity += (Number(item.quantity) || 0);
-                } else {
-                    // إذا لم يكن المنتج موجودًا (ربما تم حذفه؟)، أعد إضافته
-                    products.push({ 
-                        name: item.name, 
-                        quantity: (Number(item.quantity) || 0), 
-                        costPrice: item.costPrice || 0, // استخدم التكلفة المسجلة
-                        supplierId: item.supplierId || '',
-                        isBundle: false, // افترض أنه ليس حزمة
-                        components: []
-                    });
-                }
-                // --- إرجاع حالة السيريال إلى 'in_stock' ---
-                 if (item.serial) {
-                     const serialIndex = serialNumbersLog.findIndex(log => log.serial === item.serial && log.status === 'pending_sale');
-                     if (serialIndex !== -1) {
-                         serialNumbersLog[serialIndex].status = 'in_stock';
-                         console.log(`Serial ${item.serial} status reverted to 'in_stock'.`);
-                     } else {
-                         console.warn(`Could not find serial ${item.serial} with status 'pending_sale' to revert.`);
-                     }
-                 }
-            });
-
-            pendingSales.splice(saleIndex, 1); // احذف البيع المؤقت
-            logOperation("إلغاء بيع مؤقت", `تم إلغاء بيع مؤقت. تم إرجاع بضاعة (تكلفة ${formatCurrency(saleCost)}) للمخزون.`);
-            updateUI(); // حدث الواجهة
-            showMessage(globalMessage, "تم إلغاء البيع المؤقت وإرجاع كل البضاعة للمخزون.", false, true);
+            const select = document.getElementById('refund_account_select');
+            if (select) {
+                select.innerHTML = accounts.map(acc => 
+                    `<option value="${acc.id}">${acc.name} (رصيده الحالي: ${formatCurrency(acc.balance)})</option>`
+                ).join('');
+            }
+            refundModal.style.display = 'block';
+        } else {
+            alert("يرجى إضافة كود الـ HTML الخاص بـ refundModal أولاً.");
         }
+    } else {
+        // إذا لم يوجد عربون: يتم تنفيذ الإلغاء مباشرة باستخدام منطقك الأصلي
+        if (confirm("هل أنت متأكد من إلغاء هذا البيع المؤقت وإرجاع البضاعة للمخزون؟")) {
+            executeCancellation(sale.id, null, 0); 
+        }
+    }
+
     // --- زر تعديل البيع المؤقت ---
     } else if (button.classList.contains('edit-pending')) {
         // (هذا المنطق خاص بالبيع السريع فقط، قد يحتاج لتعديل ليدعم الفواتير المفصلة)
@@ -10322,66 +10299,70 @@ if (piItemTotalCostInput) {
         modal.style.display = 'block';
     };
 
-    // 2. تنفيذ الحفظ
     window.confirmDeposit = function() {
-        // التأكد من وجود العناصر قبل القراءة
-        const pendingEl = document.getElementById('dep_pending_id');
-        const amountEl = document.getElementById('dep_amount');
-        const accountEl = document.getElementById('dep_account');
+    const pendingEl = document.getElementById('dep_pending_id');
+    const amountEl = document.getElementById('dep_amount');
+    const accountEl = document.getElementById('dep_account');
 
-        if (!pendingEl || !amountEl || !accountEl) {
-            alert("خطأ داخلي: عناصر النافذة غير موجودة.");
-            return;
-        }
+    if (!pendingEl || !amountEl || !accountEl) {
+        alert("خطأ داخلي: عناصر النافذة غير موجودة.");
+        return;
+    }
 
-        const pendingId = pendingEl.value;
-        const amount = parseFloat(amountEl.value);
-        const accountId = accountEl.value;
-        
-        if (!amount || amount <= 0) { alert("أدخل مبلغاً صحيحاً."); return; }
-        if (!accountId) { alert("اختر الخزنة."); return; }
+    const pendingId = pendingEl.value;
+    const amount = parseFloat(amountEl.value);
+    const accountId = accountEl.value;
+    
+    if (!amount || amount <= 0) { alert("أدخل مبلغاً صحيحاً."); return; }
+    if (!accountId) { alert("اختر الخزنة."); return; }
 
-        const saleIndex = pendingSales.findIndex(s => s.id === pendingId);
-        const account = accounts.find(a => a.id === accountId);
+    const saleIndex = pendingSales.findIndex(s => s.id === pendingId);
+    const account = accounts.find(a => a.id === accountId);
 
-        if (saleIndex === -1 || !account) return;
+    if (saleIndex === -1 || !account) return;
 
-        saveStateToHistory(); // حفظ للتراجع
+    saveStateToHistory(); // حفظ نقطة استعادة قبل التغيير
 
-        // أ. زيادة السيولة
-        account.balance += amount;
+    // 1. زيادة رصيد الخزنة المحددة
+    account.balance = (Number(account.balance) || 0) + amount;
 
-        // ب. تسجيل العربون في البيعة
-        const oldPaid = Number(pendingSales[saleIndex].depositPaid) || 0;
-        pendingSales[saleIndex].depositPaid = oldPaid + amount;
+    // 2. تطوير: تسجيل سجل العربون داخل البيعة (لكي نعرف من أين نسحب عند الإلغاء)
+    if (!pendingSales[saleIndex].depositHistory) {
+        pendingSales[saleIndex].depositHistory = [];
+    }
+    pendingSales[saleIndex].depositHistory.push({
+        accountId: account.id,
+        accountName: account.name,
+        amount: amount
+    });
 
-        // ج. تسجيل في السجل المالي
-        const totalLiquidity = accounts.reduce((sum, a) => sum + a.balance, 0);
-        liquidityLog.push({
-            id: `liq-dep-${Date.now()}`,
-            timestamp: new Date().toISOString(),
-            type: "add",
-            amount: amount,
-            description: `عربون من: ${pendingSales[saleIndex].customerName}`,
-            currentBalance: totalLiquidity,
-            accountId: account.id
-        });
+    const oldPaid = Number(pendingSales[saleIndex].depositPaid) || 0;
+    pendingSales[saleIndex].depositPaid = oldPaid + amount;
 
-        // إغلاق وتحديث
-        document.getElementById('depositModal').style.display = 'none';
-        updateUI(); 
-        
-        // رسالة نجاح
-        const msgBox = document.getElementById('global-message');
-        if(msgBox) {
-            showMessage(msgBox, `تم استلام عربون ${formatCurrency(amount)} بنجاح.`, false);
-        } else {
-            alert("تم الحفظ بنجاح.");
-        }
-    };
- 
- 
- 
+    // 3. تسجيل في السجل المالي
+    const totalLiquidity = accounts.reduce((sum, a) => sum + (Number(a.balance) || 0), 0);
+    liquidityLog.push({
+        id: `liq-dep-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        type: "add",
+        amount: amount,
+        description: `عربون من: ${pendingSales[saleIndex].customerName} إلى "${account.name}"`,
+        currentBalance: totalLiquidity,
+        accountId: account.id
+    });
+
+    // إغلاق وتحديث
+    document.getElementById('depositModal').style.display = 'none';
+    updateUI(); 
+    
+    // إشعار النجاح
+    const msgBox = document.getElementById('global-message');
+    if(msgBox) {
+        showGlobalMessage(`تم استلام عربون ${formatCurrency(amount)} بنجاح في ${account.name}.`, false);
+    } else {
+        alert(`تم استلام ${formatCurrency(amount)} بنجاح.`);
+    }
+};
  
     // 1. ربط عناصر السيريال بالمتغيرات
     sellSerialContainer = d('sell-serial-container');
@@ -12959,46 +12940,6 @@ window.addEventListener('click', (event) => {
     }
 });
 
-// 2. تنفيذ العربون (حفظ)
-window.confirmDeposit = function() {
-    const pendingId = document.getElementById('dep_pending_id').value;
-    const amount = parseFloat(document.getElementById('dep_amount').value);
-    const accountId = document.getElementById('dep_account').value;
-    
-    if (!amount || amount <= 0) { alert("المبلغ غير صحيح"); return; }
-    if (!accountId) { alert("يجب اختيار خزنة"); return; }
-
-    const saleIndex = pendingSales.findIndex(s => s.id === pendingId);
-    const account = accounts.find(a => a.id === accountId);
-
-    if (saleIndex === -1 || !account) return;
-
-    saveStateToHistory(); // نقطة استعادة
-
-    // أ. زيادة السيولة (الخزنة)
-    account.balance += amount;
-
-    // ب. تسجيل العربون في البيعة
-    const oldPaid = Number(pendingSales[saleIndex].depositPaid) || 0;
-    pendingSales[saleIndex].depositPaid = oldPaid + amount;
-
-    // ج. تسجيل في السجل المالي
-    const totalLiquidity = accounts.reduce((sum, a) => sum + a.balance, 0);
-    liquidityLog.push({
-        id: `liq-dep-${Date.now()}`,
-        timestamp: new Date().toISOString(),
-        type: "add",
-        amount: amount,
-        description: `عربون من: ${pendingSales[saleIndex].customerName}`,
-        currentBalance: totalLiquidity,
-        accountId: account.id
-    });
-
-    // إغلاق وتحديث
-    document.getElementById('depositModal').style.display = 'none';
-    updateUI();
-    alert(`تم استلام ${formatCurrency(amount)} بنجاح.`);
-};
 
 // ==========================================
 // دالة عرض تفاصيل الربحية (النسخة الذكية - تنشئ النافذة ذاتياً)
@@ -13799,6 +13740,90 @@ function mergeDuplicateDebtorProfiles() {
 
     debtorProfiles = uniqueProfiles;
 }
+
+// 1. وظيفة زر التأكيد داخل النافذة (مودال الرد)
+window.confirmRefundAndCancel = function() {
+    const saleId = document.getElementById('refund_pending_id').value;
+    const amount = Number(document.getElementById('refund_amount_val').value);
+    const accountId = document.getElementById('refund_account_select').value;
+
+    if (!accountId) { alert("يرجى اختيار الحساب!"); return; }
+
+    if (confirm(`هل أنت متأكد من خصم ${formatCurrency(amount)} من الحساب المختار وإلغاء العملية؟`)) {
+        executeCancellation(saleId, accountId, amount);
+        document.getElementById('refundModal').style.display = 'none';
+    }
+};
+
+// 2. المحرك الرئيسي للإلغاء (سحب سيولة + إرجاع بضاعة بتكلفة)
+window.executeCancellation = function(saleId, accountId, amount) {
+    const saleIndex = pendingSales.findIndex(s => s.id === saleId);
+    if (saleIndex === -1) return;
+    const sale = pendingSales[saleIndex];
+
+    saveStateToHistory(); // حفظ للتراجع
+
+    // أ. سحب العربون من السيولة (ضبط الكاش الفعلي)
+    if (accountId && amount > 0) {
+        const acc = accounts.find(a => a.id === accountId);
+        if (acc) {
+            // تحويل للرقم لضمان عملية طرح حسابية صحيحة
+            acc.balance = Number(acc.balance) - Number(amount);
+            
+            // تسجيل حركة سحب في سجل السيولة لضبط رأس المال
+            liquidityLog.push({
+                id: `liq-refund-${Date.now()}`,
+                timestamp: new Date().toISOString(),
+                type: "remove",
+                amount: Number(amount),
+                description: `رد عربون (إلغاء بيعة مؤقتة) - عميل: ${sale.customerName || '-'}`,
+                accountId: acc.id,
+                currentBalance: accounts.reduce((sum, a) => sum + Number(a.balance), 0)
+            });
+        }
+    }
+
+    // ب. إرجاع البضاعة للمخزن بقيمتها (التكلفة)
+    let itemsToReturn = [];
+    if (sale.items) {
+        // فاتورة مفصلة: إرجاع المنتجات + الملحقات المخصومة (deductedItems)
+        itemsToReturn = (sale.items || []).concat(sale.deductedItems || sale.invoiceData?.deductedItems || []);
+    } else if (sale.mainProduct) {
+        // بيع سريع: إرجاع المنتج الرئيسي + الإضافات
+        itemsToReturn = [sale.mainProduct, ...(sale.additionalItems || [])];
+    }
+
+    itemsToReturn.forEach(item => {
+        if (!item) return;
+        const product = products.find(p => p.name === item.name);
+        if (product) {
+            // إضافة الكمية للمخزن (تزيد قيمة المخزون بالتكلفة تلقائياً)
+            product.quantity = Number(product.quantity) + Number(item.quantity || 1);
+        }
+        
+        // إرجاع حالة السيريال لـ "متوفر" إن وُجد
+        if (item.serial) {
+            const sLog = serialNumbersLog.find(l => l.serial === item.serial);
+            if (sLog) sLog.status = 'in_stock';
+        }
+    });
+
+    // ج. الحذف النهائي وتحديث الواجهة
+    // بمجرد الحذف (splice)، سيسقط الربح المتوقع من حسابات رأس المال في updateUI
+    pendingSales.splice(saleIndex, 1);
+
+    logOperation("إلغاء بيع مؤقت", `تم إلغاء بيعة العميل ${sale.customerName} ورد عربون ${formatCurrency(amount)} وإعادة البضاعة للمخزن.`);
+    
+    // إعادة حساب كل شيء وتحديث الشاشة (السيولة، المخزن، والأرباح المتوقعة)
+    updateUI();
+    
+    if (typeof showGlobalMessage === 'function') {
+        showGlobalMessage("تم إلغاء البيعة بنجاح: تم رد العربون، إرجاع البضاعة بالتكلفة، وخصم الربح المتوقع.", false);
+    } else {
+        alert("تم إلغاء البيعة بنجاح.");
+    }
+};
+
 }); // End DOMContentLoaded
 
 
@@ -13860,8 +13885,27 @@ function mergeDuplicateDebtorProfiles() {
     window.signOut = signOut;
 
     console.log("Firebase connected successfully! (deleteDoc & setDoc Ready)");
-</script><!-- ======================================================= -->
-<!-- END: Firebase Connection (Revised) -->
-<!-- ======================================================= -->
+</script>
+<div id="refundModal" class="modal" style="display:none; z-index: 2100;">
+    <div class="modal-content" style="max-width: 400px; border-top: 5px solid #e74c3c; padding: 20px; border-radius: 10px; background-color: #fff;">
+        <h3 style="color: #e74c3c; margin-top: 0;">إرجاع العربون وإلغاء العملية</h3>
+        <hr>
+        <p id="refund_info_text" style="font-weight: bold; padding: 10px; background: #fff5f5; border-radius: 5px;"></p>
+        
+        <input type="hidden" id="refund_pending_id">
+        <input type="hidden" id="refund_amount_val">
+        
+        <div style="margin: 20px 0;">
+            <label style="display: block; margin-bottom: 8px;">اختر الخزنة المراد سحب العربون منها:</label>
+            <select id="refund_account_select" class="form-control" style="width: 100%; height: 40px; padding: 5px;"></select>
+        </div>
+        
+        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+            <button onclick="confirmRefundAndCancel()" class="btn-save" style="background-color: #e74c3c; color: white; border: none; padding: 10px 20px; cursor: pointer; border-radius: 5px;">تأكيد السحب والإلغاء</button>
+            <button onclick="document.getElementById('refundModal').style.display='none'" class="btn-cancel" style="padding: 10px 20px; cursor: pointer; border-radius: 5px; background-color: #ccc;">تراجع</button>
+        </div>
+    </div>
+</div>
+
             </body>
     </html>
