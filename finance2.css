@@ -1,0 +1,44 @@
+/* تصميم واجهة التبديل */
+.exchange-section {
+    background: #ffffff;
+    padding: 25px;
+    border-radius: 15px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    margin: 20px auto;
+    max-width: 900px;
+}
+
+.exchange-header {
+    text-align: center;
+    border-bottom: 2px solid #f1f1f1;
+    padding-bottom: 15px;
+    margin-bottom: 20px;
+}
+
+.exchange-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 25px;
+}
+
+.box-item {
+    padding: 15px;
+    border-radius: 10px;
+    border: 1px solid #e0e0e0;
+}
+
+.return-box { border-right: 5px solid #e74c3c; background: #fff5f5; }
+.new-box { border-right: 5px solid #2ecc71; background: #f5fff8; }
+
+.result-area {
+    margin-top: 25px;
+    padding: 20px;
+    border-radius: 10px;
+    text-align: center;
+    font-size: 1.3rem;
+    font-weight: bold;
+}
+
+.gain { background: #d4edda; color: #155724; }
+.loss { background: #f8d7da; color: #721c24; }
+.neutral { background: #e2e3e5; color: #383d41; }
