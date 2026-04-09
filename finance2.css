@@ -1,44 +1,176 @@
-/* تصميم واجهة التبديل */
-.exchange-section {
+/* --- تنسيقات نظام الاستبدال وإدارة الفواتير المعلقة (النسخة النهائية V9.3) --- */
+
+.exchange-container {
+    padding: 10px;
+    max-width: 1200px;
+    margin: 0 auto;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    direction: rtl;
+}
+
+.exchange-card {
     background: #ffffff;
-    padding: 25px;
+    border: 2px solid #2b6cb0;
     border-radius: 15px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-    margin: 20px auto;
-    max-width: 900px;
+    box-shadow: 0 5px 25px rgba(43, 108, 176, 0.15);
+    padding: 25px;
 }
 
 .exchange-header {
     text-align: center;
-    border-bottom: 2px solid #f1f1f1;
+    border-bottom: 2px solid #e2e8f0;
     padding-bottom: 15px;
     margin-bottom: 20px;
 }
 
-.exchange-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 25px;
-}
-
-.box-item {
+.delivery-status {
+    background: #ebf8ff;
     padding: 15px;
-    border-radius: 10px;
-    border: 1px solid #e0e0e0;
-}
-
-.return-box { border-right: 5px solid #e74c3c; background: #fff5f5; }
-.new-box { border-right: 5px solid #2ecc71; background: #f5fff8; }
-
-.result-area {
-    margin-top: 25px;
-    padding: 20px;
-    border-radius: 10px;
+    border-radius: 8px;
+    border: 2px solid #3182ce;
+    margin-bottom: 20px;
     text-align: center;
-    font-size: 1.3rem;
     font-weight: bold;
 }
 
-.gain { background: #d4edda; color: #155724; }
-.loss { background: #f8d7da; color: #721c24; }
-.neutral { background: #e2e3e5; color: #383d41; }
+.radio-group {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    margin-top: 10px;
+    flex-wrap: wrap; /* للسماح بالتفاف العناصر في الشاشات الصغيرة */
+}
+
+.radio-group label {
+    cursor: pointer;
+    padding: 10px 20px;
+    background: #fff;
+    border: 1px solid #cbd5e0;
+    border-radius: 20px;
+    transition: 0.3s;
+    flex: 1;
+    min-width: 200px;
+}
+
+.radio-group input[type="radio"] { display: none; }
+.radio-group input[type="radio"]:checked + label {
+    background: #3182ce;
+    color: white;
+    border-color: #3182ce;
+    box-shadow: 0 4px 10px rgba(49, 130, 206, 0.3);
+}
+
+.exchange-grid {
+    display: grid;
+    /* تصغير الحد الأدنى ليتناسب مع التابلت والموبايل */
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+}
+
+.box-panel {
+    padding: 20px;
+    border-radius: 12px;
+    border: 1px solid #ddd;
+}
+
+.return-side { background: #fff5f5; border: 1px solid #fc8181; }
+.new-side { background: #f0fff4; border: 1px solid #68d391; }
+
+.side-title {
+    margin-top: 0;
+    font-size: 1.2rem;
+    border-bottom: 1px solid rgba(0,0,0,0.1);
+    padding-bottom: 8px;
+    margin-bottom: 15px;
+}
+
+.item-row {
+    background: rgba(255,255,255,0.8);
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px dashed #cbd5e0;
+    margin-bottom: 15px;
+}
+
+.item-row h4 { margin: 0 0 10px 0; font-size: 1rem; color: #4a5568; }
+
+.input-group { margin-bottom: 10px; }
+.input-group label {
+    display: block; font-size: 0.85rem; margin-bottom: 5px; font-weight: bold; color: #2d3748;
+}
+
+.exchange-container .form-control {
+    width: 100%; padding: 8px; border: 1px solid #cbd5e0; border-radius: 5px; box-sizing: border-box; font-size: 0.95rem; transition: border-color 0.2s;
+}
+.exchange-container .form-control:focus {
+    border-color: #3182ce;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.1);
+}
+
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+.profit-analysis {
+    margin-top: 25px; padding: 15px; border-radius: 12px; background: #ebf4ff; border: 1px solid #90cdf4; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; text-align: center;
+}
+
+.profit-box { padding: 10px; background: #fff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+.profit-title { font-size: 0.85rem; color: #718096; margin-bottom: 5px; }
+.profit-val { font-size: 1.2rem; font-weight: bold; }
+.text-red { color: #e53e3e; } .text-green { color: #38a169; } .text-blue { color: #3182ce; }
+
+.finance-confirm { margin-top: 20px; border-top: 2px dashed #2b6cb0; padding-top: 20px; }
+.main-exec-btn { width: 100%; background: #2b6cb0; color: white; padding: 15px; border: none; border-radius: 10px; font-size: 1.2rem; font-weight: bold; cursor: pointer; transition: all 0.3s ease; }
+.main-exec-btn:hover { background: #2c5282; transform: translateY(-2px); }
+
+/* قسم الفواتير المعلقة داخل الشاشة */
+.pending-section {
+    margin-top: 30px;
+    padding: 20px;
+    background: #fff;
+    border: 2px solid #fc8181;
+    border-radius: 12px;
+    overflow-x: auto; /* للسماح بسحب الجدول في الموبايل */
+}
+.pending-section h3 { margin-top: 0; color: #c53030; border-bottom: 1px solid #fc8181; padding-bottom: 10px; }
+.pending-table { width: 100%; border-collapse: collapse; margin-top: 15px; min-width: 600px; /* لضمان عدم تداخل النصوص */ }
+.pending-table th, .pending-table td { padding: 12px; text-align: right; border-bottom: 1px solid #e2e8f0; }
+.pending-table th { background: #fed7d7; color: #c53030; }
+
+.btn-action { padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; margin: 2px; font-size: 0.85rem; transition: 0.2s; display: inline-block; }
+.btn-action:hover { opacity: 0.8; transform: scale(1.05); }
+.btn-confirm { background: #48bb78; color: white; }
+.btn-edit { background: #ecc94b; color: #1a202c; }
+.btn-cancel { background: #e53e3e; color: white; }
+
+/* النوافذ المنبثقة الذكية (Modals) */
+.ex-modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2500; align-items: center; justify-content: center; backdrop-filter: blur(3px); }
+.ex-modal-content { background: #fff; padding: 25px; border-radius: 15px; width: 90%; max-width: 550px; box-shadow: 0 10px 40px rgba(0,0,0,0.3); direction: rtl; animation: modalFadeIn 0.3s ease; }
+.ex-modal-header { font-size: 1.3rem; font-weight: bold; border-bottom: 2px solid #edf2f7; padding-bottom: 10px; margin-bottom: 15px; color: #2d3748; }
+.ex-modal-body { font-size: 1rem; color: #4a5568; margin-bottom: 20px; line-height: 1.6; }
+.ex-modal-footer { display: flex; justify-content: flex-end; gap: 10px; border-top: 2px solid #edf2f7; padding-top: 15px; }
+.ex-btn-modal { padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 1rem; transition: 0.2s;}
+.ex-btn-modal:hover { opacity: 0.9; }
+.ex-btn-close { background: #e2e8f0; color: #4a5568; }
+
+.cancel-option { display: block; background: #f7fafc; border: 2px solid #e2e8f0; padding: 15px; border-radius: 10px; margin-bottom: 10px; cursor: pointer; transition: 0.2s; }
+.cancel-option:hover { border-color: #cbd5e0; background: #edf2f7; }
+.cancel-option input[type="radio"] { margin-left: 10px; transform: scale(1.2); }
+.cancel-title { font-weight: bold; color: #2d3748; font-size: 1.05rem; display: block; }
+.cancel-desc { font-size: 0.85rem; color: #718096; margin-top: 5px; display: block; }
+input[type="radio"]:checked + .cancel-title { color: #e53e3e; }
+
+@keyframes modalFadeIn {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* 📱 تحسينات الشاشات الصغيرة (الموبايل والتابلت) 📱 */
+@media (max-width: 768px) {
+    .exchange-card { padding: 15px; }
+    .grid-2 { grid-template-columns: 1fr; /* تحويل الأعمدة إلى عمود واحد في الموبايل */ }
+    .profit-analysis { grid-template-columns: 1fr; /* جعل ملخص الأرباح تحت بعضه */ }
+    .radio-group { flex-direction: column; }
+    .ex-modal-footer { flex-direction: column; }
+    .ex-btn-modal { width: 100%; margin-bottom: 10px; }
+}

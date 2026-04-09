@@ -3027,12 +3027,14 @@ function resetAllData() {
     // تصفير كل متغيرات الحالة الرئيسية
     products = [];
     suppliers = [];
-    // إعادة تعيين الحسابات إلى حساب افتراضي واحد أو تركها فارغة
+    // إعادة تعيين الحسابات إلى حساب افتراضي واحد
     accounts = [{ id: 'main', name: 'الخزينة الرئيسية', balance: 0.00 }]; 
     expenses = 0;
     debtors = [];
+    debtorProfiles = []; // مسح ملفات المديونيات أيضاً
+    debtCollectionNotes = [];
     liabilities = [];
-    monthlyLiabilities = []; // إذا كنت تريد مسحها أيضًا
+    monthlyLiabilities = []; 
     totalProfit = 0;
     operationLog = [];
     pendingSales = [];
@@ -3044,6 +3046,9 @@ function resetAllData() {
     completedReturns = [];
     pendingReturns = [];
     pendingReturnsValue = 0;
+
+    // 🌟 السطر المحدث: تصفير كافة الفواتير المعلقة في نظام الاستبدال (ERP)
+    window.pendingOrders = []; 
     
     // تصفير حالات التعديل
     editingPendingSaleId = null;
@@ -3056,7 +3061,7 @@ function resetAllData() {
     redoHistory = [];
     updateUndoRedoButtons();
 
-    // مسح الرسائل
+    // مسح الرسائل من الواجهة
     const messageElements = document.querySelectorAll('.section-message, .error-message');
     messageElements.forEach(el => {
         el.textContent = '';
@@ -3069,8 +3074,7 @@ function resetAllData() {
     // تحديث الواجهة بالكامل لتعكس الحالة الفارغة
     updateUI(); 
     showGlobalMessage("تم تصفير جميع بيانات الجلسة الحالية بنجاح.", false, true);
-}
-function addAmountToDefaultAccount(amount, description) {
+}function addAmountToDefaultAccount(amount, description) {
     if (isNaN(amount) || amount <= 0) {
         console.error("خطأ: لا يمكن إضافة مبلغ غير صحيح للسيولة.");
         return false;
@@ -3404,7 +3408,7 @@ function createStateSnapshot() {
         expenses: expenses,
         debtors: JSON.parse(JSON.stringify(debtors)),
         debtorProfiles: JSON.parse(JSON.stringify(debtorProfiles)),
-debtCollectionNotes: JSON.parse(JSON.stringify(debtCollectionNotes)),
+        debtCollectionNotes: JSON.parse(JSON.stringify(debtCollectionNotes)),
         liabilities: JSON.parse(JSON.stringify(liabilities)),
         monthlyLiabilities: JSON.parse(JSON.stringify(monthlyLiabilities)),
         totalProfit: totalProfit,
@@ -3416,10 +3420,11 @@ debtCollectionNotes: JSON.parse(JSON.stringify(debtCollectionNotes)),
         purchaseInvoices: JSON.parse(JSON.stringify(purchaseInvoices)),
         pendingPurchases: JSON.parse(JSON.stringify(pendingPurchases)),
         completedReturns: JSON.parse(JSON.stringify(completedReturns)),
-        pendingReturns: JSON.parse(JSON.stringify(pendingReturns))
+        pendingReturns: JSON.parse(JSON.stringify(pendingReturns)),
+        // 🌟 السطر الجديد: أخذ لقطة من الفواتير المعلقة لنظام الاستبدال
+        pendingOrders: JSON.parse(JSON.stringify(window.pendingOrders || [])) 
     };
-}
-function migrateDebtorsToProfiles() {
+}function migrateDebtorsToProfiles() {
     if (!Array.isArray(debtors) || debtors.length === 0) return;
 
     debtors.forEach(debt => {
@@ -3455,10 +3460,6 @@ function migrateDebtorsToProfiles() {
         }
     });
 }
-
-
-
-
 function loadStateFromSnapshot(snapshot) {
     products = snapshot.products || [];
     suppliers = snapshot.suppliers || [];
@@ -3466,9 +3467,11 @@ function loadStateFromSnapshot(snapshot) {
     expenses = snapshot.expenses || 0;
     debtors = snapshot.debtors || [];
     debtorProfiles = snapshot.debtorProfiles || [];
-debtCollectionNotes = snapshot.debtCollectionNotes || [];
-        migrateDebtorsToProfiles();
-        mergeDuplicateDebtorProfiles();
+    debtCollectionNotes = snapshot.debtCollectionNotes || [];
+    
+    migrateDebtorsToProfiles();
+    mergeDuplicateDebtorProfiles();
+    
     liabilities = snapshot.liabilities || [];
     monthlyLiabilities = snapshot.monthlyLiabilities || [];
     totalProfit = snapshot.totalProfit || 0;
@@ -3482,8 +3485,10 @@ debtCollectionNotes = snapshot.debtCollectionNotes || [];
     pendingPurchases = snapshot.pendingPurchases || [];
     completedReturns = snapshot.completedReturns || [];
     pendingReturns = snapshot.pendingReturns || [];
+    
+    // 🌟 السطر المحدث: استرجاع الفواتير المعلقة الخاصة بنظام الاستبدال عند التراجع
+    window.pendingOrders = snapshot.pendingOrders || [];
 }
-
 function saveStateToHistory() {
     // هذه هي الدالة الرئيسية التي سنستدعيها قبل كل إجراء
     // 1. أضف الحالة الحالية إلى ذاكرة التراجع
@@ -3670,7 +3675,7 @@ function loadState(data, dateString) {
     products = data.products || [];
     suppliers = data.suppliers || [];
     
-    // هذا الجزء يعالج السيولة القديمة والجديدة وهو صحيح
+    // هذا الجزء يعالج السيولة القديمة والجديدة
     if (data.accounts && Array.isArray(data.accounts) && data.accounts.length > 0) {
         accounts = data.accounts;
     } else {
@@ -3681,9 +3686,9 @@ function loadState(data, dateString) {
     expenses = parseFloat(data.expenses) || 0;
     debtors = data.debtors || [];
     debtorProfiles = data.debtorProfiles || [];
-debtCollectionNotes = data.debtCollectionNotes || [];
-migrateDebtorsToProfiles();
-mergeDuplicateDebtorProfiles();
+    debtCollectionNotes = data.debtCollectionNotes || [];
+    migrateDebtorsToProfiles();
+    mergeDuplicateDebtorProfiles();
     liabilities = data.liabilities || [];
     monthlyLiabilities = data.monthlyLiabilities || [];
     totalProfit = parseFloat(data.profit) || 0;
@@ -3693,22 +3698,23 @@ mergeDuplicateDebtorProfiles();
     salesToday = data.salesToday || [];
     serialNumbersLog = data.serialNumbersLog || [];
 
-    // --- ✅ الأسطر الحاسمة التي كانت مفقودة وتسببت في مشكلة الاستيراد ---
+    // الأسطر الخاصة بالاستيراد والمشتريات
     purchaseInvoices = data.purchaseInvoices || []; 
     pendingPurchases = data.pendingPurchases || [];
     completedReturns = data.completedReturns || [];
     pendingReturns = data.pendingReturns || [];
     pendingReturnsValue = data.pendingReturnsValue || 0;
-    // --- ✅ نهاية الجزء المضاف ---
+
+    // 🌟 السطر المحدث: تحميل الفواتير المعلقة لنظام الاستبدال ERP من البيانات
+    window.pendingOrders = data.pendingOrders || [];
 
     currentLoadedDate = dateString;
 
-    // تصفير سجل التراجع/الإعادة
+    // تصفير سجل التراجع/الإعادة لتجنب التداخل بين الأيام
     stateHistory = []; 
     redoHistory = [];
     updateUndoRedoButtons();
-}
-// ✅✅✅ الكود الجديد والصحيح لدالة resetState ✅✅✅
+}// ✅✅✅ الكود الجديد والصحيح لدالة resetState ✅✅✅
 function resetState() {
     console.log("resetState called - Clearing DAILY transactions only.");
 
@@ -3721,6 +3727,9 @@ function resetState() {
     purchaseInvoices = [];
     completedReturns = [];
     
+    // 💡 ملاحظة محاسبية: window.pendingOrders لا يتم تصفيرها هنا 
+    // لأنها تمثل بضاعة خرجت ولم تُحصل أموالها بعد، فهي أصل مستمر عبر الأيام.
+
     // تصفير حالات التعديل
     editingPendingSaleId = null;
     editingProductName = null;
@@ -3728,19 +3737,18 @@ function resetState() {
     editingMonthlyLiabilityId = null;
     currentLoadedDate = null;
 
-    // تصفير سجل التراجع/الإعادة
+    // تصفير سجل التراجع/الإعادة لتجنب تداخل العمليات بين أيام مختلفة
     stateHistory = [];
     redoHistory = [];
     updateUndoRedoButtons();
 
-    // مسح الرسائل
+    // مسح الرسائل من الواجهة
     const messageElements = document.querySelectorAll('.section-message, .error-message');
     messageElements.forEach(el => {
         el.textContent = '';
         el.classList.remove('visible', 'error', 'success', 'info');
     });
-}
-        function logOperation(type, details){ const timestamp = new Date().toISOString(); operationLog.push({timestamp, type, details}); updateLogDisplay() } // Log display updated immediately
+}        function logOperation(type, details){ const timestamp = new Date().toISOString(); operationLog.push({timestamp, type, details}); updateLogDisplay() } // Log display updated immediately
         function calculateTotalDebts(){ const total = debtors.reduce((sum, debtor) => sum + (Number(debtor.amount) || 0), 0); return total; }
         function calculateTotalLiabilities(){ return liabilities.reduce((sum, liability) => sum + (Number(liability.amount) || 0), 0) }
       
@@ -4740,7 +4748,7 @@ function updatePendingSalesDisplay() {
 // =======================================================
 function updateUI() {
     console.log("updateUI called. Current loaded date:", currentLoadedDate);
-   const { 
+    const { 
         totalInventoryValue, 
         totalCapital, 
         totalDebtsValue, 
@@ -4748,19 +4756,25 @@ function updateUI() {
         calculatedPendingReturnsValue, 
         calculatedPendingPurchasesValue 
     } = calculateTotals();
-    const totalPurchases = calculateTotalPurchasesToday();
-    renderAccounts(); // <-- السطر الأول الجديد
-    const totalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0); // <-- السطر الثاني الجديد
     
-    // ✅ 1. حساب الربح المتوقع من المبيعات المعلقة فقط
+    const totalPurchases = calculateTotalPurchasesToday();
+    renderAccounts(); 
+    const totalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0); 
+    
+    // ✅ 1. حساب الربح المتوقع من المبيعات المعلقة (النظام القديم)
     const totalPotentialProfit = pendingSales.reduce((sum, sale) => {
         return sum + (Number(sale.potentialProfit) || 0);
     }, 0);
 
-    // ✅ 2. المعادلة النهائية والصحيحة لرأس المال المتوقع
-    const expectedCapital = totalCapital + totalPotentialProfit;
+    // 🌟 2. حساب المبالغ المطلوبة من نظام الاستبدال والـ ERP (الفلوس اللي في الطريق)
+    const pendingOrdersCash = (window.pendingOrders || []).reduce((sum, order) => {
+        return sum + (Number(order.diffAmount) || 0);
+    }, 0);
 
-    // -- تحديث عناصر الواجهة (باقي الكود لم يتغير) --
+    // ✅ 3. المعادلة النهائية لرأس المال المتوقع (تشمل السيولة + المخزن + الديون + أرباح معلقة + مبالغ الـ ERP)
+    const expectedCapital = totalCapital + totalPotentialProfit + pendingOrdersCash;
+
+    // -- تحديث عناصر الواجهة --
     if (d('summary-current-liquidity')) d('summary-current-liquidity').textContent = formatCurrency(totalLiquidity);
     if (d('summary-total-inventory-value')) d('summary-total-inventory-value').textContent = formatCurrency(totalInventoryValue);
     if (d('summary-consignment-value-display')) d('summary-consignment-value-display').textContent = formatCurrency(goodsOnConsignmentValue);
@@ -4769,7 +4783,10 @@ function updateUI() {
     if (d('summary-total-expenses')) d('summary-total-expenses').textContent = formatCurrency(expenses);
     if (d('summary-total-profit')) d('summary-total-profit').textContent = formatCurrency(totalProfit);
     if (d('summary-total-capital')) d('summary-total-capital').textContent = formatCurrency(totalCapital);
+    
+    // 🌟 تحديث رقم رأس المال المتوقع ليشمل مبالغ الاستبدال المعلقة
     if (d('summary-expected-capital')) d('summary-expected-capital').textContent = formatCurrency(expectedCapital);
+    
     if (d('summary-total-purchases')) d('summary-total-purchases').textContent = formatCurrency(totalPurchases);
 
     if (inventoryTotalInventoryValue) inventoryTotalInventoryValue.textContent = `إجمالي قيمة المخزون: ${formatCurrency(totalInventoryValue)}`;
@@ -5368,7 +5385,8 @@ function resetReturnForm() {
 }
 async function saveCurrentStateByDate(dateString) {
     const canWrite = await window.SessionGuard.assertCanWrite();
-if (!canWrite) return;
+    if (!canWrite) return;
+    
     // 1. التحقق من تسجيل الدخول
     if (!window.currentUser) {
         showGlobalMessage("تنبيه: أنت غير مسجل دخول. يتم الحفظ على الجهاز فقط.", false, true);
@@ -5381,7 +5399,7 @@ if (!canWrite) return;
     const safePendingReturnsValue = (typeof pendingReturnsValue !== 'undefined') ? pendingReturnsValue : 0;
     const safeBackupIndex = (typeof backupSlotIndex !== 'undefined') ? backupSlotIndex : 0;
 
-    // تجهيز كائن البيانات الكامل
+    // 🌟 تجهيز كائن البيانات الكامل (تمت إضافة pendingOrders هنا)
     const stateToSave = {
         month: dateString.substring(0, 7),
         products: products || [],
@@ -5403,6 +5421,7 @@ if (!canWrite) return;
         completedReturns: completedReturns || [],
         pendingReturns: pendingReturns || [],
         pendingReturnsValue: safePendingReturnsValue,
+        pendingOrders: window.pendingOrders || [], // 👈 السطر الجديد لحفظ الفواتير المعلقة
         savedAt: new Date().toISOString(),
         savedForDate: dateString
     };
@@ -5430,7 +5449,7 @@ if (!canWrite) return;
         // محاولة الحفظ
         await window.setDoc(docRef, sanitizedState);
 
-        // تحديث الملخص (في الخلفية، لا ننتظره ولا نزعج المستخدم إذا فشل)
+        // 🌟 تحديث الملخص (تمت إضافة pendingOrders هنا أيضاً)
         const latestBalancesSummary = {
             products: products || [],
             suppliers: suppliers || [],
@@ -5444,17 +5463,20 @@ if (!canWrite) return;
             pendingPurchases: pendingPurchases || [],
             pendingReturns: pendingReturns || [],
             pendingReturnsValue: safePendingReturnsValue,
+            pendingOrders: window.pendingOrders || [], // 👈 السطر الجديد في الملخص
             summaryForDate: dateString,
             lastUpdated: new Date().toISOString()
         };
+        
         const sanitizedSummary = sanitizeDataForFirebase(latestBalancesSummary);
         const summaryDocRef = window.doc(window.db, "users", userId, "summaries", "latestBalances");
         
-      if (isStateMeaningful(latestBalancesSummary)) {
-    window.setDoc(summaryDocRef, sanitizedSummary).catch(e => console.log("Summary update delayed (silent)"));
-} else {
-    console.log("تم تجاهل تحديث latestBalances لأن الحالة فارغة أو مصفرة.");
-}
+        if (isStateMeaningful(latestBalancesSummary)) {
+            window.setDoc(summaryDocRef, sanitizedSummary).catch(e => console.log("Summary update delayed (silent)"));
+        } else {
+            console.log("تم تجاهل تحديث latestBalances لأن الحالة فارغة أو مصفرة.");
+        }
+        
         console.log("Cloud save success.");
         currentLoadedDate = dateString;
         
@@ -5486,8 +5508,7 @@ if (!canWrite) return;
 
         showGlobalMessage(userMessage, isError, isInfo);
     }
-}// 1. دالة عرض القائمة (نسخة المسح الشامل المتوافقة مع كروم)
-function openBackupHistoryModal() {
+}function openBackupHistoryModal() {
     const modal = document.getElementById('backupHistoryModal');
     const listContainer = document.getElementById('backup-history-list');
     
@@ -5681,6 +5702,10 @@ async function loadDataForDate(dateString) {
             // الحالة أ: اليوم موجود بالفعل (تحميل يوم مسجل سابقاً)
             console.log("تم تحميل بيانات مسجلة لهذا اليوم.");
             loadState(docSnap.data(), dateString);
+            
+            // 🌟 تأمين تحميل الفواتير المعلقة لنظام الاستبدال
+            window.pendingOrders = docSnap.data().pendingOrders || []; 
+
             migrateDebtorsToProfiles();
             if(loadMsg) showMessage(loadMsg, `تم تحميل بيانات يوم ${dateString} بنجاح.`, false);
             updateUI();
@@ -5692,38 +5717,38 @@ async function loadDataForDate(dateString) {
             let dataToMigrate = null;
             let sourceName = "";
 
-          const latestValidDay = await findLatestValidDayBeforeDate(userId, dateString);
+            const latestValidDay = await findLatestValidDayBeforeDate(userId, dateString);
 
-if (latestValidDay && latestValidDay.data) {
-    dataToMigrate = latestValidDay.data;
-    sourceName = `آخر يوم صالح (${latestValidDay.date})`;
-} else {
-    const summaryDocRef = window.doc(window.db, "users", userId, "summaries", "latestBalances");
-    const summarySnap = await window.getDoc(summaryDocRef);
+            if (latestValidDay && latestValidDay.data) {
+                dataToMigrate = latestValidDay.data;
+                sourceName = `آخر يوم صالح (${latestValidDay.date})`;
+            } else {
+                const summaryDocRef = window.doc(window.db, "users", userId, "summaries", "latestBalances");
+                const summarySnap = await window.getDoc(summaryDocRef);
 
-    if (summarySnap.exists()) {
-        const summaryData = summarySnap.data();
-        if (isStateMeaningful(summaryData)) {
-            dataToMigrate = summaryData;
-            sourceName = "آخر أرصدة مسجلة بالسحابة";
-        }
-    }
+                if (summarySnap.exists()) {
+                    const summaryData = summarySnap.data();
+                    if (isStateMeaningful(summaryData)) {
+                        dataToMigrate = summaryData;
+                        sourceName = "آخر أرصدة مسجلة بالسحابة";
+                    }
+                }
 
-    if (!dataToMigrate) {
-        const yesterday = new Date(dateString);
-        yesterday.setDate(yesterday.getDate() - 1);
-        const prevDateStr = getCairoDateString(yesterday);
-        const prevDocRef = window.doc(window.db, "users", userId, "days", prevDateStr);
-        const prevSnap = await window.getDoc(prevDocRef);
-        if (prevSnap.exists()) {
-            const prevData = prevSnap.data();
-            if (isStateMeaningful(prevData)) {
-                dataToMigrate = prevData;
-                sourceName = `يوم ${prevDateStr}`;
+                if (!dataToMigrate) {
+                    const yesterday = new Date(dateString);
+                    yesterday.setDate(yesterday.getDate() - 1);
+                    const prevDateStr = getCairoDateString(yesterday);
+                    const prevDocRef = window.doc(window.db, "users", userId, "days", prevDateStr);
+                    const prevSnap = await window.getDoc(prevDocRef);
+                    if (prevSnap.exists()) {
+                        const prevData = prevSnap.data();
+                        if (isStateMeaningful(prevData)) {
+                            dataToMigrate = prevData;
+                            sourceName = `يوم ${prevDateStr}`;
+                        }
+                    }
+                }
             }
-        }
-    }
-}
 
             if (dataToMigrate) {
                 // 🛑🛑🛑 منطقة التطهير والتدقيق المالي 🛑🛑🛑
@@ -5736,18 +5761,17 @@ if (latestValidDay && latestValidDay.data) {
                 dataToMigrate.profit = 0;            
 
                 // 2. ✅ التأمين المالي للمرتجعات (إصلاح مشكلة الـ 9341 جنيه)
-                // نضمن وجود مصفوفة المرتجعات
                 dataToMigrate.pendingReturns = dataToMigrate.pendingReturns || [];
-                // 🔥 إعادة حساب القيمة من واقع العناصر الموجودة فعلياً لضمان عدم ضياعها 🔥
                 dataToMigrate.pendingReturnsValue = dataToMigrate.pendingReturns.reduce((sum, r) => {
                     return sum + (Number(r.returnedAmount) || 0);
                 }, 0);
 
                 // 3. ✅ التأمين المالي للمشتريات (Goods in Transit)
-                // المشتريات المعلقة هي "فلوس دفعناها ومستنيين البضاعة"، فهي أصل مالي
                 dataToMigrate.pendingPurchases = dataToMigrate.pendingPurchases || [];
-                // نتركها كما هي لتنتقل لليوم الجديد، وإذا أردت دقة أكبر يمكنك جمع قيمتها المدفوعة
-                // لضمان دخولها في معادلة رأس المال.
+
+                // 🌟 3.5 ✅ التأمين المالي لطلبيات الاستبدال المعلقة (ERP)
+                // الفواتير المعلقة بضاعة خرجت وفلوس لسه مجتش، لازم تترحل لليوم الجديد
+                dataToMigrate.pendingOrders = dataToMigrate.pendingOrders || [];
 
                 // 4. السجلات الافتتاحية
                 dataToMigrate.log = [{
@@ -5772,6 +5796,9 @@ if (latestValidDay && latestValidDay.data) {
                 // تحميل البيانات المنقحة
                 loadState(dataToMigrate, dateString);
                 
+                // 🌟 تأمين تحميل الفواتير المعلقة في المتغير العالمي للواجهة
+                window.pendingOrders = dataToMigrate.pendingOrders || [];
+
                 // حفظ فوري لليوم الجديد بالسحابة لتثبيته كـ "يوم مفتوح"
                 await saveSystemToCloud();
                 
@@ -5785,6 +5812,9 @@ if (latestValidDay && latestValidDay.data) {
                 resetState(); 
                 accounts = [{ id: 'main', name: 'الخزينة الرئيسية', balance: 0.00 }];
                 currentLoadedDate = dateString;
+                
+                window.pendingOrders = []; // تصفير الطلبيات المعلقة
+
                 await saveSystemToCloud();
                 updateUI();
                 if(loadMsg) showMessage(loadMsg, `بدء يوم جديد (نظام فارغ).`, false, true);
@@ -5797,8 +5827,7 @@ if (latestValidDay && latestValidDay.data) {
         if(loadMsg) showMessage(loadMsg, "حدث خطأ أثناء الاتصال بالسحابة.", true);
         return false;
     }
-}
-// =======================================================
+}// =======================================================
        function exportData() {
     console.log("Starting full system backup...");
     
@@ -12665,7 +12694,9 @@ if (d('liabilities-list-container')) {
         await window.SessionGuard.stop();
         await window.signOut(window.auth);
     });
-}    // 3. تشغيل "حارس البوابة" الذي يقرر ما سيظهر للمستخدم
+}  
+
+if (window.onAuthStateChanged) {
     window.onAuthStateChanged(window.auth, async (user) => {
     if (user) {
         const allowed = await window.SessionGuard.checkBeforeEntering(user);
@@ -12690,6 +12721,7 @@ if (d('liabilities-list-container')) {
         window.appInitialized = false;
     }
 });
+}
     // --- START: PARTIAL LIABILITY PAYMENT LOGIC ---
 
 partialLiabilityPaymentModal = d('partialLiabilityPaymentModal');
@@ -13825,20 +13857,66 @@ window.executeCancellation = function(saleId, accountId, amount) {
     }
 };
 
-}); // End DOMContentLoaded
 
+// --- جسر الربط الشامل لنظام الـ ERP (V9.6) المطور (drashraf) - النسخة الآمنة ---
+try {
+    // ربط البيانات الأساسية مع فحص الأمان لمنع اختفاء القسم
+    window.products = (typeof products !== 'undefined') ? products : (window.products || []);
+    window.accounts = (typeof accounts !== 'undefined') ? accounts : (window.accounts || []);
+    window.operationLog = (typeof operationLog !== 'undefined') ? operationLog : (window.operationLog || []);
+    window.db = (typeof db !== 'undefined') ? db : (window.db || null);
+    window.currentUser = (typeof currentUser !== 'undefined') ? currentUser : null;
 
+    // 🌟 ربط الفواتير المعلقة (الحفاظ على البيانات القديمة إن وُجدت)
+    window.pendingOrders = (typeof pendingOrders !== 'undefined') ? pendingOrders : (window.pendingOrders || []);
 
+    // تأمين التاريخ
+    window.currentLoadedDate = (typeof currentLoadedDate !== 'undefined' && currentLoadedDate) 
+        ? currentLoadedDate 
+        : new Date().toISOString().split('T')[0];
 
+    window.saveCurrentStateByDate = (typeof saveCurrentStateByDate !== 'undefined') ? saveCurrentStateByDate : null;
 
+    // 🌟 ربط الدوال بالمسميات الصحيحة (saveStateToHistory)
+    window.updateUI = (typeof updateUI === 'function') ? updateUI : null;
+    window.saveState = (typeof saveStateToHistory === 'function') ? saveStateToHistory : null; 
+    window.updateUndoRedoButtons = (typeof updateUndoRedoButtons === 'function') ? updateUndoRedoButtons : null;
+    window.calculateTotalCapital = (typeof calculateTotalCapital === 'function') ? calculateTotalCapital : null;
+
+    // ربط دوال الريندر
+    window.renderProducts = (typeof renderProducts === 'function') ? renderProducts : null;
+    window.renderAccounts = (typeof renderAccounts === 'function') ? renderAccounts : null;
+    window.renderOperationLog = (typeof renderOperationLog === 'function') ? renderOperationLog : null;
+
+    // وظيفة عامة لتحديث الواجهة بالكامل
+    window.refreshMainUI = () => {
+        try {
+            if (typeof window.updateUI === 'function') window.updateUI();
+            if (typeof window.renderProducts === 'function') window.renderProducts();
+            if (typeof window.renderAccounts === 'function') window.renderAccounts();
+            if (typeof window.renderOperationLog === 'function') window.renderOperationLog();
+            if (typeof window.calculateTotalCapital === 'function') window.calculateTotalCapital();
+            if (typeof window.updateUndoRedoButtons === 'function') window.updateUndoRedoButtons();
+        } catch (e) { console.error("Error in refreshMainUI:", e); }
+    };
+
+    console.log("✅ تم تفعيل جسر ERP V9.6 بنجاح - الواجهة الآن مؤمنة ضد الانهيار");
+
+} catch (globalError) {
+    console.error("🚨 فشل في تفعيل الجسر:", globalError);
+}}); // End DOMContentLoaded
 
 </script>
 <script src="session-guard.js?v=2"></script>
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
     
-    // ✅ لاحظ: تمت إضافة deleteDoc في هذا السطر لتفعيل الحذف
-    import { getFirestore, doc, setDoc, getDoc, deleteDoc, collection, query, where, getDocs, orderBy, limit } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
+    // استيراد كافة الأدوات اللازمة للتعامل مع السحابة والمخزن
+    import { 
+        getFirestore, doc, setDoc, getDoc, deleteDoc, 
+        collection, query, where, getDocs, orderBy, limit,
+        updateDoc, addDoc, serverTimestamp 
+    } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
     
     import { 
         getAuth, 
@@ -13859,17 +13937,18 @@ window.executeCancellation = function(saleId, accountId, amount) {
     };
 
     const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
     
-    // --- تهيئة الخدمات وجعلها متاحة عالميًا (Global Window Object) ---
+    // --- تهيئة الخدمات وجعلها متاحة للملفات الخارجية (الجسر العالمي) ---
     window.db = getFirestore(app);
-    
-    // دوال التعامل مع المستندات
+    window.auth = auth;
     window.doc = doc;
-    window.setDoc = setDoc;     // تستخدم في الحفظ و Redo
-    window.getDoc = getDoc;     // تستخدم في القراءة
-    window.deleteDoc = deleteDoc; // ✅ تستخدم في Undo (الحذف)
-
-    // دوال الاستعلامات
+    window.setDoc = setDoc;
+    window.getDoc = getDoc;
+    window.deleteDoc = deleteDoc;
+    window.updateDoc = updateDoc;
+    window.addDoc = addDoc;
+    window.serverTimestamp = serverTimestamp;
     window.collection = collection;
     window.query = query;
     window.where = where;
@@ -13877,15 +13956,34 @@ window.executeCancellation = function(saleId, accountId, amount) {
     window.orderBy = orderBy;
     window.limit = limit; 
 
-    // المصادقة
-    const auth = getAuth(app);
-    window.auth = auth;
+    // إعدادات المصادقة
     window.createUserWithEmailAndPassword = createUserWithEmailAndPassword;
     window.signInWithEmailAndPassword = signInWithEmailAndPassword;
-    window.onAuthStateChanged = onAuthStateChanged;
     window.signOut = signOut;
 
-    console.log("Firebase connected successfully! (deleteDoc & setDoc Ready)");
+    // --- الجزء الأهم لحل مشكلة الانهيار (Race Condition) ---
+    // نقوم بتعريف الوظيفة عالمياً الآن لكي يراها السطر 12669
+    window.onAuthStateChanged = onAuthStateChanged;
+
+    // مراقبة حالة تسجيل الدخول
+    onAuthStateChanged(auth, (user) => {
+        window.currentUser = user;
+        
+        // إذا كان هناك كود معلق ينتظر (مثل سطر 12669)، قم بتنفيذه الآن
+        if (typeof window._pendingAuthCallback === 'function') {
+            console.log("🔄 تنفيذ الطلب المعلق للهوية...");
+            window._pendingAuthCallback(user);
+            window._pendingAuthCallback = null; // مسحه بعد التنفيذ
+        }
+
+        if (user) {
+            console.log("✅ متصل الآن بحساب: " + user.email);
+        } else {
+            console.log("❌ غير متصل بالسحابة");
+        }
+    });
+
+    console.log("🚀 نظام السحابة (Firebase) جاهز ومؤمن ضد أخطاء التحميل");
 </script>
 <div id="refundModal" class="modal" style="display:none; z-index: 2100;">
     <div class="modal-content" style="max-width: 400px; border-top: 5px solid #e74c3c; padding: 20px; border-radius: 10px; background-color: #fff;">
