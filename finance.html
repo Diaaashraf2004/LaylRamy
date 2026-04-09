@@ -4894,190 +4894,188 @@ function initiateReturnFromPendingSale(pendingId) {
     showGlobalMessage("تم حذف البيع المؤقت. بيانات المرتجع جاهزة للتأكيد.", false, true);
 }
 
-function convertPendingSaleToDebt(pendingSaleId, mode = 'new', targetDebtId = null, confirmSale = true, accountId = null) {
-    const pendingSaleIndex = pendingSales.findIndex(s => s.id === pendingSaleId);
-    if (pendingSaleIndex === -1) {
-        showGlobalMessage("خطأ: لم يتم العثور على البيع المؤقت.", true);
+window.convertPendingSaleToDebt = async function(pendingSaleId, debtMode, targetDebtId, confirmSale, accountId) {
+    // 1. استحضار البيعة المؤقتة
+    const pendingIndex = pendingSales.findIndex(s => String(s.id) === String(pendingSaleId));
+    if (pendingIndex === -1) {
+        showGlobalMessage("خطأ: لم يتم العثور على البيعة.", true);
         return;
     }
+    const saleData = pendingSales[pendingIndex];
 
-    const pendingSale = pendingSales[pendingSaleIndex];
-    const totalAmount = Number(pendingSale.totalSellPrice || pendingSale.grandTotal || 0);
-    const paidAmount = Number(pendingSale.depositPaid || pendingSale.paidAmount || pendingSale.depositAmount || 0);
+    // 2. ضبط المبالغ
+    const totalAmount = Number(saleData.grandTotal || saleData.finalTotal || saleData.totalSellPrice || 0);
+    const paidAmount = Number(saleData.depositPaid || saleData.paidAmount || 0);
     const remainingAmount = Math.max(0, totalAmount - paidAmount);
 
     if (remainingAmount <= 0) {
-        showGlobalMessage("لا يوجد مبلغ متبقٍ لتحويله إلى دين.", true);
+        showGlobalMessage("المبلغ مدفوع بالكامل، لا يمكن تحويله لدين.", true);
         return;
     }
 
-    saveStateToHistory();
+    if (typeof saveStateToHistory === 'function') saveStateToHistory();
 
-    // 1) تأكيد البيعة وإضافتها لقائمة المبيعات مع حساب التكلفة والربح
+    // 🌟 استخراج أو توليد كود الفاتورة بصيغة النظام 🌟
+    let invoiceCode = saleData.invoiceNumber;
+    
+    if (!invoiceCode || String(invoiceCode).startsWith('pending')) {
+        if (saleData.id && String(saleData.id).startsWith('INV-')) {
+            invoiceCode = saleData.id;
+        } else {
+            // محاولة إنشاء كود بنفس صيغة النظام (التاريخ + تسلسل)
+            const todayStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
+            let maxSeq = 0;
+            if (typeof salesToday !== 'undefined') {
+                salesToday.forEach(sale => {
+                    if (sale.invoiceNumber && sale.invoiceNumber.startsWith(todayStr)) {
+                        const seq = parseInt(sale.invoiceNumber.split('-')[1] || '0');
+                        if (seq > maxSeq) maxSeq = seq;
+                    }
+                });
+            }
+            if (maxSeq > 0) {
+                 invoiceCode = `${todayStr}-${(maxSeq + 1).toString().padStart(3, '0')}`;
+            } else {
+                 invoiceCode = "INV-" + Math.floor(10000 + Math.random() * 90000);
+            }
+        }
+    }
+
+    // المعرف الأساسي للسحابة (يفضل أن يبدأ بـ inv- كما في نظامك)
+    const invoiceId = invoiceCode.startsWith('INV-') ? invoiceCode.replace('INV-', 'inv-') : `inv-${Date.now()}`;
+
+    // 3. تأكيد الفاتورة في المبيعات
     if (confirmSale) {
-        const account = accounts.find(a => a.id === accountId);
-        if (!account) {
-            showGlobalMessage("لم يتم العثور على حساب الإيداع.", true);
+        const acc = accounts.find(a => a.id === accountId);
+        if (!acc) {
+            showGlobalMessage("يرجى اختيار الخزنة.", true);
             return;
         }
 
-      let costOfGoodsSold = 0;
-
-// لو البيع المؤقت جاي من فاتورة مفصلة ومحفوظ فيه إجمالي التكلفة
-if (pendingSale.totalCost !== undefined && pendingSale.totalCost !== null) {
-    costOfGoodsSold = Number(pendingSale.totalCost) || 0;
-}
-// لو فيه items لكن totalCost غير موجود
-else if (Array.isArray(pendingSale.items) && pendingSale.items.length > 0) {
-    pendingSale.items.forEach(item => {
-        costOfGoodsSold +=
-            (Number(item.costPrice) || 0) *
-            (Number(item.quantity) || 0);
-    });
-}
-// fallback للبيع السريع القديم
-else {
-    if (pendingSale.mainProduct) {
-        costOfGoodsSold +=
-            (Number(pendingSale.mainProduct.costPrice) || 0) *
-            (Number(pendingSale.mainProduct.quantity) || 0);
-    }
-
-    if (Array.isArray(pendingSale.additionalItems)) {
-        pendingSale.additionalItems.forEach(item => {
-            costOfGoodsSold +=
-                (Number(item.costPrice) || 0) *
-                (Number(item.quantity) || 0);
-        });
-    }
-}
-
-const calculatedProfit =
-    pendingSale.potentialProfit !== undefined
-        ? (Number(pendingSale.potentialProfit) || 0)
-        : (totalAmount - costOfGoodsSold);
-
-const originalSaleDate =
-    pendingSale.saleDate ||
-    (pendingSale.createdAt ? pendingSale.createdAt.split('T')[0] : null) ||
-    (pendingSale.timestamp ? pendingSale.timestamp.split('T')[0] : null) ||
-    currentLoadedDate ||
-    new Date().toISOString().split('T')[0];
-
-const confirmedSale = {
-    ...pendingSale,
-    id: generateId('sale'),
-    type: 'pending-confirmed',
-    saleType: 'deferred_from_pending',
-    paymentStatus: remainingAmount > 0 ? 'partial' : 'paid',
-    totalSellPrice: totalAmount,
-    totalCost: costOfGoodsSold,
-    profit: calculatedProfit,
-    remainingAmount: remainingAmount,
-    paidAmount: paidAmount,
-    depositPaid: paidAmount,
-    accountId: account.id,
-    accountName: account.name,
-    saleDate: originalSaleDate,
-    timestamp: pendingSale.timestamp || pendingSale.createdAt || new Date().toISOString(),
-    createdAt: pendingSale.createdAt || pendingSale.timestamp || new Date().toISOString()
-};
-        if (!Array.isArray(salesToday)) {
-            window.salesToday = [];
-        }
-
-        salesToday.push(confirmedSale);
-
-        if (paidAmount > 0) {
-            account.balance = Number(account.balance || 0) + paidAmount;
-
-            const totalLiquidity = accounts.reduce((sum, a) => sum + Number(a.balance || 0), 0);
-            liquidityLog.push({
-                id: `liq-sale-confirm-${Date.now()}`,
-                timestamp: new Date().toISOString(),
-                type: "add",
-                amount: paidAmount,
-                description: `تأكيد بيع مؤقت للعميل: ${pendingSale.customerName || '-'}`,
-                currentBalance: totalLiquidity,
-                accountId: account.id
+        const finalProfit = Number(saleData.potentialProfit || saleData.profit || 0);
+        let normalizedItems = [];
+        
+        if (saleData.items && saleData.items.length > 0) {
+            normalizedItems = [...saleData.items];
+        } 
+        else if (saleData.mainProduct) {
+            normalizedItems.push({
+                name: saleData.mainProduct.name,
+                quantity: saleData.mainProduct.quantity,
+                costPrice: saleData.mainProduct.costPrice,
+                unitPrice: (saleData.totalSellPrice || totalAmount) / (saleData.mainProduct.quantity || 1),
+                subtotal: saleData.totalSellPrice || totalAmount
             });
-        }
-
-        if (typeof logOperation === 'function') {
-            logOperation(
-                "تأكيد بيع مؤقت وتحويله إلى دين",
-                `تم تأكيد البيعة للعميل "${pendingSale.customerName || '-'}" وإضافتها إلى قائمة المبيعات مع تسجيل المتبقي كدين.`
-            );
-        }
-    }
-
-if (mode === 'existing' && targetDebtId) {
-    const selectedDebt = debtors.find(d => d.id === targetDebtId);
-
-    if (!selectedDebt) {
-        showGlobalMessage("لم يتم العثور على الدين القديم المحدد.", true);
-        return;
-    }
-
-    selectedDebt.amount = Number(selectedDebt.amount || 0) + remainingAmount;
-    selectedDebt.timestamp = new Date().toISOString();
-
-    if (!Array.isArray(selectedDebt.entries)) {
-        selectedDebt.entries = [];
-    }
-
-    selectedDebt.entries.push({
-        id: generateId('debt_entry'),
-        source: 'pending_sale_conversion',
-        saleId: pendingSale.id,
-        saleCustomerName: pendingSale.customerName || 'عميل غير محدد',
-        amount: remainingAmount,
-        timestamp: new Date().toISOString(),
-        note: `تمت إضافة بيعة باسم ${pendingSale.customerName || 'عميل غير محدد'} إلى الدين القائم: ${selectedDebt.name || 'عميل غير محدد'}`
-    });
-
-    selectedDebt.reason = `آخر إضافة: بيعة باسم ${pendingSale.customerName || 'عميل غير محدد'}`;
-
-} else {
-    const customerProfile = getOrCreateDebtorProfile(
-        pendingSale.customerName || 'عميل غير محدد'
-    );
-
-    debtors.push({
-        id: generateId('debt'),
-        customerId: customerProfile.id,
-        name: customerProfile.name,
-        customerName: customerProfile.name,
-        amount: remainingAmount,
-        reason: `تحويل بيع مؤقت رقم ${pendingSale.id}`,
-        timestamp: new Date().toISOString(),
-        entries: [
-            {
-                id: generateId('debt_entry'),
-                source: 'pending_sale_conversion',
-                saleId: pendingSale.id,
-                saleCustomerName: pendingSale.customerName || 'عميل غير محدد',
-                amount: remainingAmount,
-                timestamp: new Date().toISOString(),
-                note: `تم إنشاء الدين من بيعة مؤقتة باسم ${pendingSale.customerName || 'عميل غير محدد'}`
+            if (saleData.additionalItems && saleData.additionalItems.length > 0) {
+                saleData.additionalItems.forEach(att => {
+                    normalizedItems.push({
+                        name: att.name,
+                        quantity: att.quantity,
+                        costPrice: att.costPrice,
+                        unitPrice: 0, 
+                        subtotal: 0
+                    });
+                });
             }
-        ]
-    });
-}
+        }
 
-    // 3) حذف البيعة من المؤقت
-    pendingSales.splice(pendingSaleIndex, 1);
+        const confirmedInvoice = { 
+            ...saleData, 
+            id: invoiceId,                   // المعرف الموحد للسحابة
+            invoiceNumber: invoiceCode,      // رقم الفاتورة الظاهر للعميل وفي البحث
+            type: 'invoice-from-pending',    // نوع دقيق ليتعرف عليه التقرير كـ "مؤكدة"
+            convertedFromPending: true,
+            saleDate: saleData.saleDate || new Date().toISOString().split('T')[0], 
+            date: new Date().toISOString().split('T')[0], 
+            grandTotal: totalAmount, 
+            totalSellPrice: totalAmount,
+            paidAmount: paidAmount, 
+            remainingAmount: remainingAmount, 
+            profit: finalProfit,           
+            items: normalizedItems,        
+            timestamp: new Date().toISOString(),
+            accountId: accountId
+        };
+
+        // 🌟 الإصلاح الجذري: الحفظ في المصفوفة المحلية ثم في قاعدة البيانات السحابية (التي يبحث فيها محرك البحث) 🌟
+        if (typeof salesToday !== 'undefined') {
+            salesToday.push(confirmedInvoice);
+        }
+        
+        if (typeof saveInvoiceToFirestore === 'function') {
+            try {
+                await saveInvoiceToFirestore(confirmedInvoice); // حفظ الفاتورة في أرشيف السحابة
+            } catch (e) {
+                console.error("Error saving to Firestore:", e);
+            }
+        }
+
+        if (paidAmount > 0) acc.balance = Number(acc.balance || 0) + paidAmount;
+        
+        if (typeof totalProfit !== 'undefined') {
+            totalProfit += finalProfit;
+        }
+    }
+
+    // 4. الفصل الفيزيائي للديون (منع التداخل)
+    const newEntryNote = "بيعة باسم " + (saleData.customerName || "عميل غير محدد");
+    let done = false;
+
+    const finalInvoiceRef = (confirmSale) ? invoiceCode : "بدون فاتورة";
+
+    if (debtMode === 'existing' && targetDebtId) {
+        const existingDebt = debtors.find(d => String(d.id) === String(targetDebtId));
+        if (existingDebt) {
+            const targetCustomerId = existingDebt.customerId;
+            const targetCustomerName = existingDebt.name || existingDebt.customerName;
+
+            const newDebtRecord = {
+                id: "D-" + Date.now() + "-" + Math.floor(Math.random() * 10000),
+                customerId: targetCustomerId, 
+                name: targetCustomerName,
+                customerName: targetCustomerName,
+                amount: remainingAmount,
+                reason: newEntryNote, 
+                createdAt: new Date().toISOString(),
+                timestamp: new Date().toISOString(),
+                linkedInvoice: finalInvoiceRef
+            };
+
+            debtors.push(JSON.parse(JSON.stringify(newDebtRecord)));
+            showGlobalMessage(`تم إضافة بند دين مستقل لحساب: ${targetCustomerName}`);
+            done = true;
+        }
+    }
+
+    if (!done) {
+        const newCustomerDebt = {
+            id: "D-" + Date.now() + "-" + Math.floor(Math.random() * 10000),
+            name: saleData.customerName,
+            customerName: saleData.customerName,
+            amount: remainingAmount,
+            reason: newEntryNote,
+            createdAt: new Date().toISOString(),
+            timestamp: new Date().toISOString(),
+            linkedInvoice: finalInvoiceRef
+        };
+        debtors.push(JSON.parse(JSON.stringify(newCustomerDebt)));
+        showGlobalMessage(`تم تسجيل دين لعميل جديد: ${saleData.customerName}`);
+    }
+
+    // 5. التنظيف والإغلاق وتحديث الواجهة
+    pendingSales.splice(pendingIndex, 1);
+    
+    const m = document.getElementById('convertPendingToDebtModal');
+    if (m) m.style.display = 'none';
 
     updateUI();
+    if (typeof window.refreshMainUI === 'function') window.refreshMainUI();
 
-    if (confirmSale) {
-        showGlobalMessage("تم تأكيد البيعة وتحويل المبلغ المتبقي إلى دين بنجاح.");
-    } else {
-        showGlobalMessage("تم تحويل البيع المؤقت إلى دين بدون تأكيد البيعة.");
+    // مزامنة كافة التغييرات الأخرى (الديون والسيولة والمخزون) مع السحابة
+    if (typeof saveSystemToCloud === 'function') {
+        saveSystemToCloud();
     }
-}
-
-function populateReturnProductSelect() {
+};function populateReturnProductSelect() {
     const returnProductSelect = d('return-product-select');
     if (!returnProductSelect) return;
     
@@ -13856,55 +13854,70 @@ window.executeCancellation = function(saleId, accountId, amount) {
         alert("تم إلغاء البيعة بنجاح.");
     }
 };
-
-
-// --- جسر الربط الشامل لنظام الـ ERP (V9.6) المطور (drashraf) - النسخة الآمنة ---
+// --- جسر الربط الشامل لنظام الـ ERP (V10.5) المطور - التوافق النهائي والبصمة البصرية ---
 try {
-    // ربط البيانات الأساسية مع فحص الأمان لمنع اختفاء القسم
-    window.products = (typeof products !== 'undefined') ? products : (window.products || []);
-    window.accounts = (typeof accounts !== 'undefined') ? accounts : (window.accounts || []);
-    window.operationLog = (typeof operationLog !== 'undefined') ? operationLog : (window.operationLog || []);
-    window.db = (typeof db !== 'undefined') ? db : (window.db || null);
-    window.currentUser = (typeof currentUser !== 'undefined') ? currentUser : null;
+    // 🌟 دوال الحقن الآمنة لضمان التوافق مع كل شاشات البحث والمبيعات والتقارير 🌟
+    window.injectSaleToMain = function(saleObj) { 
+        // 1. الحقن في مبيعات اليوم (مع فحص أمان للمتغيرات)
+        if (typeof salesToday !== 'undefined' && Array.isArray(salesToday)) {
+            salesToday.push(saleObj); 
+        } else if (window.salesToday && Array.isArray(window.salesToday)) {
+            window.salesToday.push(saleObj);
+        }
+        
+        // 2. الحقن في سجلات البحث والفواتير المتراكمة (للتوافق الشامل مع محركات البحث)
+        if (typeof invoices !== 'undefined' && Array.isArray(invoices)) invoices.push(saleObj);
+        if (typeof salesHistory !== 'undefined' && Array.isArray(salesHistory)) salesHistory.push(saleObj);
+        if (typeof allSales !== 'undefined' && Array.isArray(allSales)) allSales.push(saleObj);
+        if (typeof sales !== 'undefined' && Array.isArray(sales)) sales.push(saleObj); // إضافة احتياطية لمصفوفة sales
+    };
+    
+    window.injectLogToMain = function(logObj) { 
+        if (typeof operationLog !== 'undefined') operationLog.push(logObj); 
+    };
+    window.injectProductToMain = function(prodObj) { 
+        if (typeof products !== 'undefined') products.push(prodObj); 
+    };
+    
+    // دوال قراءة البيانات الحية
+    window.getLiveProducts = function() { return (typeof products !== 'undefined') ? products : []; };
+    window.getLiveAccounts = function() { return (typeof accounts !== 'undefined') ? accounts : []; };
 
-    // 🌟 ربط الفواتير المعلقة (الحفاظ على البيانات القديمة إن وُجدت)
     window.pendingOrders = (typeof pendingOrders !== 'undefined') ? pendingOrders : (window.pendingOrders || []);
 
-    // تأمين التاريخ
     window.currentLoadedDate = (typeof currentLoadedDate !== 'undefined' && currentLoadedDate) 
-        ? currentLoadedDate 
-        : new Date().toISOString().split('T')[0];
+        ? currentLoadedDate : new Date().toISOString().split('T')[0];
 
     window.saveCurrentStateByDate = (typeof saveCurrentStateByDate !== 'undefined') ? saveCurrentStateByDate : null;
-
-    // 🌟 ربط الدوال بالمسميات الصحيحة (saveStateToHistory)
     window.updateUI = (typeof updateUI === 'function') ? updateUI : null;
     window.saveState = (typeof saveStateToHistory === 'function') ? saveStateToHistory : null; 
     window.updateUndoRedoButtons = (typeof updateUndoRedoButtons === 'function') ? updateUndoRedoButtons : null;
     window.calculateTotalCapital = (typeof calculateTotalCapital === 'function') ? calculateTotalCapital : null;
 
-    // ربط دوال الريندر
-    window.renderProducts = (typeof renderProducts === 'function') ? renderProducts : null;
-    window.renderAccounts = (typeof renderAccounts === 'function') ? renderAccounts : null;
-    window.renderOperationLog = (typeof renderOperationLog === 'function') ? renderOperationLog : null;
+    // 🌟🌟 الإضافة الحاسمة هنا: ربط دالة الحفظ السحابي لكي يقرأها محرك البحث الشامل 🌟🌟
+    window.saveInvoiceToFirestore = (typeof saveInvoiceToFirestore === 'function') ? saveInvoiceToFirestore : null;
 
-    // وظيفة عامة لتحديث الواجهة بالكامل
     window.refreshMainUI = () => {
         try {
             if (typeof window.updateUI === 'function') window.updateUI();
-            if (typeof window.renderProducts === 'function') window.renderProducts();
-            if (typeof window.renderAccounts === 'function') window.renderAccounts();
-            if (typeof window.renderOperationLog === 'function') window.renderOperationLog();
+            if (typeof renderProducts === 'function') renderProducts();
+            if (typeof renderAccounts === 'function') renderAccounts();
+            if (typeof renderOperationLog === 'function') renderOperationLog();
             if (typeof window.calculateTotalCapital === 'function') window.calculateTotalCapital();
             if (typeof window.updateUndoRedoButtons === 'function') window.updateUndoRedoButtons();
+            
+            // تحديث جميع شاشات المبيعات
+            if (typeof renderSalesTable === 'function') renderSalesTable();
+            if (typeof renderSalesToday === 'function') renderSalesToday();
+            if (typeof updateSalesUI === 'function') updateSalesUI();
         } catch (e) { console.error("Error in refreshMainUI:", e); }
     };
 
-    console.log("✅ تم تفعيل جسر ERP V9.6 بنجاح - الواجهة الآن مؤمنة ضد الانهيار");
-
+    console.log("✅ تم تفعيل جسر ERP V10.5 بنجاح - توافق تام مع البصمة البصرية والأرشيف السحابي");
 } catch (globalError) {
     console.error("🚨 فشل في تفعيل الجسر:", globalError);
-}}); // End DOMContentLoaded
+}
+}); // End DOMContentLoaded
 
 </script>
 <script src="session-guard.js?v=2"></script>

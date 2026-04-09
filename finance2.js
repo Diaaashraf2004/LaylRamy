@@ -1,19 +1,24 @@
 /**
- * نظام الاستبدال وإدارة الفواتير المعلقة (ERP V9.6)
- * مرتبط ببرنامج drashraf للإنتاج المباشر - (مدمج مع نظام التراجع Undo/Redo)
- * تم إصلاح خطأ الأقواس البرمجية لضمان ظهور القسم
+ * نظام الاستبدال وإدارة الفواتير المعلقة (ERP V10.5)
+ * التحديث: إضافة بصمة بصرية (🔄 استبدال) لاسم العميل والمنتج لتظهر بوضوح في كافة التقارير ومحركات البحث.
  */
 
 let targetOrderId = null;
 
+const getProducts = () => typeof window.getLiveProducts === 'function' ? window.getLiveProducts() : (window.products || []);
+const getAccounts = () => typeof window.getLiveAccounts === 'function' ? window.getLiveAccounts() : (window.accounts || []);
+
+const addLogSafe = (logObj) => {
+    if (typeof window.injectLogToMain === 'function') window.injectLogToMain(logObj);
+    else if (window.operationLog) window.operationLog.push(logObj);
+};
+
 document.addEventListener("DOMContentLoaded", function() {
-    // تهيئة مصفوفة الفواتير المعلقة إذا لم تكن موجودة
     window.pendingOrders = window.pendingOrders || [];
     initExchangeSystem();
-    setupUndoRedoWatcher(); // 🌟 تشغيل مراقب التراجع
+    setupUndoRedoWatcher();
 });
 
-// 🌟 مراقب ذكي لالتقاط ضغطات Undo/Redo في البرنامج الأساسي وتحديث شاشة الاستبدال
 function setupUndoRedoWatcher() {
     document.body.addEventListener('click', function(e) {
         const btnText = (e.target.innerText || e.target.id || '').toLowerCase();
@@ -22,7 +27,7 @@ function setupUndoRedoWatcher() {
                 if (typeof runCalc === 'function') runCalc();
                 if (typeof renderLocalPendingOrders === 'function') renderLocalPendingOrders();
                 loadInitialData(); 
-            }, 300); // تأخير بسيط لضمان أن البرنامج الأساسي أرجع البيانات
+            }, 300);
         }
     });
 }
@@ -80,18 +85,26 @@ function renderExchangeUI(panel) {
         <div class="exchange-container">
             <div class="exchange-card">
                 <div class="exchange-header">
-                    <h2 style="color: #2b6cb0; margin: 0;">🔄 نظام الاستبدال وإدارة الفواتير المعلقة (ERP)</h2>
+                    <h2 style="color: #2b6cb0; margin: 0;">🔄 نظام الاستبدال وإدارة الفواتير المعلقة (V10.5)</h2>
                     <p style="color: #666; margin: 5px 0;">نظام محاسبي دقيق يفصل بين السيولة النقدية والبضاعة قيد التسليم</p>
                 </div>
                 
                 <div class="delivery-status">
                     حدد حالة تسليم الأجهزة الجديدة والسيولة النقدية:
-                    <div class="radio-group">
+                    <div class="radio-group" style="margin-top:10px;">
                         <input type="radio" id="del_now" name="delivery_type" value="immediate" checked onchange="updateUIState()">
-                        <label for="del_now">📦 تسليم وتحصيل فوري</label>
+                        <label for="del_now" style="margin-left: 15px;">📦 تسليم وتحصيل فوري</label>
                         
                         <input type="radio" id="del_later" name="delivery_type" value="pending" onchange="updateUIState()">
                         <label for="del_later">⏳ تسليم مؤجل (شحن بضاعة وتعليق فلوس)</label>
+                    </div>
+                </div>
+
+                <div class="customer-details" style="margin-bottom: 20px; padding: 15px; background: #f8fafc; border: 1px solid #cbd5e0; border-radius: 8px;">
+                    <h4 style="margin: 0 0 10px 0; color: #2d3748;">👤 بيانات العميل</h4>
+                    <div class="grid-2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <div><label style="font-size: 14px;">اسم العميل</label><input type="text" id="ex_customer_name" class="form-control" placeholder="اختياري..."></div>
+                        <div><label style="font-size: 14px;">رقم الهاتف</label><input type="text" id="ex_customer_phone" class="form-control" placeholder="اختياري..."></div>
                     </div>
                 </div>
                 
@@ -107,14 +120,12 @@ function renderExchangeUI(panel) {
                             </div>
                             <select id="r_main_cat" class="form-control" style="margin-top:5px;"></select>
                         </div>
-                        <div class="item-row">
-                            <h4>🎧 مشتملات مسترجعة (اختياري)</h4>
-                            <input list="p-list" id="r_acc_name" class="form-control" placeholder="اسم الإكسسوار..." onchange="autoFill('r_acc')">
-                            <div class="grid-2" style="margin-top:10px;">
-                                <div class="input-group"><label>تكلفة المخزن:</label><input type="number" id="r_acc_cost" class="form-control" value="0" oninput="runCalc()"></div>
-                                <div class="input-group"><label>سعر استرداد:</label><input type="number" id="r_acc_price" class="form-control" value="0" oninput="runCalc()"></div>
+                        <div class="item-row" style="margin-top: 20px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">
+                                <h4 style="margin:0;">🎧 مشتملات مسترجعة</h4>
+                                <button type="button" onclick="addAccRow('r')" style="background:#3182ce; color:#fff; border:none; padding:4px 8px; border-radius:4px; font-size:12px; cursor:pointer;">+ إضافة مشتمل</button>
                             </div>
-                            <select id="r_acc_cat" class="form-control" style="margin-top:5px;"></select>
+                            <div id="r_acc_container"></div>
                         </div>
                     </div>
 
@@ -128,13 +139,12 @@ function renderExchangeUI(panel) {
                                 <div class="input-group"><label>سعر البيع:</label><input type="number" id="n_main_price" class="form-control" value="0" oninput="runCalc()"></div>
                             </div>
                         </div>
-                        <div class="item-row">
-                            <h4>🎧 إضافات مباعة (اختياري)</h4>
-                            <input list="p-list" id="n_acc_name" class="form-control" placeholder="اسم الإكسسوار..." onchange="autoFill('n_acc')">
-                            <div class="grid-2" style="margin-top:10px;">
-                                <div class="input-group"><label>تكلفة المخزن:</label><input type="number" id="n_acc_cost" class="form-control" value="0" oninput="runCalc()"></div>
-                                <div class="input-group"><label>سعر البيع:</label><input type="number" id="n_acc_price" class="form-control" value="0" oninput="runCalc()"></div>
+                        <div class="item-row" style="margin-top: 20px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">
+                                <h4 style="margin:0;">🎧 إضافات مباعة</h4>
+                                <button type="button" onclick="addAccRow('n')" style="background:#38a169; color:#fff; border:none; padding:4px 8px; border-radius:4px; font-size:12px; cursor:pointer;">+ إضافة ملحق</button>
                             </div>
+                            <div id="n_acc_container"></div>
                         </div>
                     </div>
                 </div>
@@ -156,7 +166,7 @@ function renderExchangeUI(panel) {
                     <h3>⏳ فواتير وطلبيات في الطريق (خصمت البضاعة وبانتظار التحصيل)</h3>
                     <div style="overflow-x: auto;">
                         <table class="pending-table" id="local-pending-table">
-                            <thead><tr><th>المنتجات المطلوبة</th><th>المبلغ المعلق</th><th>إجراءات</th></tr></thead>
+                            <thead><tr><th>العميل</th><th>المنتجات المطلوبة</th><th>المبلغ المعلق</th><th>إجراءات</th></tr></thead>
                             <tbody></tbody>
                         </table>
                     </div>
@@ -169,8 +179,8 @@ function renderExchangeUI(panel) {
                 <div class="ex-modal-header" style="color: #d69e2e;">✏️ تأكيد فتح الفاتورة للتعديل</div>
                 <div class="ex-modal-body">
                     سيقوم النظام مؤقتاً بـ:<br><br>
-                    1. 📦 <b>إرجاع الجهاز الجديد لمخزنك</b> (إلغاء الحجز).<br>
-                    2. 📤 <b>سحب الجهاز المرتجع من مخزنك</b> (كأنه لم يدخل).<br>
+                    1. 📦 <b>إرجاع البضاعة الجديدة لمخزنك</b> (إلغاء الحجز).<br>
+                    2. 📤 <b>سحب البضاعة المرتجعة من مخزنك</b> (كأنها لم تدخل).<br>
                     3. 📝 تعبئة الخانات لتتمكن من تغيير الأسعار أو الأصناف لتسجيلها من جديد.<br>
                 </div>
                 <div class="ex-modal-footer">
@@ -204,31 +214,73 @@ function renderExchangeUI(panel) {
     `;
 }
 
+window.addAccRow = function(type) {
+    const container = document.getElementById(`${type}_acc_container`);
+    if (!container) return;
+    
+    const row = document.createElement('div');
+    row.className = `acc-row ${type}-acc-row`;
+    row.style.cssText = "display: flex; gap: 8px; margin-top: 10px; align-items: center;";
+    
+    let catSelect = '';
+    if (type === 'r') {
+        const catHtml = document.getElementById('r_main_cat') ? document.getElementById('r_main_cat').innerHTML : '<option value="عام">عام</option>';
+        catSelect = `<select class="acc-cat form-control" style="width: 25%; padding:4px;">${catHtml}</select>`;
+    }
+
+    row.innerHTML = `
+        <input list="p-list" class="acc-name form-control" style="width: 40%; padding:4px;" placeholder="اسم الصنف..." onchange="autoFillAccRow(this)">
+        <input type="number" class="acc-cost form-control" style="width: 20%; padding:4px;" placeholder="التكلفة" value="0" oninput="runCalc()">
+        <input type="number" class="acc-price form-control" style="width: 20%; padding:4px;" placeholder="السعر" value="0" oninput="runCalc()">
+        ${catSelect}
+        <button type="button" onclick="this.parentElement.remove(); runCalc()" style="background: #fc8181; color: white; border: none; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size:12px;">❌</button>
+    `;
+    container.appendChild(row);
+};
+
+window.autoFillAccRow = function(input) {
+    const val = input.value;
+    const liveProducts = getProducts();
+    const p = liveProducts.find(i => i.name === val);
+    if (p) {
+        const row = input.closest('.acc-row');
+        if(row) {
+            row.querySelector('.acc-cost').value = p.costPrice || 0;
+            row.querySelector('.acc-price').value = p.price || 0;
+            const catEl = row.querySelector('.acc-cat');
+            if (catEl && p.category) catEl.value = p.category;
+        }
+    }
+    runCalc();
+};
+
 function loadInitialData() {
-    const products = window.products || [];
-    const accounts = window.accounts || [];
-    document.getElementById('p-list').innerHTML = products.map(p => `<option value="${p.name}">`).join('');
-    const cats = [...new Set(products.map(p => p.category))].filter(c => c);
+    const liveProducts = getProducts();
+    const liveAccounts = getAccounts();
+    document.getElementById('p-list').innerHTML = liveProducts.map(p => `<option value="${p.name}">`).join('');
+    const cats = [...new Set(liveProducts.map(p => p.category))].filter(c => c);
     const catHtml = cats.map(c => `<option value="${c}">${c}</option>`).join('') + `<option value="عام">عام (صنف جديد)</option>`;
     document.getElementById('r_main_cat').innerHTML = catHtml;
-    document.getElementById('r_acc_cat').innerHTML = catHtml;
-    document.getElementById('ex_acc_sel').innerHTML = accounts.map(a => `<option value="${a.id}">${a.name} (رصيد: ${a.balance.toFixed(2)})</option>`).join('');
+    document.getElementById('r_acc_container').innerHTML = '';
+    document.getElementById('n_acc_container').innerHTML = '';
+    document.getElementById('ex_acc_sel').innerHTML = liveAccounts.map(a => `<option value="${a.id}">${a.name} (رصيد: ${a.balance.toFixed(2)})</option>`).join('');
 }
 
 function renderLocalPendingOrders() {
     const tbody = document.querySelector('#local-pending-table tbody');
     if (!window.pendingOrders || window.pendingOrders.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:#a0aec0;">لا توجد فواتير معلقة حالياً.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:#a0aec0;">لا توجد فواتير معلقة حالياً.</td></tr>`;
         return;
     }
     tbody.innerHTML = window.pendingOrders.map(o => `
         <tr>
-            <td>${o.itemsDesc}</td>
+            <td style="font-weight:bold; color:#2b6cb0;">${o.customerName || 'عميل استبدال'}</td>
+            <td style="font-size:14px;">${o.itemsDesc}</td>
             <td style="font-weight:bold; color:${o.diffAmount > 0 ? '#48bb78' : (o.diffAmount < 0 ? '#e53e3e' : '#333')};" dir="ltr">
                 ${o.diffAmount > 0 ? '+'+o.diffAmount : o.diffAmount} ج.م
             </td>
             <td>
-                <button class="btn-action btn-confirm" onclick="confirmPendingOrder('${o.id}')">✔️ تحصيل الفلوس</button>
+                <button class="btn-action btn-confirm" onclick="confirmPendingOrder('${o.id}')">✔️ تحصيل</button>
                 <button class="btn-action btn-edit" onclick="openExModalEdit('${o.id}')">✏️ تعديل</button>
                 <button class="btn-action btn-cancel" onclick="openExModalCancel('${o.id}')">❌ إلغاء</button>
             </td>
@@ -248,7 +300,8 @@ function updateUIState() {
 
 function autoFill(prefix) {
     const val = document.getElementById(`${prefix}_name`).value;
-    const p = (window.products || []).find(i => i.name === val);
+    const liveProducts = getProducts();
+    const p = liveProducts.find(i => i.name === val);
     if (p) {
         document.getElementById(`${prefix}_cost`).value = p.costPrice || 0;
         document.getElementById(`${prefix}_price`).value = p.price || 0;
@@ -259,8 +312,18 @@ function autoFill(prefix) {
 
 function runCalc() {
     const getV = (id) => parseFloat(document.getElementById(id).value) || 0;
-    const rCost = getV('r_main_cost') + getV('r_acc_cost'), rPrice = getV('r_main_price') + getV('r_acc_price');
-    const nCost = getV('n_main_cost') + getV('n_acc_cost'), nPrice = getV('n_main_price') + getV('n_acc_price');
+    let rCost = getV('r_main_cost'), rPrice = getV('r_main_price');
+    let nCost = getV('n_main_cost'), nPrice = getV('n_main_price');
+
+    document.querySelectorAll('.r-acc-row').forEach(row => {
+        rCost += parseFloat(row.querySelector('.acc-cost').value) || 0;
+        rPrice += parseFloat(row.querySelector('.acc-price').value) || 0;
+    });
+    document.querySelectorAll('.n-acc-row').forEach(row => {
+        nCost += parseFloat(row.querySelector('.acc-cost').value) || 0;
+        nPrice += parseFloat(row.querySelector('.acc-price').value) || 0;
+    });
+
     const diff = nPrice - rPrice;
     document.getElementById('v_old_prof').innerText = (rPrice - rCost).toFixed(2);
     document.getElementById('v_new_prof').innerText = (nPrice > 0) ? (nPrice - nCost).toFixed(2) : "0.00";
@@ -270,9 +333,6 @@ function runCalc() {
 function triggerUndoSave() {
     if (typeof window.saveState === 'function') {
         window.saveState();
-        console.log("📸 تم أخذ لقطة تراجع بنجاح.");
-    } else {
-        console.warn("⚠️ دالة حفظ الحالة غير متصلة بالجسر.");
     }
 }
 
@@ -280,58 +340,158 @@ async function executeTransaction() {
     const isPending = document.getElementById('del_later').checked;
     const accId = document.getElementById('ex_acc_sel').value;
     
+    let custNameInput = document.getElementById('ex_customer_name').value.trim() || "عميل بدون اسم";
+    let custPhone = document.getElementById('ex_customer_phone').value.trim();
+
     const rMainName = document.getElementById('r_main_name').value, rMainCost = parseFloat(document.getElementById('r_main_cost').value) || 0, rMainPrice = parseFloat(document.getElementById('r_main_price').value) || 0, rMainCat = document.getElementById('r_main_cat')?.value || 'عام';
-    const rAccName = document.getElementById('r_acc_name').value, rAccCost = parseFloat(document.getElementById('r_acc_cost').value) || 0, rAccPrice = parseFloat(document.getElementById('r_acc_price').value) || 0, rAccCat = document.getElementById('r_acc_cat')?.value || 'عام';
     const nMainName = document.getElementById('n_main_name').value, nMainCost = parseFloat(document.getElementById('n_main_cost').value) || 0, nMainPrice = parseFloat(document.getElementById('n_main_price').value) || 0;
-    const nAccName = document.getElementById('n_acc_name').value, nAccCost = parseFloat(document.getElementById('n_acc_cost').value) || 0, nAccPrice = parseFloat(document.getElementById('n_acc_price').value) || 0;
 
-    const diff = (nMainPrice + nAccPrice) - (rMainPrice + rAccPrice);
+    const rAccs = [];
+    document.querySelectorAll('.r-acc-row').forEach(row => {
+        const name = row.querySelector('.acc-name').value.trim();
+        if(name) rAccs.push({ name, cost: parseFloat(row.querySelector('.acc-cost').value)||0, price: parseFloat(row.querySelector('.acc-price').value)||0, cat: row.querySelector('.acc-cat') ? row.querySelector('.acc-cat').value : 'عام' });
+    });
 
-    if (!rMainName && !nMainName) return alert("يرجى إدخال بيانات العملية");
+    const nAccs = [];
+    document.querySelectorAll('.n-acc-row').forEach(row => {
+        const name = row.querySelector('.acc-name').value.trim();
+        if(name) nAccs.push({ name, cost: parseFloat(row.querySelector('.acc-cost').value)||0, price: parseFloat(row.querySelector('.acc-price').value)||0 });
+    });
+
+    if (!rMainName && !nMainName && rAccs.length === 0 && nAccs.length === 0) return alert("يرجى إدخال بيانات العملية");
+
+    let totalRCost = rMainCost, totalRPrice = rMainPrice;
+    rAccs.forEach(a => { totalRCost += a.cost; totalRPrice += a.price; });
+    
+    let totalNCost = nMainCost, totalNPrice = nMainPrice;
+    nAccs.forEach(a => { totalNCost += a.cost; totalNPrice += a.price; });
+
+    const diff = totalNPrice - totalRPrice;
 
     const btn = document.getElementById('exec_btn');
-    btn.disabled = true; btn.innerHTML = "⏳ جاري التحديث السحابي...";
+    btn.disabled = true; btn.innerHTML = "⏳ جاري التحديث...";
 
     try {
         triggerUndoSave();
+        const liveProducts = getProducts();
 
         const processReturn = (name, cost, price, cat) => {
-            if(!name) return; let p = window.products.find(x => x.name === name);
-            if(!p) window.products.push({ id: "R-"+Date.now(), name, category: cat, quantity: 1, costPrice: cost, price: price });
-            else { p.quantity = (Number(p.quantity)||0) + 1; p.costPrice = cost; }
+            if(!name) return; let p = liveProducts.find(x => x.name === name);
+            if(!p) {
+                const newP = { id: "R-"+Date.now()+Math.random(), name, category: cat, quantity: 1, costPrice: cost, price: price };
+                if (typeof window.injectProductToMain === 'function') window.injectProductToMain(newP); else liveProducts.push(newP);
+            } else { p.quantity = (Number(p.quantity)||0) + 1; p.costPrice = cost; }
         };
         const processOut = (name, cost, price) => {
-            if(!name) return; let p = window.products.find(x => x.name === name);
-            if(!p) window.products.push({ id: "N-"+Date.now(), name, category: "عام", quantity: -1, costPrice: cost, price: price });
-            else p.quantity = (Number(p.quantity)||0) - 1;
+            if(!name) return; let p = liveProducts.find(x => x.name === name);
+            if(!p) {
+                const newP = { id: "N-"+Date.now()+Math.random(), name, category: "عام", quantity: -1, costPrice: cost, price: price };
+                if (typeof window.injectProductToMain === 'function') window.injectProductToMain(newP); else liveProducts.push(newP);
+            } else p.quantity = (Number(p.quantity)||0) - 1;
         };
 
         processReturn(rMainName, rMainCost, rMainPrice, rMainCat); 
-        processReturn(rAccName, rAccCost, rAccPrice, rAccCat);
-        processOut(nMainName, nMainCost, nMainPrice); 
-        processOut(nAccName, nAccCost, nAccPrice);
+        rAccs.forEach(a => processReturn(a.name, a.cost, a.price, a.cat));
 
-        if (isPending && (nMainName || nAccName)) {
+        processOut(nMainName, nMainCost, nMainPrice); 
+        nAccs.forEach(a => processOut(a.name, a.cost, a.price));
+
+        const itemsToSell = [];
+        if (nMainName) itemsToSell.push({ 
+            name: nMainName, productName: nMainName, quantity: 1, qty: 1, 
+            unitPrice: nMainPrice, price: nMainPrice, subtotal: nMainPrice, total: nMainPrice, 
+            costPrice: nMainCost, cost: nMainCost, unitCost: nMainCost 
+        });
+        nAccs.forEach(a => itemsToSell.push({ 
+            name: a.name, productName: a.name, quantity: 1, qty: 1, 
+            unitPrice: a.price, price: a.price, subtotal: a.price, total: a.price, 
+            costPrice: a.cost, cost: a.cost, unitCost: a.cost 
+        }));
+
+        let itemsDescStr = nMainName ? nMainName : 'إكسسوارات متنوعة';
+        if (nAccs.length > 0) itemsDescStr += ` + ${nAccs.length} عناصر`;
+        const invoiceNum = `EX-${Date.now().toString().slice(-5)}`;
+
+        // 🌟 تجهيز "بصمة الاستبدال" الواضحة 🌟
+        const taggedProductName = `🔄 استبدال: ${itemsDescStr}`;
+        const taggedCustomerName = custNameInput + ` (عميل استبدال 🔄)`;
+
+        if (itemsToSell.length > 0) {
+            const saleObj = {
+                id: "EX-SALE-" + Date.now(),
+                type: 'exchange',
+                timestamp: new Date().toISOString(),
+                saleDate: (typeof window.currentLoadedDate !== 'undefined' && window.currentLoadedDate) ? window.currentLoadedDate : new Date().toISOString().split('T')[0],
+                date: (typeof window.currentLoadedDate !== 'undefined' && window.currentLoadedDate) ? window.currentLoadedDate : new Date().toISOString().split('T')[0],
+                
+                // 🌟 حقن البصمة في اسم المنتج 🌟
+                name: taggedProductName,
+                productName: taggedProductName + ` (فاتورة: ${invoiceNum})`, 
+                itemName: taggedProductName,
+                quantity: 1,
+                qty: 1,
+                
+                sellPrice: totalNPrice,
+                price: totalNPrice,
+                totalSellPrice: totalNPrice,
+                grandTotal: totalNPrice,
+                total: totalNPrice,
+                totalPrice: totalNPrice,
+                
+                cost: totalNCost,
+                costPrice: totalNCost,
+                totalCost: totalNCost,
+                totalCostPrice: totalNCost,
+                
+                profit: totalNPrice - totalNCost,
+                totalProfit: totalNPrice - totalNCost,
+                
+                // 🌟 حقن البصمة في اسم العميل 🌟
+                customerName: taggedCustomerName,
+                clientName: taggedCustomerName,
+                buyerName: taggedCustomerName,
+                customerPhone: custPhone,
+                invoiceNumber: invoiceNum,
+                invoiceId: invoiceNum,
+
+                items: itemsToSell,
+                notes: isPending ? "استبدال وتسليم آجل 🔄" : "استبدال وتسليم فوري 🔄"
+            };
+
+            if (typeof window.injectSaleToMain === 'function') window.injectSaleToMain(saleObj);
+            
+            if (typeof window.saveInvoiceToFirestore === 'function') {
+                try { await window.saveInvoiceToFirestore(saleObj); } catch(e) { }
+            }
+        }
+
+        if (isPending && itemsToSell.length > 0) {
             window.pendingOrders.push({
                 id: "ORD-" + Math.floor(Math.random()*10000),
-                itemsDesc: `${nMainName} ${nAccName ? '+ '+nAccName : ''}`,
-                expectedProfit: (nMainPrice + nAccPrice) - (nMainCost + nAccCost), diffAmount: diff, accId: accId,
-                nMainName, nMainCost, nMainPrice, nAccName, nAccCost, nAccPrice, rMainName, rMainCost, rMainPrice, rAccName, rAccCost, rAccPrice 
+                customerName: taggedCustomerName,
+                customerPhone: custPhone,
+                itemsDesc: itemsDescStr,
+                diffAmount: diff, accId: accId,
+                nMainName, nMainCost, nMainPrice,
+                rMainName, rMainCost, rMainPrice,
+                nAccs: nAccs, rAccs: rAccs
             });
-            window.operationLog.push({ timestamp: new Date().toISOString(), type: "استلام مرتجع وشحن جديد", details: `استلام وتسليم [${nMainName}] - الفلوس معلقة`, amount: 0 });
+            addLogSafe({ timestamp: new Date().toISOString(), type: "استلام وشحن جديد", details: `استبدال للعميل [${custNameInput}] - الفلوس معلقة`, amount: 0 });
         } else {
-            const acc = window.accounts.find(a => a.id === accId);
+            const liveAccounts = getAccounts();
+            const acc = liveAccounts.find(a => a.id === accId);
             if(acc) acc.balance = (Number(acc.balance)||0) + diff;
-            window.operationLog.push({ timestamp: new Date().toISOString(), type: "استبدال فوري", details: `استلام [${rMainName}] -- تسليم [${nMainName}] وتحصيل`, amount: diff });
+            addLogSafe({ timestamp: new Date().toISOString(), type: "استبدال فوري", details: `استبدال وتحصيل فوري للعميل [${custNameInput}]`, amount: diff });
         }
 
         await finalizeSave();
 
-        ['r_main', 'r_acc', 'n_main', 'n_acc'].forEach(p => {
-            document.getElementById(`${p}_name`).value = '';
-            document.getElementById(`${p}_cost`).value = '0';
-            document.getElementById(`${p}_price`).value = '0';
-        });
+        document.getElementById('ex_customer_name').value = '';
+        document.getElementById('ex_customer_phone').value = '';
+        document.getElementById('r_main_name').value = ''; document.getElementById('r_main_cost').value = '0'; document.getElementById('r_main_price').value = '0';
+        document.getElementById('n_main_name').value = ''; document.getElementById('n_main_cost').value = '0'; document.getElementById('n_main_price').value = '0';
+        document.getElementById('r_acc_container').innerHTML = '';
+        document.getElementById('n_acc_container').innerHTML = '';
         runCalc();
         updateUIState();
         btn.disabled = false;
@@ -363,18 +523,32 @@ async function executeEditOrder() {
     const orderIndex = window.pendingOrders.findIndex(o => o.id === targetOrderId);
     if(orderIndex === -1) return closeExModals();
     const o = window.pendingOrders[orderIndex];
+    
     triggerUndoSave();
     revertInventoryEffect(o);
-    ['r_main', 'r_acc', 'n_main', 'n_acc'].forEach(p => {
-        if(o[`${p}Name`]) {
-            document.getElementById(`${p}_name`).value = o[`${p}Name`];
-            document.getElementById(`${p}_cost`).value = o[`${p}Cost`];
-            document.getElementById(`${p}_price`).value = o[`${p}Price`];
-        }
-    });
+
+    // تفريغ الحاويات وملء البيانات
+    // تنظيف البصمة من الاسم عند التعديل
+    let cleanName = o.customerName || '';
+    if (cleanName.includes(' (عميل استبدال 🔄)')) cleanName = cleanName.replace(' (عميل استبدال 🔄)', '');
+    document.getElementById('ex_customer_name').value = cleanName;
+    document.getElementById('ex_customer_phone').value = o.customerPhone || '';
+    
+    document.getElementById('r_main_name').value = o.rMainName || ''; document.getElementById('r_main_cost').value = o.rMainCost || 0; document.getElementById('r_main_price').value = o.rMainPrice || 0;
+    document.getElementById('n_main_name').value = o.nMainName || ''; document.getElementById('n_main_cost').value = o.nMainCost || 0; document.getElementById('n_main_price').value = o.nMainPrice || 0;
+    
+    const rCont = document.getElementById('r_acc_container'); rCont.innerHTML = '';
+    const nCont = document.getElementById('n_acc_container'); nCont.innerHTML = '';
+
+    if(o.rAccName) { addAccRow('r'); rCont.lastElementChild.querySelector('.acc-name').value = o.rAccName; rCont.lastElementChild.querySelector('.acc-cost').value = o.rAccCost; rCont.lastElementChild.querySelector('.acc-price').value = o.rAccPrice; }
+    if(o.rAccs) o.rAccs.forEach(a => { addAccRow('r'); const row = rCont.lastElementChild; row.querySelector('.acc-name').value = a.name; row.querySelector('.acc-cost').value = a.cost; row.querySelector('.acc-price').value = a.price; if(row.querySelector('.acc-cat')) row.querySelector('.acc-cat').value = a.cat; });
+    
+    if(o.nAccName) { addAccRow('n'); nCont.lastElementChild.querySelector('.acc-name').value = o.nAccName; nCont.lastElementChild.querySelector('.acc-cost').value = o.nAccCost; nCont.lastElementChild.querySelector('.acc-price').value = o.nAccPrice; }
+    if(o.nAccs) o.nAccs.forEach(a => { addAccRow('n'); const row = nCont.lastElementChild; row.querySelector('.acc-name').value = a.name; row.querySelector('.acc-cost').value = a.cost; row.querySelector('.acc-price').value = a.price; });
+
     document.getElementById('del_later').checked = true;
     updateUIState(); runCalc();
-    window.operationLog.push({ timestamp: new Date().toISOString(), type: "مسودة تعديل", details: `إلغاء حجز [${o.itemsDesc}] للتعديل`, amount: 0 });
+    addLogSafe({ timestamp: new Date().toISOString(), type: "مسودة تعديل", details: `إلغاء حجز للعميل [${cleanName}] للتعديل`, amount: 0 });
     window.pendingOrders.splice(orderIndex, 1);
     await finalizeSave();
     closeExModals();
@@ -388,17 +562,30 @@ async function executeCancelOrder() {
     const o = window.pendingOrders[orderIndex];
     const accId = document.getElementById('ex_acc_sel').value;
     const cancelType = document.querySelector('input[name="cancel_type"]:checked').value;
+    
+    let cleanName = o.customerName || '';
+    if (cleanName.includes(' (عميل استبدال 🔄)')) cleanName = cleanName.replace(' (عميل استبدال 🔄)', '');
+    
     triggerUndoSave();
+    
     if (cancelType === "revert_all") {
         revertInventoryEffect(o);
-        window.operationLog.push({ timestamp: new Date().toISOString(), type: "إلغاء شامل", details: `إلغاء شحنة [${o.itemsDesc}] ورد الأجهزة لأصحابها`, amount: 0 });
+        addLogSafe({ timestamp: new Date().toISOString(), type: "إلغاء شامل", details: `إلغاء شحنة العميل [${cleanName}]`, amount: 0 });
     } else if (cancelType === "convert_return") {
-        const addBack = (name) => { let p = window.products.find(x => x.name === name); if(p) p.quantity = (Number(p.quantity)||0) + 1; };
-        addBack(o.nMainName); addBack(o.nAccName);
-        const payoutAmount = (o.rMainPrice + o.rAccPrice);
-        const acc = window.accounts.find(a => a.id === accId);
+        const liveProducts = getProducts();
+        const addBack = (name) => { let p = liveProducts.find(x => x.name === name); if(p) p.quantity = (Number(p.quantity)||0) + 1; };
+        addBack(o.nMainName); 
+        if(o.nAccName) addBack(o.nAccName);
+        if(o.nAccs) o.nAccs.forEach(a => addBack(a.name));
+
+        let payoutAmount = o.rMainPrice || 0;
+        if(o.rAccPrice) payoutAmount += o.rAccPrice;
+        if(o.rAccs) o.rAccs.forEach(a => payoutAmount += a.price);
+
+        const liveAccounts = getAccounts();
+        const acc = liveAccounts.find(a => a.id === accId);
         if(acc) acc.balance = (Number(acc.balance)||0) - payoutAmount;
-        window.operationLog.push({ timestamp: new Date().toISOString(), type: "تحويل لاسترجاع", details: `العميل ترك [${o.rMainName}] وصرفنا مبلغه`, amount: -payoutAmount });
+        addLogSafe({ timestamp: new Date().toISOString(), type: "تحويل لاسترجاع", details: `العميل [${cleanName}] صرف مبلغ أجهزته المرتجعة`, amount: -payoutAmount });
     }
     window.pendingOrders.splice(orderIndex, 1);
     await finalizeSave();
@@ -410,20 +597,32 @@ window.confirmPendingOrder = async function(id) {
     const orderIndex = window.pendingOrders.findIndex(o => o.id === id);
     if(orderIndex === -1) return;
     const o = window.pendingOrders[orderIndex];
+    
+    let cleanName = o.customerName || '';
+    if (cleanName.includes(' (عميل استبدال 🔄)')) cleanName = cleanName.replace(' (عميل استبدال 🔄)', '');
+    
     const accId = document.getElementById('ex_acc_sel').value;
     triggerUndoSave();
-    const acc = window.accounts.find(a => a.id === accId);
+    const liveAccounts = getAccounts();
+    const acc = liveAccounts.find(a => a.id === accId);
     if(acc) acc.balance = (Number(acc.balance)||0) + o.diffAmount;
-    window.operationLog.push({ timestamp: new Date().toISOString(), type: "إتمام تحصيل", details: `تسليم [${o.itemsDesc}] للعميل وتحصيل المبلغ`, amount: o.diffAmount });
+    addLogSafe({ timestamp: new Date().toISOString(), type: "إتمام تحصيل", details: `تحصيل مبلغ استبدال العميل [${cleanName}]`, amount: o.diffAmount });
     window.pendingOrders.splice(orderIndex, 1);
     await finalizeSave();
 };
 
 function revertInventoryEffect(o) {
-    const addBack = (name) => { let p = window.products.find(x => x.name === name); if(p) p.quantity = (Number(p.quantity)||0) + 1; };
-    const takeOut = (name) => { let p = window.products.find(x => x.name === name); if(p) p.quantity = (Number(p.quantity)||0) - 1; };
-    addBack(o.nMainName); addBack(o.nAccName);
-    takeOut(o.rMainName); takeOut(o.rAccName);
+    const liveProducts = getProducts();
+    const addBack = (name) => { if(!name) return; let p = liveProducts.find(x => x.name === name); if(p) p.quantity = (Number(p.quantity)||0) + 1; };
+    const takeOut = (name) => { if(!name) return; let p = liveProducts.find(x => x.name === name); if(p) p.quantity = (Number(p.quantity)||0) - 1; };
+    
+    addBack(o.nMainName);
+    if (o.nAccName) addBack(o.nAccName); 
+    if (o.nAccs) o.nAccs.forEach(a => addBack(a.name)); 
+
+    takeOut(o.rMainName);
+    if (o.rAccName) takeOut(o.rAccName);
+    if (o.rAccs) o.rAccs.forEach(a => takeOut(a.name));
 }
 
 async function finalizeSave() {
