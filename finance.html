@@ -2896,17 +2896,17 @@ let redoHistory = [];  // لتخزين الحالات التي تم التراج
         let suppliers = [];
        window.accounts = [];
         let expenses = 0;
-      let debtors = []; // Array of {id, customerId, name, reason, amount, createdAt}
+    window.debtors = []; // Array of {id, customerId, name, reason, amount, createdAt}
 let debtorProfiles = []; // Array of {id, name, phone, address, generalNotes, createdAt}
 let debtCollectionNotes = []; // Array of {id, customerId, debtId, note, createdAt, nextFollowUpDate}
   let liabilities = []; // Array of {id, name, amount}
         let totalProfit = 0;
         let operationLog = []; // Array of {timestamp, type, details}
         let currentLoadedDate = null; // Stores the YYYY-MM-DD string of the loaded data
-        let pendingSales = []; // Array of {id, timestamp, customerName, mainProduct{name,qty,cost,supplierId}, additionalItems[{name,qty,cost,supplierId}], totalSellPrice, potentialProfit, status}
+       window.pendingSales = []; // Array of {id, timestamp, customerName, mainProduct{name,qty,cost,supplierId}, additionalItems[{name,qty,cost,supplierId}], totalSellPrice, potentialProfit, status}
         let goodsOnConsignmentValue = 0; // Calculated from pendingSales costs
         let liquidityLog = []; // Array of {id, timestamp, type['add'/'remove'/'adjust'], amount, description, currentBalance} // Added 'adjust' type
-        let salesToday = []; // Array to store completed sales/invoices for the current day {id, invoiceNumber?, type['quick'/'invoice'/'invoice-from-pending'/'pending-confirmed'], timestamp, customerName, items[{}], totalSellPrice/grandTotal, totalCost, profit, etc.}
+       window.salesToday = []; // Array to store completed sales/invoices for the current day {id, invoiceNumber?, type['quick'/'invoice'/'invoice-from-pending'/'pending-confirmed'], timestamp, customerName, items[{}], totalSellPrice/grandTotal, totalCost, profit, etc.}
         let serialNumbersLog = []; // **** لتخزين سجل الأرقام التسلسلية **** Array of {serial, productName, supplierId, addedTimestamp, status: 'in_stock' | 'sold' | 'returned' | 'pending_sale' | 'in_invoice_temp' }
         let editingProductName = null; // Name of the product being edited
         let editingSupplierId = null; // ID of the supplier being edited
@@ -4922,7 +4922,6 @@ window.convertPendingSaleToDebt = async function(pendingSaleId, debtMode, target
         if (saleData.id && String(saleData.id).startsWith('INV-')) {
             invoiceCode = saleData.id;
         } else {
-            // محاولة إنشاء كود بنفس صيغة النظام (التاريخ + تسلسل)
             const todayStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
             let maxSeq = 0;
             if (typeof salesToday !== 'undefined') {
@@ -4941,8 +4940,15 @@ window.convertPendingSaleToDebt = async function(pendingSaleId, debtMode, target
         }
     }
 
-    // المعرف الأساسي للسحابة (يفضل أن يبدأ بـ inv- كما في نظامك)
-    const invoiceId = invoiceCode.startsWith('INV-') ? invoiceCode.replace('INV-', 'inv-') : `inv-${Date.now()}`;
+    // 🌟 الإصلاح الأول: توحيد وثبات الـ ID لمنع التكرار نهائياً (Fingerprint) 🌟
+    let safeInvoiceId = "";
+    if (invoiceCode.startsWith('INV-')) {
+        safeInvoiceId = invoiceCode.replace('INV-', 'inv-');
+    } else {
+        const cleanCustomer = (saleData.customerName || 'cash').trim().replace(/\s+/g, '_').toLowerCase();
+        const timePart = new Date(saleData.timestamp || saleData.saleDate || Date.now()).getTime();
+        safeInvoiceId = `inv_${timePart}_${totalAmount}_${cleanCustomer}`;
+    }
 
     // 3. تأكيد الفاتورة في المبيعات
     if (confirmSale) {
@@ -4981,10 +4987,11 @@ window.convertPendingSaleToDebt = async function(pendingSaleId, debtMode, target
 
         const confirmedInvoice = { 
             ...saleData, 
-            id: invoiceId,                   // المعرف الموحد للسحابة
-            invoiceNumber: invoiceCode,      // رقم الفاتورة الظاهر للعميل وفي البحث
-            type: 'invoice-from-pending',    // نوع دقيق ليتعرف عليه التقرير كـ "مؤكدة"
+            id: safeInvoiceId,                   // المعرف الموحد الثابت للسحابة
+            invoiceNumber: invoiceCode,      
+            type: 'invoice-from-pending',    
             convertedFromPending: true,
+            migrated: false,                     // 🌟 إضافة flag الترحيل 🌟
             saleDate: saleData.saleDate || new Date().toISOString().split('T')[0], 
             date: new Date().toISOString().split('T')[0], 
             grandTotal: totalAmount, 
@@ -4993,18 +5000,20 @@ window.convertPendingSaleToDebt = async function(pendingSaleId, debtMode, target
             remainingAmount: remainingAmount, 
             profit: finalProfit,           
             items: normalizedItems,        
-            timestamp: new Date().toISOString(),
+            timestamp: saleData.timestamp || new Date().toISOString(), // 🌟 تثبيت الوقت القديم إن وجد 🌟
             accountId: accountId
         };
 
-        // 🌟 الإصلاح الجذري: الحفظ في المصفوفة المحلية ثم في قاعدة البيانات السحابية (التي يبحث فيها محرك البحث) 🌟
+        // 🌟 الإصلاح الثاني: منع تكرار الإضافة في المصفوفة المحلية 🌟
         if (typeof salesToday !== 'undefined') {
-            salesToday.push(confirmedInvoice);
+            if (!salesToday.some(s => s.id === safeInvoiceId)) {
+                salesToday.push(confirmedInvoice);
+            }
         }
         
         if (typeof saveInvoiceToFirestore === 'function') {
             try {
-                await saveInvoiceToFirestore(confirmedInvoice); // حفظ الفاتورة في أرشيف السحابة
+                await saveInvoiceToFirestore(confirmedInvoice); 
             } catch (e) {
                 console.error("Error saving to Firestore:", e);
             }
@@ -5064,6 +5073,15 @@ window.convertPendingSaleToDebt = async function(pendingSaleId, debtMode, target
 
     // 5. التنظيف والإغلاق وتحديث الواجهة
     pendingSales.splice(pendingIndex, 1);
+    
+    // 🌟 الإصلاح الثالث: حذف البيعة المؤقتة نهائياً من Firebase 🌟
+    if (window.db && window.currentUser && typeof window.deleteDoc === 'function' && typeof window.doc === 'function') {
+        try {
+            await window.deleteDoc(window.doc(window.db, "users", window.currentUser.uid, "pending_sales", String(pendingSaleId)));
+        } catch (error) {
+            console.log("تنبيه: الكوليكشن الخاص بالمبيعات المؤقتة قد لا يكون مستقلاً، تم الحذف المحلي.");
+        }
+    }
     
     const m = document.getElementById('convertPendingToDebtModal');
     if (m) m.style.display = 'none';
@@ -7926,25 +7944,62 @@ async function generateMonthlySalesReport() {
         });
     }
 
+// =========================================================
+    // الخطوة 4: الفلتر المدمر للتكرار القديم (يتجاهل اختلاف الأيام)
     // =========================================================
-    // الخطوة 4: الترتيب والعرض
-    // =========================================================
-    let finalSalesList = Array.from(salesMap.values());
+    let rawSalesList = Array.from(salesMap.values());
+    let finalSalesList = [];
+    const uniqueFingerprints = new Set();
 
-    finalSalesList.sort((a, b) => new Date(b.timestamp || b.saleDate) - new Date(a.timestamp || a.saleDate));
+    const normalizeText = (text) => {
+        if (!text) return "unknown";
+        return text.toString().toLowerCase().replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/[^a-z0-9ا-ي]/g, ''); 
+    };
+
+    rawSalesList.forEach(sale => {
+        // 1. استخراج التاريخ
+        let safeDate = "";
+        if (sale.saleDate) safeDate = String(sale.saleDate).split('T')[0];
+        else if (sale.timestamp) {
+            if (typeof sale.timestamp === 'object' && sale.timestamp.toDate) safeDate = sale.timestamp.toDate().toISOString().split('T')[0];
+            else if (typeof sale.timestamp === 'number') safeDate = new Date(sale.timestamp).toISOString().split('T')[0];
+            else safeDate = String(sale.timestamp).split('T')[0];
+        }
+
+        // 2. توحيد المبلغ والاسم
+        const amount = Math.round(Number(sale.grandTotal || sale.finalTotal || sale.totalSellPrice || 0)); 
+        const cleanCustomer = normalizeText(sale.customerName || 'cash');
+        
+        // 🌟 السر هنا: نأخذ (الشهر والسنة) فقط ونتجاهل (اليوم) 🌟
+        // مثال: بدلاً من 2026-04-06 ستصبح 2026-04 فقط
+        const monthOnly = safeDate.substring(0, 7); 
+        
+        // 3. البصمة الساحقة: (الشهر + المبلغ + الاسم)
+        const fingerprint = `${monthOnly}_${amount}_${cleanCustomer}`;
+
+        // 4. تصفية التكرار
+        if (!uniqueFingerprints.has(fingerprint)) {
+            uniqueFingerprints.add(fingerprint);
+            finalSalesList.push(sale);
+        }
+    });
+
+    // الترتيب من الأحدث للأقدم
+    finalSalesList.sort((a, b) => {
+        let dateA = new Date(a.timestamp || a.saleDate || 0).getTime();
+        let dateB = new Date(b.timestamp || b.saleDate || 0).getTime();
+        return dateB - dateA; 
+    });
     
     currentMonthlySalesData = finalSalesList;
-    
     if(typeof displaySalesReport === 'function') displaySalesReport(finalSalesList);
 
     if (finalSalesList.length === 0) {
         showMessage(msgEl, `لا توجد مبيعات مسجلة لشهر ${yearMonth}.`, false, true);
     } else {
-        showMessage(msgEl, `تم عرض ${finalSalesList.length} فاتورة.`, false);
+        showMessage(msgEl, `تم عرض ${finalSalesList.length} عملية بیع فعلية (بعد تنقية التكرار نهائياً).`, false);
     }
 }
-
-
 // دالة البحث المباشر (الطريقة الثانية) - نسخة محدثة
 // =======================================================
 // START: دالة البحث المباشر (النسخة النهائية فائقة السرعة)
@@ -13483,6 +13538,7 @@ const userId = window.currentUser ? window.currentUser.uid : null;
 // 1. دالة الحفظ الشامل للسحابة (القلب النابض)
 // ==========================================
 async function saveSystemToCloud() {
+    window.saveSystemToCloud = saveSystemToCloud; // لجعلها قابلة للاستدعاء من الخارج
     // التحقق من وجود مستخدم
     if (!window.currentUser) return;
 
