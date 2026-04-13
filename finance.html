@@ -11249,7 +11249,7 @@ function sellProduct() {
     }
 
     // 3. التحقق من المخزون
-    const mainProductIndex = products.findIndex(p => p.name === mainProductName);
+    const mainProductIndex = products.findIndex(p => p.name.trim() === mainProductName.trim());
     if (mainProductIndex === -1) {
         showMessage(sellMessage, `المنتج "${mainProductName}" غير موجود.`, true);
         return;
@@ -11313,7 +11313,12 @@ function sellProduct() {
                 stockCheckFailed = true;
             } else {
                 costOfGoodsSold += (Number(additionalProduct.costPrice) || 0) * qtyToDeduct;
-                additionalItemsDataForPending.push({ name: additionalProduct.name, quantity: qtyToDeduct, costPrice: additionalProduct.costPrice, supplierId: additionalProduct.supplierId });
+               additionalItemsDataForPending.push({ 
+    id: additionalProduct.id,
+    name: additionalProduct.name, 
+    quantity: qtyToDeduct, 
+    costPrice: additionalProduct.costPrice
+});
                 additionalItemsToUpdate.push({ index: additionalProductIndex, quantity: qtyToDeduct });
             }
         }
@@ -11323,7 +11328,7 @@ function sellProduct() {
 
     // 5. تنفيذ الخصم من المخزون
     products[mainProductIndex].quantity -= quantitySold;
-    products = products.filter(p => Number(p.quantity) > 0);
+    
     additionalItemsToUpdate.forEach(item => {
         products[item.index].quantity -= item.quantity;
     });
@@ -11347,17 +11352,18 @@ function sellProduct() {
   saleDate: currentLoadedDate || new Date().toISOString().split('T')[0],
   customerName,
 
-  mainProduct: {
-    ...mainProduct,
-    quantity: Number(quantitySold) || 0,
-    costPrice: Number(mainProduct.costPrice) || 0
-  },
+mainProduct: {
+  id: mainProduct.id,
+  name: mainProduct.name,
+  quantity: Number(quantitySold) || 0,
+  costPrice: Number(mainProduct.costPrice) || 0
+}, // 👈 الفاصلة هنا
 
-  additionalItems: (additionalItemsDataForPending || []).map(item => ({
-    ...item,
-    quantity: Number(item.quantity) || 0,
-    costPrice: Number(item.costPrice) || 0
-  })),
+additionalItems: (additionalItemsDataForPending || []).map(item => ({
+  ...item,
+  quantity: Number(item.quantity) || 0,
+  costPrice: Number(item.costPrice) || 0
+})),
 
   totalSellPrice: Number(totalSellPrice) || 0,
   totalCost: Number(costOfGoodsSold) || 0,
@@ -13928,17 +13934,37 @@ window.executeCancellation = function(saleId, accountId, amount) {
 
     itemsToReturn.forEach(item => {
         if (!item) return;
-        const product = products.find(p => p.name === item.name);
-        if (product) {
-            // إضافة الكمية للمخزن (تزيد قيمة المخزون بالتكلفة تلقائياً)
-            product.quantity = Number(product.quantity) + Number(item.quantity || 1);
-        }
+      const product = products.find(p => p.id === item.id);
+       const qty = Number(item.quantity || 1);
+
+if (product) {
+    product.quantity = Number(product.quantity || 0) + qty;
+} else {
+    // إعادة إنشاء المنتج لو كان اتحذف
+    products.push({
+        id: item.id || `restored-${Date.now()}`,
+        name: item.name,
+        quantity: qty,
+        costPrice: Number(item.costPrice || 0)
+    });
+
+    console.warn("⚠️ تم إعادة إنشاء منتج مفقود:", item.name);
+}
         
         // إرجاع حالة السيريال لـ "متوفر" إن وُجد
-        if (item.serial) {
-            const sLog = serialNumbersLog.find(l => l.serial === item.serial);
-            if (sLog) sLog.status = 'in_stock';
-        }
+if (item.serial) {
+    const sLog = serialNumbersLog.find(l => l.serial === item.serial);
+    if (sLog) {
+        sLog.status = 'in_stock';
+    } else {
+        serialNumbersLog.push({
+            serial: item.serial,
+            productName: product ? product.name : item.name,
+            status: 'in_stock',
+            addedTimestamp: new Date().toISOString()
+        });
+    }
+}
     });
 
     // ج. الحذف النهائي وتحديث الواجهة
