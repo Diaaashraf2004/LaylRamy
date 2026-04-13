@@ -3660,7 +3660,7 @@ function calculateConsignmentValue() {
         } 
         // إذا لم يكن كذلك، يستخدم الطريقة القديمة للبيع المؤقت السريع
         else if (sale.mainProduct) {
-            const mainCost = (Number(sale.mainProduct.costPrice) || 0) * (Number(sale.mainProduct.quantity) || 0);
+            const mainCost = (Number(sale.mainProduct.costPrice) || 0) * (Number(sale.mainProduct.quantity) || 1);
             const additionalCost = (sale.additionalItems || []).reduce((addSum, item) => addSum + ((Number(item.costPrice) || 0) * (Number(item.quantity) || 0)), 0);
             saleCost = mainCost + additionalCost;
         }
@@ -4728,7 +4728,7 @@ function updatePendingSalesDisplay() {
     // إذا لم تكن موجودة، فهذا يعني أنه بيع مؤقت بالطريقة القديمة، فاحسبها
     if (sale.mainProduct) {
         const mainCost = (Number(sale.mainProduct.costPrice) || 0) * (Number(sale.mainProduct.quantity) || 0);
-        const additionalCost = (sale.additionalItems || []).reduce((addSum, item) => addSum + ((Number(item.costPrice) || 0) * (Number(item.quantity) || 0)), 0);
+        const additionalCost = (sale.additionalItems || []).reduce((addSum, item) => addSum + ((Number(item.costPrice) || 0) * (Number(item.quantity) || 1)), 0);
         return mainCost + additionalCost;
     }
 
@@ -13881,7 +13881,7 @@ function mergeDuplicateDebtorProfiles() {
 }
 
 // 1. وظيفة زر التأكيد داخل النافذة (مودال الرد)
-window.confirmRefundAndCancel = function() {
+window.confirmRefundAndCancel = async function() {
     const saleId = document.getElementById('refund_pending_id').value;
     const amount = Number(document.getElementById('refund_amount_val').value);
     const accountId = document.getElementById('refund_account_select').value;
@@ -13889,101 +13889,86 @@ window.confirmRefundAndCancel = function() {
     if (!accountId) { alert("يرجى اختيار الحساب!"); return; }
 
     if (confirm(`هل أنت متأكد من خصم ${formatCurrency(amount)} من الحساب المختار وإلغاء العملية؟`)) {
-        executeCancellation(saleId, accountId, amount);
+        await executeCancellation(saleId, accountId, amount);
         document.getElementById('refundModal').style.display = 'none';
     }
 };
 
-// 2. المحرك الرئيسي للإلغاء (سحب سيولة + إرجاع بضاعة بتكلفة)
-window.executeCancellation = function(saleId, accountId, amount) {
-    const saleIndex = pendingSales.findIndex(s => s.id === saleId);
-    if (saleIndex === -1) return;
+window.executeCancellation = async function(saleId, accountId, amount) {
+    const saleIndex = pendingSales.findIndex(s => String(s.id) === String(saleId));
+    if (saleIndex === -1) {
+        console.error("لم يتم العثور على البيعة المطلوبة.");
+        return;
+    }
+
     const sale = pendingSales[saleIndex];
 
-    saveStateToHistory(); // حفظ للتراجع
-
-    // أ. سحب العربون من السيولة (ضبط الكاش الفعلي)
-    if (accountId && amount > 0) {
-        const acc = accounts.find(a => a.id === accountId);
-        if (acc) {
-            // تحويل للرقم لضمان عملية طرح حسابية صحيحة
-            acc.balance = Number(acc.balance) - Number(amount);
-            
-            // تسجيل حركة سحب في سجل السيولة لضبط رأس المال
-            liquidityLog.push({
-                id: `liq-refund-${Date.now()}`,
-                timestamp: new Date().toISOString(),
-                type: "remove",
-                amount: Number(amount),
-                description: `رد عربون (إلغاء بيعة مؤقتة) - عميل: ${sale.customerName || '-'}`,
-                accountId: acc.id,
-                currentBalance: accounts.reduce((sum, a) => sum + Number(a.balance), 0)
-            });
+    try {
+        // أ. سحب العربون من الخزينة
+        if (accountId && Number(amount) > 0) {
+            const acc = accounts.find(a => String(a.id) === String(accountId));
+            if (acc) {
+                acc.balance = Number(acc.balance) - Number(amount);
+                liquidityLog.push({
+                    id: `liq-refund-${Date.now()}`,
+                    timestamp: new Date().toISOString(),
+                    type: "remove",
+                    amount: Number(amount),
+                    description: `رد عربون (إلغاء بيعة مؤقتة) - عميل: ${sale.customerName || '-'}`,
+                    accountId: acc.id,
+                    currentBalance: accounts.reduce((sum, a) => sum + Number(a.balance), 0)
+                });
+            }
         }
-    }
 
-    // ب. إرجاع البضاعة للمخزن بقيمتها (التكلفة)
-    let itemsToReturn = [];
-    if (sale.items) {
-        // فاتورة مفصلة: إرجاع المنتجات + الملحقات المخصومة (deductedItems)
-        itemsToReturn = (sale.items || []).concat(sale.deductedItems || sale.invoiceData?.deductedItems || []);
-    } else if (sale.mainProduct) {
-        // بيع سريع: إرجاع المنتج الرئيسي + الإضافات
-        itemsToReturn = [sale.mainProduct, ...(sale.additionalItems || [])];
-    }
+        // ب. إرجاع البضاعة للمخزن (المنطق المحدث لضمان عودة الملحقات)
+        let itemsToReturn = [];
 
-    itemsToReturn.forEach(item => {
-        if (!item) return;
-      const product = products.find(p => p.id === item.id);
-       const qty = Number(item.quantity || 1);
-
-if (product) {
-    product.quantity = Number(product.quantity || 0) + qty;
-} else {
-    // إعادة إنشاء المنتج لو كان اتحذف
-    products.push({
-        id: item.id || `restored-${Date.now()}`,
-        name: item.name,
-        quantity: qty,
-        costPrice: Number(item.costPrice || 0)
-    });
-
-    console.warn("⚠️ تم إعادة إنشاء منتج مفقود:", item.name);
-}
+        // تجميع كل الأصناف الممكنة في قائمة واحدة بدون استثناء
+        if (sale.items) itemsToReturn.push(...sale.items);
+        if (sale.invoiceData && sale.invoiceData.items) itemsToReturn.push(...sale.invoiceData.items);
         
-        // إرجاع حالة السيريال لـ "متوفر" إن وُجد
-if (item.serial) {
-    const sLog = serialNumbersLog.find(l => l.serial === item.serial);
-    if (sLog) {
-        sLog.status = 'in_stock';
-    } else {
-        serialNumbersLog.push({
-            serial: item.serial,
-            productName: product ? product.name : item.name,
-            status: 'in_stock',
-            addedTimestamp: new Date().toISOString()
+        const extraDeducted = sale.deductedItems || (sale.invoiceData ? sale.invoiceData.deductedItems : []) || [];
+        itemsToReturn.push(...extraDeducted);
+
+        if (sale.mainProduct) itemsToReturn.push(sale.mainProduct);
+        if (sale.additionalItems) itemsToReturn.push(...sale.additionalItems);
+
+        // تصفية المصفوفة من أي عناصر فارغة ومعالجتها
+        itemsToReturn.filter(Boolean).forEach(item => {
+            let product = (item.id ? products.find(p => String(p.id) === String(item.id)) : null)
+                        || products.find(p => p.name.toLowerCase() === (item.name || '').toLowerCase());
+
+            if (product) {
+                const returnedQty = Math.max(1, Number(item.quantity) || 1);
+                product.quantity = Number(product.quantity || 0) + returnedQty;
+
+                if (item.serial) {
+                    let sLog = serialNumbersLog.find(l => l.serial === item.serial);
+                    if (sLog) sLog.status = 'in_stock';
+                }
+            } else {
+                console.warn("تعذر العثور على المنتج في المخزن لإعادة الكمية:", item.name);
+            }
         });
-    }
-}
-    });
+        // ج. حذف البيعة وإعادة حساب قيمة البضاعة المعلقة من المصدر
+        pendingSales.splice(saleIndex, 1);
+        goodsOnConsignmentValue = calculateConsignmentValue();
 
-    // ج. الحذف النهائي وتحديث الواجهة
-    // بمجرد الحذف (splice)، سيسقط الربح المتوقع من حسابات رأس المال في updateUI
-    pendingSales.splice(saleIndex, 1);
+        if (typeof saveData === 'function') await saveData();
+        if (typeof updateUI === 'function') updateUI();
 
-    logOperation("إلغاء بيع مؤقت", `تم إلغاء بيعة العميل ${sale.customerName} ورد عربون ${formatCurrency(amount)} وإعادة البضاعة للمخزن.`);
-    
-    // إعادة حساب كل شيء وتحديث الشاشة (السيولة، المخزن، والأرباح المتوقعة)
-    updateUI();
-    
-    if (typeof showGlobalMessage === 'function') {
-        showGlobalMessage("تم إلغاء البيعة بنجاح: تم رد العربون، إرجاع البضاعة بالتكلفة، وخصم الربح المتوقع.", false);
-    } else {
-        alert("تم إلغاء البيعة بنجاح.");
+        if (typeof showGlobalMessage === 'function') {
+            showGlobalMessage(`تم الإلغاء بنجاح: ${itemsToReturn.length} قطعة رجعت للمخزن.`, false);
+        } else {
+            alert("تم إلغاء البيعة بنجاح.");
+        }
+
+    } catch (error) {
+        console.error("خطأ في تنفيذ الإلغاء:", error);
+        alert("حدث خطأ أثناء إلغاء البيعة.");
     }
-};
-// --- جسر الربط الشامل لنظام الـ ERP (V10.5) المطور - التوافق النهائي والبصمة البصرية ---
-try {
+};try {
     // 🌟 دوال الحقن الآمنة لضمان التوافق مع كل شاشات البحث والمبيعات والتقارير 🌟
     window.injectSaleToMain = function(saleObj) { 
         // 1. الحقن في مبيعات اليوم (مع فحص أمان للمتغيرات)
