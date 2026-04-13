@@ -1,6 +1,6 @@
 /**
  * نظام الاستبدال وإدارة الفواتير المعلقة (ERP V10.5)
- * التحديث: إضافة بصمة بصرية (🔄 استبدال) لاسم العميل والمنتج لتظهر بوضوح في كافة التقارير ومحركات البحث.
+ * التحديث: إصلاح أخطاء الـ Null Pointer وتأمين دوال الحساب لضمان استقرار النظام.
  */
 
 let targetOrderId = null;
@@ -24,9 +24,13 @@ function setupUndoRedoWatcher() {
         const btnText = (e.target.innerText || e.target.id || '').toLowerCase();
         if (btnText.includes('undo') || btnText.includes('redo') || btnText.includes('تراجع') || btnText.includes('اعادة')) {
             setTimeout(() => {
-                if (typeof runCalc === 'function') runCalc();
+                // تأمين الاستدعاء: نتحقق أننا في صفحة الاستبدال قبل تشغيل الحسابات
+                const panel = document.getElementById('exchange-panel');
+                if (panel && !panel.classList.contains('hidden')) {
+                    if (typeof runCalc === 'function') runCalc();
+                    if (typeof loadInitialData === 'function') loadInitialData();
+                }
                 if (typeof renderLocalPendingOrders === 'function') renderLocalPendingOrders();
-                loadInitialData(); 
             }, 300);
         }
     });
@@ -241,13 +245,15 @@ window.addAccRow = function(type) {
 window.autoFillAccRow = function(input) {
     const val = input.value;
     const liveProducts = getProducts();
-    const p = liveProducts.find(i => i.name === val);
+    const p = liveProducts.find(i => i && i.name && String(i.name).trim().toLowerCase() === String(val).trim().toLowerCase());
     if (p) {
         const row = input.closest('.acc-row');
         if(row) {
-            row.querySelector('.acc-cost').value = p.costPrice || 0;
-            row.querySelector('.acc-price').value = p.price || 0;
+            const costInp = row.querySelector('.acc-cost');
+            const priceInp = row.querySelector('.acc-price');
             const catEl = row.querySelector('.acc-cat');
+            if(costInp) costInp.value = p.costPrice || 0;
+            if(priceInp) priceInp.value = p.price || 0;
             if (catEl && p.category) catEl.value = p.category;
         }
     }
@@ -257,17 +263,30 @@ window.autoFillAccRow = function(input) {
 function loadInitialData() {
     const liveProducts = getProducts();
     const liveAccounts = getAccounts();
-    document.getElementById('p-list').innerHTML = liveProducts.map(p => `<option value="${p.name}">`).join('');
+    const pList = document.getElementById('p-list');
+    const rCat = document.getElementById('r_main_cat');
+    const accSel = document.getElementById('ex_acc_sel');
+
+    if(pList) pList.innerHTML = liveProducts.map(p => `<option value="${p.name}">`).join('');
+    
     const cats = [...new Set(liveProducts.map(p => p.category))].filter(c => c);
     const catHtml = cats.map(c => `<option value="${c}">${c}</option>`).join('') + `<option value="عام">عام (صنف جديد)</option>`;
-    document.getElementById('r_main_cat').innerHTML = catHtml;
-    document.getElementById('r_acc_container').innerHTML = '';
-    document.getElementById('n_acc_container').innerHTML = '';
-    document.getElementById('ex_acc_sel').innerHTML = liveAccounts.map(a => `<option value="${a.id}">${a.name} (رصيد: ${a.balance.toFixed(2)})</option>`).join('');
+    
+    if(rCat) rCat.innerHTML = catHtml;
+    
+    // تفريغ الحاويات عند التحميل الأولي
+    const rAccC = document.getElementById('r_acc_container');
+    const nAccC = document.getElementById('n_acc_container');
+    if(rAccC) rAccC.innerHTML = '';
+    if(nAccC) nAccC.innerHTML = '';
+    
+    if(accSel) accSel.innerHTML = liveAccounts.map(a => `<option value="${a.id}">${a.name} (رصيد: ${a.balance.toFixed(2)})</option>`).join('');
 }
 
 function renderLocalPendingOrders() {
     const tbody = document.querySelector('#local-pending-table tbody');
+    if(!tbody) return;
+
     if (!window.pendingOrders || window.pendingOrders.length === 0) {
         tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:#a0aec0;">لا توجد فواتير معلقة حالياً.</td></tr>`;
         return;
@@ -289,8 +308,11 @@ function renderLocalPendingOrders() {
 }
 
 function updateUIState() {
-    const isPending = document.getElementById('del_later').checked;
+    const delLaterEl = document.getElementById('del_later');
     const btn = document.getElementById('exec_btn');
+    if(!delLaterEl || !btn) return;
+
+    const isPending = delLaterEl.checked;
     if(isPending) {
         btn.style.background = "#ecc94b"; btn.style.color = "#1a202c"; btn.innerHTML = "حفظ كطلب معلق وتأجيل التحصيل ⏳";
     } else {
@@ -299,35 +321,64 @@ function updateUIState() {
 }
 
 function autoFill(prefix) {
-    const val = document.getElementById(`${prefix}_name`).value;
+    const nameInput = document.getElementById(`${prefix}_name`);
+    if(!nameInput) return;
+
+    const val = nameInput.value;
     const liveProducts = getProducts();
-    const p = liveProducts.find(i => i.name === val);
+    const p = liveProducts.find(i => i && i.name && String(i.name).trim().toLowerCase() === String(val).trim().toLowerCase());
     if (p) {
-        document.getElementById(`${prefix}_cost`).value = p.costPrice || 0;
-        document.getElementById(`${prefix}_price`).value = p.price || 0;
-        if(document.getElementById(`${prefix}_cat`)) document.getElementById(`${prefix}_cat`).value = p.category || "عام";
+        const costEl = document.getElementById(`${prefix}_cost`);
+        const priceEl = document.getElementById(`${prefix}_price`);
+        const catEl = document.getElementById(`${prefix}_cat`);
+        
+        if(costEl) costEl.value = p.costPrice || 0;
+        if(priceEl) priceEl.value = p.price || 0;
+        if(catEl) catEl.value = p.category || "عام";
     }
     runCalc();
 }
 
+/**
+ * دالة الحساب المحدثة مع تأمين ضد أخطاء الـ Null
+ */
 function runCalc() {
-    const getV = (id) => parseFloat(document.getElementById(id).value) || 0;
-    let rCost = getV('r_main_cost'), rPrice = getV('r_main_price');
-    let nCost = getV('n_main_cost'), nPrice = getV('n_main_price');
+    // دالة داخلية للحصول على القيمة بأمان
+    const getSafeV = (id) => {
+        const el = document.getElementById(id);
+        if(!el) return 0;
+        return parseFloat(el.value) || 0;
+    };
+
+    // نتحقق من وجود لوحة الاستبدال قبل البدء
+    if (!document.getElementById('exchange-panel')) return;
+
+    let rCost = getSafeV('r_main_cost'), rPrice = getSafeV('r_main_price');
+    let nCost = getSafeV('n_main_cost'), nPrice = getSafeV('n_main_price');
 
     document.querySelectorAll('.r-acc-row').forEach(row => {
-        rCost += parseFloat(row.querySelector('.acc-cost').value) || 0;
-        rPrice += parseFloat(row.querySelector('.acc-price').value) || 0;
+        const costInp = row.querySelector('.acc-cost');
+        const priceInp = row.querySelector('.acc-price');
+        if(costInp) rCost += parseFloat(costInp.value) || 0;
+        if(priceInp) rPrice += parseFloat(priceInp.value) || 0;
     });
     document.querySelectorAll('.n-acc-row').forEach(row => {
-        nCost += parseFloat(row.querySelector('.acc-cost').value) || 0;
-        nPrice += parseFloat(row.querySelector('.acc-price').value) || 0;
+        const costInp = row.querySelector('.acc-cost');
+        const priceInp = row.querySelector('.acc-price');
+        if(costInp) nCost += parseFloat(costInp.value) || 0;
+        if(priceInp) nPrice += parseFloat(priceInp.value) || 0;
     });
 
     const diff = nPrice - rPrice;
-    document.getElementById('v_old_prof').innerText = (rPrice - rCost).toFixed(2);
-    document.getElementById('v_new_prof').innerText = (nPrice > 0) ? (nPrice - nCost).toFixed(2) : "0.00";
-    document.getElementById('v_diff').innerText = diff > 0 ? "تحصيل " + diff : (diff < 0 ? "صرف " + Math.abs(diff) : "0.00");
+    
+    // تحديث النصوص في الواجهة مع التأكد من وجود العناصر
+    const vOld = document.getElementById('v_old_prof');
+    const vNew = document.getElementById('v_new_prof');
+    const vDiff = document.getElementById('v_diff');
+
+    if(vOld) vOld.innerText = (rPrice - rCost).toFixed(2);
+    if(vNew) vNew.innerText = (nPrice > 0) ? (nPrice - nCost).toFixed(2) : "0.00";
+    if(vDiff) vDiff.innerText = diff > 0 ? "تحصيل " + diff : (diff < 0 ? "صرف " + Math.abs(diff) : "0.00");
 }
 
 function triggerUndoSave() {
@@ -337,25 +388,48 @@ function triggerUndoSave() {
 }
 
 async function executeTransaction() {
-    const isPending = document.getElementById('del_later').checked;
-    const accId = document.getElementById('ex_acc_sel').value;
-    
-    let custNameInput = document.getElementById('ex_customer_name').value.trim() || "عميل بدون اسم";
-    let custPhone = document.getElementById('ex_customer_phone').value.trim();
+    const delLaterEl = document.getElementById('del_later');
+    const accSelEl = document.getElementById('ex_acc_sel');
+    if(!delLaterEl || !accSelEl) return;
 
-    const rMainName = document.getElementById('r_main_name').value, rMainCost = parseFloat(document.getElementById('r_main_cost').value) || 0, rMainPrice = parseFloat(document.getElementById('r_main_price').value) || 0, rMainCat = document.getElementById('r_main_cat')?.value || 'عام';
-    const nMainName = document.getElementById('n_main_name').value, nMainCost = parseFloat(document.getElementById('n_main_cost').value) || 0, nMainPrice = parseFloat(document.getElementById('n_main_price').value) || 0;
+    const isPending = delLaterEl.checked;
+    const accId = accSelEl.value;
+    
+    let custNameInput = (document.getElementById('ex_customer_name')?.value || "").trim() || "عميل بدون اسم";
+    let custPhone = (document.getElementById('ex_customer_phone')?.value || "").trim();
+
+    const rMainName = document.getElementById('r_main_name')?.value || "";
+    const rMainCost = parseFloat(document.getElementById('r_main_cost')?.value) || 0;
+    const rMainPrice = parseFloat(document.getElementById('r_main_price')?.value) || 0;
+    const rMainCat = document.getElementById('r_main_cat')?.value || 'عام';
+
+    const nMainName = document.getElementById('n_main_name')?.value || "";
+    const nMainCost = parseFloat(document.getElementById('n_main_cost')?.value) || 0;
+    const nMainPrice = parseFloat(document.getElementById('n_main_price')?.value) || 0;
 
     const rAccs = [];
     document.querySelectorAll('.r-acc-row').forEach(row => {
-        const name = row.querySelector('.acc-name').value.trim();
-        if(name) rAccs.push({ name, cost: parseFloat(row.querySelector('.acc-cost').value)||0, price: parseFloat(row.querySelector('.acc-price').value)||0, cat: row.querySelector('.acc-cat') ? row.querySelector('.acc-cat').value : 'عام' });
+        const name = row.querySelector('.acc-name')?.value.trim();
+        if(name) {
+            rAccs.push({ 
+                name, 
+                cost: parseFloat(row.querySelector('.acc-cost')?.value)||0, 
+                price: parseFloat(row.querySelector('.acc-price')?.value)||0, 
+                cat: row.querySelector('.acc-cat') ? row.querySelector('.acc-cat').value : 'عام' 
+            });
+        }
     });
 
     const nAccs = [];
     document.querySelectorAll('.n-acc-row').forEach(row => {
-        const name = row.querySelector('.acc-name').value.trim();
-        if(name) nAccs.push({ name, cost: parseFloat(row.querySelector('.acc-cost').value)||0, price: parseFloat(row.querySelector('.acc-price').value)||0 });
+        const name = row.querySelector('.acc-name')?.value.trim();
+        if(name) {
+            nAccs.push({ 
+                name, 
+                cost: parseFloat(row.querySelector('.acc-cost')?.value)||0, 
+                price: parseFloat(row.querySelector('.acc-price')?.value)||0 
+            });
+        }
     });
 
     if (!rMainName && !nMainName && rAccs.length === 0 && nAccs.length === 0) return alert("يرجى إدخال بيانات العملية");
@@ -367,29 +441,45 @@ async function executeTransaction() {
     nAccs.forEach(a => { totalNCost += a.cost; totalNPrice += a.price; });
 
     const diff = totalNPrice - totalRPrice;
-
     const btn = document.getElementById('exec_btn');
-    btn.disabled = true; btn.innerHTML = "⏳ جاري التحديث...";
+    if(btn) { btn.disabled = true; btn.innerHTML = "⏳ جاري التحديث..."; }
 
     try {
         triggerUndoSave();
         const liveProducts = getProducts();
 
-        const processReturn = (name, cost, price, cat) => {
-            if(!name) return; let p = liveProducts.find(x => x.name === name);
+     const processReturn = (name, cost, price, cat) => {
+            if(!name) return;
+            // 1. تحويل للنص وتجاهل المسافات وحالة الأحرف
+            const cleanName = String(name).trim().toLowerCase(); 
+            // 2. تأمين البحث ضد قيم null أو undefined في مصفوفة المنتجات
+            let p = liveProducts.find(x => x && x.name && String(x.name).trim().toLowerCase() === cleanName);
+            
             if(!p) {
-                const newP = { id: "R-"+Date.now()+Math.random(), name, category: cat, quantity: 1, costPrice: cost, price: price };
-                if (typeof window.injectProductToMain === 'function') window.injectProductToMain(newP); else liveProducts.push(newP);
-            } else { p.quantity = (Number(p.quantity)||0) + 1; p.costPrice = cost; }
-        };
-        const processOut = (name, cost, price) => {
-            if(!name) return; let p = liveProducts.find(x => x.name === name);
-            if(!p) {
-                const newP = { id: "N-"+Date.now()+Math.random(), name, category: "عام", quantity: -1, costPrice: cost, price: price };
-                if (typeof window.injectProductToMain === 'function') window.injectProductToMain(newP); else liveProducts.push(newP);
-            } else p.quantity = (Number(p.quantity)||0) - 1;
+                // الحفاظ على الاسم الأصلي بدون تغيير حالة الأحرف (للعرض)، وتأمين الأرقام
+                const newP = { id: "R-"+Date.now(), name: String(name).trim(), category: cat, quantity: 1, costPrice: Number(cost) || 0, price: Number(price) || 0 };
+                if (typeof window.injectProductToMain === 'function') window.injectProductToMain(newP); 
+                else liveProducts.push(newP);
+            } else {
+                // 3. التحديث الآمن للكمية والتكلفة كأرقام فعلية
+                p.quantity = (Number(p.quantity) || 0) + 1;
+                p.costPrice = Number(cost) || 0; 
+            }
         };
 
+        const processOut = (name, cost, price) => {
+            if(!name) return;
+            const cleanName = String(name).trim().toLowerCase();
+            let p = liveProducts.find(x => x && x.name && String(x.name).trim().toLowerCase() === cleanName);
+            
+            if(p) {
+                p.quantity = (Number(p.quantity) || 0) - 1;
+            } else {
+                const newP = { id: "N-"+Date.now(), name: String(name).trim(), category: "عام", quantity: -1, costPrice: Number(cost) || 0, price: Number(price) || 0 };
+                if (typeof window.injectProductToMain === 'function') window.injectProductToMain(newP); 
+                else liveProducts.push(newP);
+            }
+        };
         processReturn(rMainName, rMainCost, rMainPrice, rMainCat); 
         rAccs.forEach(a => processReturn(a.name, a.cost, a.price, a.cat));
 
@@ -412,7 +502,6 @@ async function executeTransaction() {
         if (nAccs.length > 0) itemsDescStr += ` + ${nAccs.length} عناصر`;
         const invoiceNum = `EX-${Date.now().toString().slice(-5)}`;
 
-        // 🌟 تجهيز "بصمة الاستبدال" الواضحة 🌟
         const taggedProductName = `🔄 استبدال: ${itemsDescStr}`;
         const taggedCustomerName = custNameInput + ` (عميل استبدال 🔄)`;
 
@@ -423,37 +512,29 @@ async function executeTransaction() {
                 timestamp: new Date().toISOString(),
                 saleDate: (typeof window.currentLoadedDate !== 'undefined' && window.currentLoadedDate) ? window.currentLoadedDate : new Date().toISOString().split('T')[0],
                 date: (typeof window.currentLoadedDate !== 'undefined' && window.currentLoadedDate) ? window.currentLoadedDate : new Date().toISOString().split('T')[0],
-                
-                // 🌟 حقن البصمة في اسم المنتج 🌟
                 name: taggedProductName,
                 productName: taggedProductName + ` (فاتورة: ${invoiceNum})`, 
                 itemName: taggedProductName,
                 quantity: 1,
                 qty: 1,
-                
                 sellPrice: totalNPrice,
                 price: totalNPrice,
                 totalSellPrice: totalNPrice,
                 grandTotal: totalNPrice,
                 total: totalNPrice,
                 totalPrice: totalNPrice,
-                
                 cost: totalNCost,
                 costPrice: totalNCost,
                 totalCost: totalNCost,
                 totalCostPrice: totalNCost,
-                
                 profit: totalNPrice - totalNCost,
                 totalProfit: totalNPrice - totalNCost,
-                
-                // 🌟 حقن البصمة في اسم العميل 🌟
                 customerName: taggedCustomerName,
                 clientName: taggedCustomerName,
                 buyerName: taggedCustomerName,
                 customerPhone: custPhone,
                 invoiceNumber: invoiceNum,
                 invoiceId: invoiceNum,
-
                 items: itemsToSell,
                 notes: isPending ? "استبدال وتسليم آجل 🔄" : "استبدال وتسليم فوري 🔄"
             };
@@ -486,36 +567,50 @@ async function executeTransaction() {
 
         await finalizeSave();
 
-        document.getElementById('ex_customer_name').value = '';
-        document.getElementById('ex_customer_phone').value = '';
-        document.getElementById('r_main_name').value = ''; document.getElementById('r_main_cost').value = '0'; document.getElementById('r_main_price').value = '0';
-        document.getElementById('n_main_name').value = ''; document.getElementById('n_main_cost').value = '0'; document.getElementById('n_main_price').value = '0';
-        document.getElementById('r_acc_container').innerHTML = '';
-        document.getElementById('n_acc_container').innerHTML = '';
+        // تنظيف الحقول
+        if(document.getElementById('ex_customer_name')) document.getElementById('ex_customer_name').value = '';
+        if(document.getElementById('ex_customer_phone')) document.getElementById('ex_customer_phone').value = '';
+        if(document.getElementById('r_main_name')) document.getElementById('r_main_name').value = '';
+        if(document.getElementById('n_main_name')) document.getElementById('n_main_name').value = '';
+        
+        ['r_main_cost', 'r_main_price', 'n_main_cost', 'n_main_price'].forEach(id => {
+            const el = document.getElementById(id);
+            if(el) el.value = '0';
+        });
+
+        const rAccCont = document.getElementById('r_acc_container');
+        const nAccCont = document.getElementById('n_acc_container');
+        if(rAccCont) rAccCont.innerHTML = '';
+        if(nAccCont) nAccCont.innerHTML = '';
+
         runCalc();
         updateUIState();
-        btn.disabled = false;
+        if(btn) btn.disabled = false;
 
     } catch (e) {
         alert("خطأ: " + e.message);
-        btn.disabled = false; updateUIState();
+        if(btn) { btn.disabled = false; updateUIState(); }
     }
 }
 
 function closeExModals() {
-    document.getElementById('ex-modal-edit').style.display = 'none';
-    document.getElementById('ex-modal-cancel').style.display = 'none';
+    const editM = document.getElementById('ex-modal-edit');
+    const cancelM = document.getElementById('ex-modal-cancel');
+    if(editM) editM.style.display = 'none';
+    if(cancelM) cancelM.style.display = 'none';
     targetOrderId = null;
 }
 
 window.openExModalEdit = function(id) {
     targetOrderId = id;
-    document.getElementById('ex-modal-edit').style.display = 'flex';
+    const editM = document.getElementById('ex-modal-edit');
+    if(editM) editM.style.display = 'flex';
 };
 
 window.openExModalCancel = function(id) {
     targetOrderId = id;
-    document.getElementById('ex-modal-cancel').style.display = 'flex';
+    const cancelM = document.getElementById('ex-modal-cancel');
+    if(cancelM) cancelM.style.display = 'flex';
 };
 
 async function executeEditOrder() {
@@ -527,27 +622,52 @@ async function executeEditOrder() {
     triggerUndoSave();
     revertInventoryEffect(o);
 
-    // تفريغ الحاويات وملء البيانات
-    // تنظيف البصمة من الاسم عند التعديل
     let cleanName = o.customerName || '';
     if (cleanName.includes(' (عميل استبدال 🔄)')) cleanName = cleanName.replace(' (عميل استبدال 🔄)', '');
-    document.getElementById('ex_customer_name').value = cleanName;
-    document.getElementById('ex_customer_phone').value = o.customerPhone || '';
     
-    document.getElementById('r_main_name').value = o.rMainName || ''; document.getElementById('r_main_cost').value = o.rMainCost || 0; document.getElementById('r_main_price').value = o.rMainPrice || 0;
-    document.getElementById('n_main_name').value = o.nMainName || ''; document.getElementById('n_main_cost').value = o.nMainCost || 0; document.getElementById('n_main_price').value = o.nMainPrice || 0;
+    if(document.getElementById('ex_customer_name')) document.getElementById('ex_customer_name').value = cleanName;
+    if(document.getElementById('ex_customer_phone')) document.getElementById('ex_customer_phone').value = o.customerPhone || '';
     
-    const rCont = document.getElementById('r_acc_container'); rCont.innerHTML = '';
-    const nCont = document.getElementById('n_acc_container'); nCont.innerHTML = '';
+    if(document.getElementById('r_main_name')) document.getElementById('r_main_name').value = o.rMainName || '';
+    if(document.getElementById('r_main_cost')) document.getElementById('r_main_cost').value = o.rMainCost || 0;
+    if(document.getElementById('r_main_price')) document.getElementById('r_main_price').value = o.rMainPrice || 0;
+    
+    if(document.getElementById('n_main_name')) document.getElementById('n_main_name').value = o.nMainName || '';
+    if(document.getElementById('n_main_cost')) document.getElementById('n_main_cost').value = o.nMainCost || 0;
+    if(document.getElementById('n_main_price')) document.getElementById('n_main_price').value = o.nMainPrice || 0;
+    
+    const rCont = document.getElementById('r_acc_container');
+    const nCont = document.getElementById('n_acc_container');
+    if(rCont) rCont.innerHTML = '';
+    if(nCont) nCont.innerHTML = '';
 
-    if(o.rAccName) { addAccRow('r'); rCont.lastElementChild.querySelector('.acc-name').value = o.rAccName; rCont.lastElementChild.querySelector('.acc-cost').value = o.rAccCost; rCont.lastElementChild.querySelector('.acc-price').value = o.rAccPrice; }
-    if(o.rAccs) o.rAccs.forEach(a => { addAccRow('r'); const row = rCont.lastElementChild; row.querySelector('.acc-name').value = a.name; row.querySelector('.acc-cost').value = a.cost; row.querySelector('.acc-price').value = a.price; if(row.querySelector('.acc-cat')) row.querySelector('.acc-cat').value = a.cat; });
+    if(o.rAccs) o.rAccs.forEach(a => { 
+        addAccRow('r'); 
+        if(rCont && rCont.lastElementChild) {
+            const row = rCont.lastElementChild;
+            if(row.querySelector('.acc-name')) row.querySelector('.acc-name').value = a.name;
+            if(row.querySelector('.acc-cost')) row.querySelector('.acc-cost').value = a.cost;
+            if(row.querySelector('.acc-price')) row.querySelector('.acc-price').value = a.price;
+            if(row.querySelector('.acc-cat')) row.querySelector('.acc-cat').value = a.cat;
+        }
+    });
     
-    if(o.nAccName) { addAccRow('n'); nCont.lastElementChild.querySelector('.acc-name').value = o.nAccName; nCont.lastElementChild.querySelector('.acc-cost').value = o.nAccCost; nCont.lastElementChild.querySelector('.acc-price').value = o.nAccPrice; }
-    if(o.nAccs) o.nAccs.forEach(a => { addAccRow('n'); const row = nCont.lastElementChild; row.querySelector('.acc-name').value = a.name; row.querySelector('.acc-cost').value = a.cost; row.querySelector('.acc-price').value = a.price; });
+    if(o.nAccs) o.nAccs.forEach(a => { 
+        addAccRow('n'); 
+        if(nCont && nCont.lastElementChild) {
+            const row = nCont.lastElementChild;
+            if(row.querySelector('.acc-name')) row.querySelector('.acc-name').value = a.name;
+            if(row.querySelector('.acc-cost')) row.querySelector('.acc-cost').value = a.cost;
+            if(row.querySelector('.acc-price')) row.querySelector('.acc-price').value = a.price;
+        }
+    });
 
-    document.getElementById('del_later').checked = true;
-    updateUIState(); runCalc();
+    const delLaterRad = document.getElementById('del_later');
+    if(delLaterRad) delLaterRad.checked = true;
+    
+    updateUIState(); 
+    runCalc();
+    
     addLogSafe({ timestamp: new Date().toISOString(), type: "مسودة تعديل", details: `إلغاء حجز للعميل [${cleanName}] للتعديل`, amount: 0 });
     window.pendingOrders.splice(orderIndex, 1);
     await finalizeSave();
@@ -560,33 +680,81 @@ async function executeCancelOrder() {
     const orderIndex = window.pendingOrders.findIndex(o => o.id === targetOrderId);
     if(orderIndex === -1) return closeExModals();
     const o = window.pendingOrders[orderIndex];
-    const accId = document.getElementById('ex_acc_sel').value;
-    const cancelType = document.querySelector('input[name="cancel_type"]:checked').value;
+    const accSelEl = document.getElementById('ex_acc_sel');
+    const cancelTypeEl = document.querySelector('input[name="cancel_type"]:checked');
+    if(!accSelEl || !cancelTypeEl) return;
+
+    const accId = accSelEl.value;
+    const cancelType = cancelTypeEl.value;
     
     let cleanName = o.customerName || '';
     if (cleanName.includes(' (عميل استبدال 🔄)')) cleanName = cleanName.replace(' (عميل استبدال 🔄)', '');
     
     triggerUndoSave();
     
+    // حساب تكلفة الأجهزة الخارجة (سواء جهاز رئيسي أو إكسسوارات) لردها لرأس المال
+    let totalCostOut = (Number(o.nMainCost) || 0);
+    if (o.nAccs && Array.isArray(o.nAccs)) {
+        o.nAccs.forEach(a => totalCostOut += (Number(a.cost) || 0));
+    }
+
     if (cancelType === "revert_all") {
+        // 1. إعادة المنتجات للمخزن (تأكد أن دالة revertInventoryEffect محدثة كما اتفقنا)
         revertInventoryEffect(o);
+        
+        // 2. رد التكلفة لرأس المال لأن العملية أُلغيت بالكامل والبضاعة عادت
+        if (totalCostOut > 0 && typeof updateCapital === 'function') {
+            updateCapital(totalCostOut);
+        }
+
         addLogSafe({ timestamp: new Date().toISOString(), type: "إلغاء شامل", details: `إلغاء شحنة العميل [${cleanName}]`, amount: 0 });
+        
     } else if (cancelType === "convert_return") {
         const liveProducts = getProducts();
-        const addBack = (name) => { let p = liveProducts.find(x => x.name === name); if(p) p.quantity = (Number(p.quantity)||0) + 1; };
-        addBack(o.nMainName); 
-        if(o.nAccName) addBack(o.nAccName);
-        if(o.nAccs) o.nAccs.forEach(a => addBack(a.name));
+        
+        // دالة داخلية ذكية لإضافة الكمية للمخزن وإنشاء المنتج لو كان "مؤقت" وغير موجود
+        const addBack = (name, cost, price) => { 
+            if(!name) return; 
+            const cleanName = String(name).trim().toLowerCase();
+            let p = liveProducts.find(x => x && x.name && String(x.name).trim().toLowerCase() === cleanName); 
+            
+            if(p) {
+                p.quantity = (Number(p.quantity)||0) + 1; 
+            } else {
+                // إنشاء المنتج المؤقت الذي لم يكن موجوداً في المخزن ليعود إليه بشكل صحيح
+                const newP = { 
+                    id: "TEMP-" + Date.now() + Math.floor(Math.random()*100), 
+                    name: String(name).trim(), 
+                    category: "عام", 
+                    quantity: 1, 
+                    costPrice: Number(cost) || 0, 
+                    price: Number(price) || 0 
+                };
+                liveProducts.push(newP);
+                if (typeof window.injectProductToMain === 'function') window.injectProductToMain(newP);
+            }
+        };
 
-        let payoutAmount = o.rMainPrice || 0;
-        if(o.rAccPrice) payoutAmount += o.rAccPrice;
-        if(o.rAccs) o.rAccs.forEach(a => payoutAmount += a.price);
+        // 1. نرجع الأجهزة اللي كانت طالعة للعميل للمخزن (مع تمرير التكلفة والسعر)
+        addBack(o.nMainName, o.nMainCost, o.nMainPrice); 
+        if(o.nAccs) o.nAccs.forEach(a => addBack(a.name, a.cost, a.price));
+
+        // 2. رد التكلفة لرأس المال (لأن الأجهزة الجديدة عادت للمحل)
+        if (totalCostOut > 0 && typeof updateCapital === 'function') {
+            updateCapital(totalCostOut);
+        }
+
+        // 3. سحب قيمة الأجهزة المرتجعة للعميل من حساب المحل (لأنه هياخد فلوسه ويمشي)
+        let payoutAmount = Number(o.rMainPrice) || 0;
+        if(o.rAccs) o.rAccs.forEach(a => payoutAmount += (Number(a.price) || 0));
 
         const liveAccounts = getAccounts();
         const acc = liveAccounts.find(a => a.id === accId);
         if(acc) acc.balance = (Number(acc.balance)||0) - payoutAmount;
+        
         addLogSafe({ timestamp: new Date().toISOString(), type: "تحويل لاسترجاع", details: `العميل [${cleanName}] صرف مبلغ أجهزته المرتجعة`, amount: -payoutAmount });
     }
+    
     window.pendingOrders.splice(orderIndex, 1);
     await finalizeSave();
     closeExModals();
@@ -601,7 +769,10 @@ window.confirmPendingOrder = async function(id) {
     let cleanName = o.customerName || '';
     if (cleanName.includes(' (عميل استبدال 🔄)')) cleanName = cleanName.replace(' (عميل استبدال 🔄)', '');
     
-    const accId = document.getElementById('ex_acc_sel').value;
+    const accSelEl = document.getElementById('ex_acc_sel');
+    if(!accSelEl) return;
+
+    const accId = accSelEl.value;
     triggerUndoSave();
     const liveAccounts = getAccounts();
     const acc = liveAccounts.find(a => a.id === accId);
@@ -613,18 +784,47 @@ window.confirmPendingOrder = async function(id) {
 
 function revertInventoryEffect(o) {
     const liveProducts = getProducts();
-    const addBack = (name) => { if(!name) return; let p = liveProducts.find(x => x.name === name); if(p) p.quantity = (Number(p.quantity)||0) + 1; };
-    const takeOut = (name) => { if(!name) return; let p = liveProducts.find(x => x.name === name); if(p) p.quantity = (Number(p.quantity)||0) - 1; };
     
-    addBack(o.nMainName);
-    if (o.nAccName) addBack(o.nAccName); 
-    if (o.nAccs) o.nAccs.forEach(a => addBack(a.name)); 
+    // دالة داخلية ذكية لإضافة الكمية للمخزن (وإنشاء المنتج المؤقت لو لم يكن موجوداً)
+    const addBack = (name, cost, price) => { 
+        if(!name) return; 
+        const cleanName = String(name).trim().toLowerCase();
+        let p = liveProducts.find(x => x && x.name && String(x.name).trim().toLowerCase() === cleanName); 
+        
+        if(p) {
+            // لو المنتج موجود في المخزن، رجع الكمية
+            p.quantity = (Number(p.quantity)||0) + 1; 
+        } else {
+            // لو المنتج "مؤقت"، أنشئه في المخزن فوراً عشان الكمية والتكلفة تضبط
+            const newP = { 
+                id: "TEMP-" + Date.now() + Math.floor(Math.random()*1000), 
+                name: String(name).trim(), 
+                category: "عام", 
+                quantity: 1, 
+                costPrice: Number(cost) || 0, 
+                price: Number(price) || 0 
+            };
+            liveProducts.push(newP);
+            if (typeof window.injectProductToMain === 'function') window.injectProductToMain(newP);
+        }
+    };
 
+    // دالة داخلية لسحب الكمية من المخزن بأمان تام
+    const takeOut = (name) => { 
+        if(!name) return; 
+        const cleanName = String(name).trim().toLowerCase();
+        let p = liveProducts.find(x => x && x.name && String(x.name).trim().toLowerCase() === cleanName); 
+        if(p) p.quantity = (Number(p.quantity)||0) - 1; 
+    };
+    
+    // إرجاع الجديد للمخزن (مع تمرير التكلفة والسعر لضمان حفظهم في حال كان المنتج مؤقتاً)
+    addBack(o.nMainName, o.nMainCost, o.nMainPrice);
+    if (o.nAccs) o.nAccs.forEach(a => addBack(a.name, a.cost, a.price)); 
+
+    // سحب المرتجع من المخزن (لأنه سيعود للعميل)
     takeOut(o.rMainName);
-    if (o.rAccName) takeOut(o.rAccName);
     if (o.rAccs) o.rAccs.forEach(a => takeOut(a.name));
 }
-
 async function finalizeSave() {
     if (window.saveCurrentStateByDate) {
         await window.saveCurrentStateByDate(window.currentLoadedDate);
@@ -633,6 +833,6 @@ async function finalizeSave() {
             window.refreshMainUI();
         }
     } else {
-        alert("تنبيه: دالة الحفظ السحابي غير متصلة.");
+        console.warn("تنبيه: دالة الحفظ السحابي غير متصلة.");
     }
 }
