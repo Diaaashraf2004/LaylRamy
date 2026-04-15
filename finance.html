@@ -3524,65 +3524,71 @@ async function undo() {
         return;
     }
 
-    // لقطة للوضع الحالي قبل التغيير
-    const currentInvoiceIds = salesToday.map(inv => inv.id);
+    try {
+        // 1. أخذ لقطة للوضع الحالي قبل التغيير (لغرض الإعادة Redo)
+        redoHistory.push(createStateSnapshot());
 
-    // نقل الحالة الحالية إلى ذاكرة "الإعادة"
-    redoHistory.push(createStateSnapshot());
-
-    // استرجاع الحالة السابقة
-    const lastState = stateHistory.pop();
-    const previousInvoiceIds = lastState.salesToday.map(inv => inv.id);
-
-    // تطبيق الحالة السابقة محلياً
-    loadStateFromSnapshot(lastState);
-
-    const userId = window.currentUser ? window.currentUser.uid : null;
-
-    if (userId) {
-        // أ. السيناريو الأول: التراجع عن "إنشاء" (حذف ما تم إنشاؤه)
-        // الفواتير الموجودة "الآن" وليست في "الماضي" = تم إنشاؤها حديثاً ويجب حذفها
-        const createdInvoiceIds = currentInvoiceIds.filter(id => !previousInvoiceIds.includes(id));
+        // 2. الحصول على الحالة السابقة من الذاكرة
+        const lastState = stateHistory.pop();
         
-        if (createdInvoiceIds.length > 0) {
-            console.log(`Undo: جاري حذف ${createdInvoiceIds.length} فاتورة من السحابة...`);
-            await Promise.all(createdInvoiceIds.map(id => 
-                window.deleteDoc(window.doc(window.db, "users", userId, "invoices", id)).catch(e => console.error(e))
-            ));
+        // تجهيز قائمة المعرفات للمقارنة
+        const currentInvoiceIds = (salesToday || []).map(inv => inv.id);
+        const previousInvoiceIds = (lastState.salesToday || []).map(inv => inv.id);
+
+        // 3. تطبيق الحالة السابقة محلياً فوراً
+        loadStateFromSnapshot(lastState);
+
+        // 4. مزامنة التغييرات مع السحابة (Firebase)
+        const userId = window.currentUser ? window.currentUser.uid : null;
+        if (userId) {
+            // أ. السيناريو الأول: حذف الفواتير التي أُنشئت حديثاً وتم التراجع عنها
+            const createdInvoiceIds = currentInvoiceIds.filter(id => !previousInvoiceIds.includes(id));
+            if (createdInvoiceIds.length > 0) {
+                await Promise.all(createdInvoiceIds.map(id => 
+                    window.deleteDoc(window.doc(window.db, "users", userId, "invoices", id))
+                    .catch(e => console.error("خطأ أثناء حذف فاتورة في التراجع:", e))
+                ));
+            }
+
+            // ب. السيناريو الثاني: استعادة الفواتير التي كانت محذوفة وتم التراجع عن حذفها
+            const restoredInvoiceIds = previousInvoiceIds.filter(id => !currentInvoiceIds.includes(id));
+            if (restoredInvoiceIds.length > 0) {
+                const restorePromises = restoredInvoiceIds.map(id => {
+                    const invoiceData = lastState.salesToday.find(inv => inv.id === id);
+                    if (invoiceData) {
+                        if (!invoiceData.saleDate) {
+                             invoiceData.saleDate = invoiceData.timestamp ? invoiceData.timestamp.split('T')[0] : "";
+                        }
+                        return window.setDoc(window.doc(window.db, "users", userId, "invoices", id), invoiceData, { merge: true })
+                               .catch(e => console.error("خطأ أثناء استعادة فاتورة في التراجع:", e));
+                    }
+                });
+                await Promise.all(restorePromises);
+            }
         }
 
-        // ب. السيناريو الثاني: التراجع عن "حذف" (استعادة ما تم حذفه)
-        // الفواتير الموجودة في "الماضي" وليست "الآن" = تم حذفها ويجب استعادتها
-        const restoredInvoiceIds = previousInvoiceIds.filter(id => !currentInvoiceIds.includes(id));
+        // 5. حفظ التغييرات الشاملة
+        await saveSystemToCloud();
         
-        if (restoredInvoiceIds.length > 0) {
-            console.log(`Undo: جاري استعادة ${restoredInvoiceIds.length} فاتورة محذوفة للسحابة...`);
-            const restorePromises = restoredInvoiceIds.map(id => {
-                const invoiceData = lastState.salesToday.find(inv => inv.id === id);
-                if (invoiceData) {
-                    if (!invoiceData.saleDate) invoiceData.saleDate = invoiceData.timestamp.split('T')[0];
-                    return window.setDoc(window.doc(window.db, "users", userId, "invoices", id), invoiceData, { merge: true });
-                }
-            });
-            await Promise.all(restorePromises);
+        showGlobalMessage("تم التراجع بنجاح.", false);
+
+    } catch (error) {
+        console.error("حدث خطأ حرج أثناء التراجع:", error);
+        showGlobalMessage("حدث خطأ أثناء التراجع، ولكن تم تحديث الواجهة محلياً.", true);
+    } finally {
+        // 6. التحديث الإلزامي للواجهة
+        if (typeof updateUI === 'function') updateUI();
+        if (typeof updateUndoRedoButtons === 'function') updateUndoRedoButtons();
+        
+        // تحديث التقرير إذا كان مفتوحاً
+        if(typeof generateMonthlySalesReport === 'function') {
+            const reportSection = document.getElementById('sales-report-section');
+            if (reportSection && !reportSection.classList.contains('hidden')) {
+                generateMonthlySalesReport();
+            }
         }
     }
-
-    // حفظ التغييرات الشاملة (المخزون، السيولة، إلخ)
-    await saveSystemToCloud();
-    
-    updateUI();
-    updateUndoRedoButtons();
-    
-    // تحديث التقرير إذا كان مفتوحاً
-    if(typeof generateMonthlySalesReport === 'function' && document.getElementById('sales-report-section') && !document.getElementById('sales-report-section').classList.contains('hidden')) {
-        generateMonthlySalesReport();
-    }
-    
-    showGlobalMessage("تم التراجع ومزامنة السحابة بنجاح.", false);
-}
-
-// ==========================================
+}// ==========================================
 // 2. دالة الإعادة الذكية (Super Redo)
 // ==========================================
 async function redo() {
@@ -13879,21 +13885,41 @@ function mergeDuplicateDebtorProfiles() {
 
     debtorProfiles = uniqueProfiles;
 }
+try {
 
-// 1. وظيفة زر التأكيد داخل النافذة (مودال الرد)
+// 1. دالة تأكيد الإلغاء
 window.confirmRefundAndCancel = async function() {
     const saleId = document.getElementById('refund_pending_id').value;
     const amount = Number(document.getElementById('refund_amount_val').value);
     const accountId = document.getElementById('refund_account_select').value;
 
-    if (!accountId) { alert("يرجى اختيار الحساب!"); return; }
-
-    if (confirm(`هل أنت متأكد من خصم ${formatCurrency(amount)} من الحساب المختار وإلغاء العملية؟`)) {
-        await executeCancellation(saleId, accountId, amount);
-        document.getElementById('refundModal').style.display = 'none';
+    if (!accountId) { 
+        alert("يرجى اختيار الحساب!"); 
+        return; 
     }
-};
 
+    const confirmMsg = `هل أنت متأكد من خصم ${formatCurrency(amount)} من الحساب المختار وإلغاء العملية؟`;
+    
+    if (confirm(confirmMsg)) {
+        // 💡 ملاحظة: تم إزالة saveStateToHistory من هنا لمنع الحفظ المزدوج
+        // لأننا أضفناها بالفعل داخل executeCancellation لتشمل كل حالات الإلغاء
+
+        try {
+            // تنفيذ الإلغاء (الدالة الآن تتولى الحفظ وتحديث الواجهة بالكامل)
+            await executeCancellation(saleId, accountId, amount);
+        } catch (error) {
+            console.error("Error in confirmRefundAndCancel:", error);
+            alert("حدث خطأ أثناء الإلغاء، يرجى المحاولة مرة أخرى.");
+        } finally {
+            // التركيز هنا فقط على إغلاق المودال
+            const modal = document.getElementById('refundModal');
+            if (modal) modal.style.display = 'none';
+            
+            // تم إزالة دوال تحديث الواجهة من هنا لأن executeCancellation تقوم بها بالفعل
+        }
+    }
+};// 2. دالة تنفيذ الإلغاء
+// 1. دالة تنفيذ الإلغاء
 window.executeCancellation = async function(saleId, accountId, amount) {
     const saleIndex = pendingSales.findIndex(s => String(s.id) === String(saleId));
     if (saleIndex === -1) {
@@ -13903,8 +13929,13 @@ window.executeCancellation = async function(saleId, accountId, amount) {
 
     const sale = pendingSales[saleIndex];
 
+    // 🌟 1. أخذ لقطة للحالة قبل التنفيذ لكي يعمل زر التراجع (Undo)
+    if (typeof saveStateToHistory === 'function') {
+        saveStateToHistory();
+    }
+
     try {
-        // أ. سحب العربون من الخزينة
+        // أ. معالجة السيولة (رد العربون أو المدفوع)
         if (accountId && Number(amount) > 0) {
             const acc = accounts.find(a => String(a.id) === String(accountId));
             if (acc) {
@@ -13921,12 +13952,15 @@ window.executeCancellation = async function(saleId, accountId, amount) {
             }
         }
 
-        // ب. إرجاع البضاعة للمخزن (المنطق المحدث لضمان عودة الملحقات)
+        // ب. إرجاع البضاعة للمخزن (تجميع الأصناف بحذر لتجنب التكرار)
         let itemsToReturn = [];
-
-        // تجميع كل الأصناف الممكنة في قائمة واحدة بدون استثناء
-        if (sale.items) itemsToReturn.push(...sale.items);
-        if (sale.invoiceData && sale.invoiceData.items) itemsToReturn.push(...sale.invoiceData.items);
+        
+        // الأفضل الاعتماد على مصفوفة رئيسية واحدة لتجنب تكرار إرجاع نفس الصنف
+        if (sale.items && sale.items.length > 0) {
+            itemsToReturn.push(...sale.items);
+        } else if (sale.invoiceData && sale.invoiceData.items) {
+            itemsToReturn.push(...sale.invoiceData.items);
+        }
         
         const extraDeducted = sale.deductedItems || (sale.invoiceData ? sale.invoiceData.deductedItems : []) || [];
         itemsToReturn.push(...extraDeducted);
@@ -13934,43 +13968,77 @@ window.executeCancellation = async function(saleId, accountId, amount) {
         if (sale.mainProduct) itemsToReturn.push(sale.mainProduct);
         if (sale.additionalItems) itemsToReturn.push(...sale.additionalItems);
 
-        // تصفية المصفوفة من أي عناصر فارغة ومعالجتها
-        itemsToReturn.filter(Boolean).forEach(item => {
+        // إزالة أي قيم فارغة (null/undefined)
+        itemsToReturn = itemsToReturn.filter(Boolean);
+
+        itemsToReturn.forEach(item => {
             let product = (item.id ? products.find(p => String(p.id) === String(item.id)) : null)
-                        || products.find(p => p.name.toLowerCase() === (item.name || '').toLowerCase());
+                        || products.find(p => p.name.trim().toLowerCase() === (item.name || '').trim().toLowerCase());
 
             if (product) {
-                const returnedQty = Math.max(1, Number(item.quantity) || 1);
+                // التأكد من أن الكمية المرتجعة صحيحة
+                const returnedQty = Number(item.quantity) || 1; 
                 product.quantity = Number(product.quantity || 0) + returnedQty;
 
+                // تحديث حالة السيريال إن وجد
                 if (item.serial) {
                     let sLog = serialNumbersLog.find(l => l.serial === item.serial);
                     if (sLog) sLog.status = 'in_stock';
                 }
-            } else {
-                console.warn("تعذر العثور على المنتج في المخزن لإعادة الكمية:", item.name);
             }
         });
-        // ج. حذف البيعة وإعادة حساب قيمة البضاعة المعلقة من المصدر
+
+        // ج. معالجة "الربح المتوقع" 
+        if (typeof expectedProfitsTotal !== 'undefined' && sale.expectedProfit) {
+            expectedProfitsTotal -= Number(sale.expectedProfit);
+        }
+        
+        // د. مسح البيعة وتحديث القيم الإجمالية
         pendingSales.splice(saleIndex, 1);
-        goodsOnConsignmentValue = calculateConsignmentValue();
-
+        
+        if (typeof calculateConsignmentValue === 'function') {
+            goodsOnConsignmentValue = calculateConsignmentValue();
+        }
+        
+        // هـ. حفظ البيانات (Cloud & Local)
         if (typeof saveData === 'function') await saveData();
-        if (typeof updateUI === 'function') updateUI();
 
+        // و. تحديث الواجهة بالكامل لتختفي البيعة ويتعدل الربح أمامك
+        if (typeof updateUI === 'function') updateUI();
+        if (typeof renderPendingSales === 'function') renderPendingSales(); 
+        if (typeof renderDashboard === 'function') renderDashboard(); 
+
+        // 🌟 2. تحديث وتفعيل أزرار التراجع بعد إتمام العملية بنجاح
+        if (typeof updateUndoRedoButtons === 'function') {
+            updateUndoRedoButtons();
+        }
+
+        // ز. رسالة النجاح
         if (typeof showGlobalMessage === 'function') {
-            showGlobalMessage(`تم الإلغاء بنجاح: ${itemsToReturn.length} قطعة رجعت للمخزن.`, false);
-        } else {
-            alert("تم إلغاء البيعة بنجاح.");
+            showGlobalMessage(`تم الإلغاء بنجاح: تم استرداد ${itemsToReturn.length} صنف للمخزن وإلغاء الأرباح المتوقعة.`, false);
         }
 
     } catch (error) {
-        console.error("خطأ في تنفيذ الإلغاء:", error);
-        alert("حدث خطأ أثناء إلغاء البيعة.");
+        console.error("خطأ حرج في تنفيذ الإلغاء:", error);
+        throw error; 
     }
-};try {
-    // 🌟 دوال الحقن الآمنة لضمان التوافق مع كل شاشات البحث والمبيعات والتقارير 🌟
-    window.injectSaleToMain = function(saleObj) { 
+};
+// 2. دالة الحقن في المبيعات الرئيسية
+window.injectSaleToMain = function(saleObj) { 
+    // 1. الحقن في مبيعات اليوم (مع فحص أمان للمتغيرات)
+    if (typeof salesToday !== 'undefined' && Array.isArray(salesToday)) {
+        salesToday.push(saleObj); 
+    } else if (window.salesToday && Array.isArray(window.salesToday)) {
+        window.salesToday.push(saleObj);
+    }
+    
+    // 2. الحقن في سجلات البحث والفواتير المتراكمة (للتوافق الشامل مع محركات البحث)
+    if (typeof invoices !== 'undefined' && Array.isArray(invoices)) invoices.push(saleObj);
+    if (typeof salesHistory !== 'undefined' && Array.isArray(salesHistory)) salesHistory.push(saleObj);
+    if (typeof allSales !== 'undefined' && Array.isArray(allSales)) allSales.push(saleObj);
+    if (typeof sales !== 'undefined' && Array.isArray(sales)) sales.push(saleObj); // إضافة احتياطية لمصفوفة sales
+};
+ window.injectSaleToMain = function(saleObj) { 
         // 1. الحقن في مبيعات اليوم (مع فحص أمان للمتغيرات)
         if (typeof salesToday !== 'undefined' && Array.isArray(salesToday)) {
             salesToday.push(saleObj); 
