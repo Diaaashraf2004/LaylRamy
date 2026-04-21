@@ -3778,9 +3778,7 @@ function calculateTotals() {
     // 4. السيولة النقدية
     const totalLiquidity = accounts.reduce((sum, acc) => sum + (acc.balance || 0), 0);
 
-    // 5. الأصول المعلقة الأخرى (المشتريات التي لم تصل)
-    const pendingPurchasesAssetValue = pendingPurchases.reduce((sum, p) => sum + (p.paidAmount || 0), 0);
-    
+    const pendingPurchasesAssetValue = pendingPurchases.reduce((sum, p) => sum + (p.grandTotal || 0), 0);
     // 🔥 التصحيح: حساب قيمة المرتجعات مباشرة من المصفوفة لضمان الدقة حتى لو تفرغ المتغير
     const pendingReturnsAssetValue = pendingReturns.reduce((sum, r) => sum + (Number(r.returnedAmount) || 0), 0);
 
@@ -9446,9 +9444,7 @@ function handlePendingPurchaseActions(event) {
         saveStateToHistory();
         updateInventoryFromPurchase(purchase);
         
-        if (purchase.remainingBalance > 0.001) {
-            liabilities.push({ id: generateId('liab'), name: `متبقي فاتورة لـ: ${supplier.name} (${purchase.invoiceNumber || 'بدون رقم'})`, amount: purchase.remainingBalance, purchaseInvoiceId: purchase.id });
-        }
+     
         
         purchase.status = 'Confirmed';
         purchaseInvoices.push(purchase);
@@ -9464,23 +9460,48 @@ function handlePendingPurchaseActions(event) {
         paymentForm.classList.remove('hidden');
         paymentForm.scrollIntoView({ behavior: 'smooth' });
 
-    } else if (target.classList.contains('cancel-pending-purchase-btn')) {
-        if (!confirm(`هل أنت متأكد من إلغاء فاتورة الشراء المعلقة من المورد "${supplier?.name || '-'}"؟`)) return;
-        saveStateToHistory();
-        
-        if (purchase.deductedFromLiquidity && purchase.paidAmount > 0 && purchase.paidFromAccountId) {
-            const accountToRefund = accounts.find(acc => acc.id === purchase.paidFromAccountId);
-            if (accountToRefund) {
-                accountToRefund.balance += purchase.paidAmount;
-                const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
-                liquidityLog.push({ id: `liq-${Date.now()}`, type: "add", amount: purchase.paidAmount, description: `إلغاء شراء وإرجاع عربون إلى حساب "${accountToRefund.name}"`, currentBalance: newTotalLiquidity });
-            }
+} else if (target.classList.contains('cancel-pending-purchase-btn')) {
+    // 1. تحديد المعرف بدقة
+    const pendingId = target.dataset.pendingPurchaseId || purchase.id;
+
+    if (!confirm(`هل أنت متأكد من إلغاء فاتورة الشراء المعلقة من المورد "${supplier?.name || '-'}"؟ سيتم حذف الالتزام المرتبط بها.`)) return;
+    
+    saveStateToHistory();
+    
+    // 2. إرجاع العربون للسيولة
+    if (purchase.deductedFromLiquidity && purchase.paidAmount > 0 && purchase.paidFromAccountId) {
+        const accountToRefund = accounts.find(acc => acc.id === purchase.paidFromAccountId);
+        if (accountToRefund) {
+            accountToRefund.balance += purchase.paidAmount;
+            liquidityLog.push({ 
+                id: `liq-${Date.now()}`, 
+                type: "add", 
+                amount: purchase.paidAmount, 
+                description: `إلغاء شراء وإرجاع عربون للفاتورة ${pendingId}`, 
+                currentBalance: accounts.reduce((sum, acc) => sum + acc.balance, 0) 
+            });
         }
-        
-        pendingPurchases.splice(purchaseIndex, 1);
-        logOperation("إلغاء فاتورة شراء معلقة", `تم إلغاء شراء من "${supplier?.name}" بقيمة ${formatCurrency(purchase.grandTotal)}.`);
-        showGlobalMessage("تم إلغاء الشراء المعلق بنجاح.", false, true);
     }
+
+    // 3. الخطوة الحاسمة: حذف الالتزام
+    liabilities = liabilities.filter(l => l.purchaseInvoiceId !== pendingId);
+    
+    // 4. حذف الفاتورة من المعلقات
+    pendingPurchases.splice(purchaseIndex, 1);
+    
+    logOperation("إلغاء فاتورة شراء معلقة", `تم إلغاء شراء من "${supplier?.name}" وحذف الالتزامات.`);
+    showGlobalMessage("تم إلغاء الشراء وحذف الالتزام بنجاح.", false, true);
+
+    // 5. التحديث والحفظ (استخدام المسميات الصحيحة في مشروعك)
+    if (typeof updateUI === 'function') updateUI(); 
+    
+    // تأكد من استخدام دالة الحفظ المتاحة في ملفك (غالباً هي saveSystemToCloud أو saveToLocalStorage)
+    if (typeof saveSystemToCloud === 'function') {
+        saveSystemToCloud();
+    } else if (typeof saveToLocalStorage === 'function') {
+        saveToLocalStorage();
+    }
+}
     updateUI();
 }
 async function pi_confirmPurchaseInvoice() {
@@ -9654,10 +9675,18 @@ async function pi_confirmPurchaseInvoice() {
     }
 
     // تسجيل الالتزام إذا وجد متبقي
-    if (invoiceData.remainingBalance > 0.001) {
-        liabilities.push({ id: generateId('liab'), name: `متبقي فاتورة لـ: ${supplier?.name || '-'}`, amount: invoiceData.remainingBalance, purchaseInvoiceId: invoiceData.id });
-    }
-
+   if (invoiceData.remainingBalance > 0.001) {
+    liabilities.push({ 
+        id: generateId('liab'), 
+        // 🔥 هذا هو السطر الأهم للربط الذي يسمح بالحذف التلقائي عند الإلغاء
+        purchaseInvoiceId: invoiceData.id, 
+        name: `متبقي فاتورة لـ: ${supplier?.name || '-'}`, 
+        amount: invoiceData.remainingBalance,
+        date: invoiceData.date || new Date().toISOString().split('T')[0], // التاريخ ليظهر في الجدول
+        supplierId: invoiceData.supplierId, // لربط الدين بالمورد
+        type: "supplier" // لتحديد نوع الالتزام
+    });
+}
     // 🔥 أهم سطر: الأرشفة السحابية تعمل الآن في الحالتين
     await savePurchaseInvoiceToCloud(invoiceData);
 
