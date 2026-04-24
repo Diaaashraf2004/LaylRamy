@@ -4407,24 +4407,39 @@ function updateDebtorsListDisplay() {
 
         group.debts
             .sort((a, b) => (a.reason || "").localeCompare((b.reason || ""), 'ar'))
-            .forEach(item => {
-                const liElement = document.createElement('li');
-                liElement.className = 'text-sm text-gray-600 py-1.5 border-b border-gray-100 flex justify-between items-center flex-wrap gap-2';
+          group.debts.forEach(item => {
+    const liElement = document.createElement('li');
+    liElement.className = 'text-sm text-gray-600 py-2 border-b border-gray-100 flex justify-between items-center flex-wrap gap-2 hover:bg-gray-50 px-2 rounded transition-colors';
 
-                liElement.innerHTML = `
-                    <div class="flex-grow">
-                        <div><strong>${item.reason || 'سبب غير محدد'}</strong></div>
-                        <div class="debt-details">${formatCurrency(Number(item.amount || 0))}</div>
-                        <div class="debt-details">${item.createdAt ? new Date(item.createdAt).toLocaleString('ar-EG') : ''}</div>
-                    </div>
-                    <div class="actions flex-shrink-0">
-                        <button class="pay-partial-debt-btn bg-green-500 text-white" data-debt-id="${item.id}">سداد جزئي</button>
-                    </div>
-                `;
+    const dateStr = item.createdAt ? new Date(item.createdAt).toLocaleString('ar-EG') : '';
 
-                ulElement.appendChild(liElement);
-            });
+    liElement.innerHTML = `
+        <div class="flex-grow">
+            <div class="flex items-center gap-2">
+                <strong class="text-gray-900">${item.reason || 'سبب غير محدد'}</strong>
+                <span class="text-[10px] text-gray-400 font-normal">${dateStr}</span>
+            </div>
+            <div class="font-bold text-purple-700">${formatCurrency(Number(item.amount || 0))}</div>
+        </div>
+        <div class="actions flex-shrink-0 flex gap-1.5">
+            <button class="bg-orange-500 hover:bg-orange-600 text-white px-2 py-1 rounded text-[11px] flex items-center gap-1" 
+                    onclick="openTransferDebtModal('${item.id}')">
+                <i class="fas fa-exchange-alt"></i> تحويل
+            </button>
+            
+            <button class="pay-partial-debt-btn bg-green-500 hover:bg-green-600 text-white px-2 py-1 rounded text-[11px] flex items-center gap-1" 
+                    data-debt-id="${item.id}">
+                <i class="fas fa-hand-holding-usd"></i> سداد جزئي
+            </button>
 
+            <button class="text-red-400 hover:text-red-600 p-1 transition-colors" 
+                    onclick="deleteDebtItem('${item.id}')" title="حذف وإعادة المبلغ للخزنة">
+                <i class="fas fa-trash-alt text-sm"></i>
+            </button>
+        </div>
+    `;
+    ulElement.appendChild(liElement);
+});
         detailsElement.appendChild(summaryElement);
         detailsElement.appendChild(ulElement);
         debtorsListContainer.appendChild(detailsElement);
@@ -14127,6 +14142,111 @@ window.injectSaleToMain = function(saleObj) {
 } catch (globalError) {
     console.error("🚨 فشل في تفعيل الجسر:", globalError);
 }
+// --- 1. دوال تحويل الدين ---
+window.openTransferDebtModal = function(debtId) {
+    const debt = window.debtors.find(d => d.id === debtId);
+    if (!debt) return;
+
+    const modal = document.getElementById('transferDebtModal');
+    document.getElementById('trans-source-name').textContent = debt.name;
+    document.getElementById('trans-source-reason').textContent = debt.reason;
+    document.getElementById('trans-available').textContent = formatCurrency(debt.amount);
+    document.getElementById('trans-amount').value = debt.amount;
+    
+    // ربط عملية التأكيد بالـ ID المختار
+    document.getElementById('confirmTransferBtn').onclick = () => processTransfer(debtId);
+    
+    // تصفير المدخلات
+    document.getElementById('trans-target-name').value = '';
+    document.getElementById('trans-new-reason').value = '';
+    document.getElementById('trans-new-reason').classList.add('hidden');
+    document.querySelector('input[name="reason-opt"][value="keep"]').checked = true;
+    
+    modal.style.display = 'block';
+};
+
+window.closeTransferDebtModal = function() {
+    document.getElementById('transferDebtModal').style.display = 'none';
+};
+
+function processTransfer(sourceDebtId) {
+    const sourceIndex = window.debtors.findIndex(d => d.id === sourceDebtId);
+    if (sourceIndex === -1) return;
+
+    const sourceDebt = window.debtors[sourceIndex];
+    const targetName = document.getElementById('trans-target-name').value.trim();
+    const transferAmount = parseFloat(document.getElementById('trans-amount').value);
+    const useNewReason = document.querySelector('input[name="reason-opt"]:checked').value === 'change';
+    const newReason = document.getElementById('trans-new-reason').value.trim();
+    
+    const finalReason = (useNewReason && newReason) ? newReason : sourceDebt.reason;
+
+    if (!targetName || isNaN(transferAmount) || transferAmount <= 0 || transferAmount > sourceDebt.amount) {
+        alert("يرجى التأكد من اسم المستلم والمبلغ المحول");
+        return;
+    }
+
+    saveStateToHistory(); // للحفظ قبل التغيير
+
+    // خصم من المصدر
+    const oldSourceName = sourceDebt.name;
+    sourceDebt.amount -= transferAmount;
+    if (sourceDebt.amount < 0.01) window.debtors.splice(sourceIndex, 1);
+
+    // إضافة للمستلم (أو دمج إذا كان لديه نفس السبب)
+    let targetProfile = getOrCreateDebtorProfile(targetName);
+    const existingDebt = window.debtors.find(d => 
+        d.customerId === targetProfile.id && 
+        normalizeArabicText(d.reason) === normalizeArabicText(finalReason)
+    );
+
+    if (existingDebt) {
+        existingDebt.amount += transferAmount;
+    } else {
+        window.debtors.push({
+            id: generateId('debt'),
+            customerId: targetProfile.id,
+            name: targetProfile.name,
+            reason: finalReason,
+            amount: transferAmount,
+            createdAt: new Date().toISOString()
+        });
+    }
+
+    logOperation("تحويل دين", `تم تحويل ${formatCurrency(transferAmount)} من ${oldSourceName} إلى ${targetProfile.name}`);
+    updateUI();
+    closeTransferDebtModal();
+}
+
+// --- 2. دوال الحذف والاسترداد ---
+window.deleteDebtItem = function(debtId) {
+    const debt = window.debtors.find(d => d.id === debtId);
+    if (!debt) return;
+
+    const modal = document.getElementById('deleteDebtRefundModal');
+    document.getElementById('delete-debt-info').textContent = `سيتم حذف دين "${debt.reason}" بقيمة ${formatCurrency(debt.amount)}. اختر الحساب الذي تريد استرداد المبلغ إليه:`;
+
+    const select = document.getElementById('delete-debt-account-select');
+    select.innerHTML = window.accounts.map(acc => `<option value="${acc.id}">${acc.name} (${formatCurrency(acc.balance)})</option>`).join('');
+
+    document.getElementById('confirmDeleteRefundBtn').onclick = () => {
+        const account = window.accounts.find(a => a.id === select.value);
+        if (account) {
+            saveStateToHistory();
+            account.balance += debt.amount; // إضافة المبلغ للحساب
+            window.debtors = window.debtors.filter(d => d.id !== debtId); // حذف الدين
+            logOperation("إلغاء دين", `إعادة ${formatCurrency(debt.amount)} لحساب ${account.name} بعد حذف دين ${debt.name}`);
+            updateUI();
+            closeDeleteDebtRefundModal();
+            showGlobalMessage("تم استرداد المبلغ وحذف البند.");
+        }
+    };
+    modal.style.display = 'block';
+};
+
+window.closeDeleteDebtRefundModal = function() {
+    document.getElementById('deleteDebtRefundModal').style.display = 'none';
+};
 }); // End DOMContentLoaded
 
 </script>
@@ -14229,6 +14349,57 @@ window.injectSaleToMain = function(saleObj) {
     </div>
 </div>
 <script src="finance2.js"></script>
+<div id="transferDebtModal" class="modal" style="display: none; z-index: 2100;">
+    <div class="modal-content" style="max-width: 450px; border-top: 5px solid #f39c12;">
+        <div class="modal-header">
+            <span class="modal-close-btn" onclick="closeTransferDebtModal()">&times;</span>
+            <h2 style="color: #d35400;">تحويل مديونية لشخص آخر</h2>
+        </div>
+        <div class="modal-body">
+            <p style="background: #fff3e0; padding: 10px; border-radius: 5px; font-size: 13px;">
+                تحويل من: <strong id="trans-source-name"></strong> <br>
+                البند الحالي: <span id="trans-source-reason"></span> (<strong id="trans-available"></strong>)
+            </p>
+            <div class="form-group" style="margin-top: 15px;">
+                <label>تحويل إلى (اسم الشخص الجديد):</label>
+                <input type="text" id="trans-target-name" list="debtor-names-list-offset" placeholder="اكتب اسم المستلم">
+            </div>
+            <div class="form-group">
+                <label>المبلغ المراد تحويله:</label>
+                <input type="number" id="trans-amount" step="0.01">
+            </div>
+            <div class="form-group">
+                <label>مسمى الدين عند المستلم:</label>
+                <div style="display: flex; gap: 15px; margin-bottom: 8px; font-size: 13px;">
+                    <label><input type="radio" name="reason-opt" value="keep" checked onchange="document.getElementById('trans-new-reason').classList.add('hidden')"> نفس الاسم</label>
+                    <label><input type="radio" name="reason-opt" value="change" onchange="document.getElementById('trans-new-reason').classList.remove('hidden')"> اسم آخر</label>
+                </div>
+                <input type="text" id="trans-new-reason" class="hidden shadow-inner border p-2 w-full" placeholder="اكتب اسم الدين الجديد هنا">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button id="confirmTransferBtn" class="bg-orange-500 text-white w-full py-2 rounded font-bold hover:bg-orange-600">تأكيد عملية التحويل</button>
+        </div>
+    </div>
+</div>
 
+<div id="deleteDebtRefundModal" class="modal" style="display: none; z-index: 2200;">
+    <div class="modal-content" style="max-width: 400px; border-top: 5px solid #ef4444;">
+        <div class="modal-header">
+            <span class="modal-close-btn" onclick="closeDeleteDebtRefundModal()">&times;</span>
+            <h2 style="color: #ef4444;">حذف دين وإرجاع المبلغ</h2>
+        </div>
+        <div class="modal-body">
+            <p id="delete-debt-info" style="background: #fef2f2; padding: 10px; border-radius: 5px; font-size: 13px; margin-bottom: 15px;"></p>
+            <div class="form-group">
+                <label>اختر الحساب المراد إضافة المبلغ إليه:</label>
+                <select id="delete-debt-account-select" class="form-control" style="width: 100%; margin-top: 5px; height: 40px;"></select>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button id="confirmDeleteRefundBtn" class="bg-red-500 hover:bg-red-600 text-white w-full py-2 rounded font-bold">تأكيد الحذف والإيداع في الحساب</button>
+        </div>
+    </div>
+</div>
             </body>
     </html>
