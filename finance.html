@@ -3984,12 +3984,10 @@ const selectedMap = new Map(
         })
         .filter(Boolean)
 );
-    // المنتجات العادية المتاحة بالمخزون
+   // التعديل: إزالة شرط الاستبعاد بناءً على الاسم للسماح بظهور المنتج الأساسي كملحق
     const availableProducts = products.filter(p =>
-        p.name.trim().toLowerCase() !== mainProductName &&
         p.quantity > 0
     );
-
     // أضف أيضًا الملحقات المختارة سابقًا حتى لو كانت كميتها الحالية 0
     const mergedProductsMap = new Map();
 
@@ -6668,23 +6666,39 @@ async function handleSaveInvoice() {
     if (amountToCollectNow < 0) amountToCollectNow = 0; 
     // ----------------------
 
-    // 3. حساب التكلفة ومعالجة الملحقات (المنطق المصحح 4.0)
+   // 3. حساب التكلفة ومعالجة الملحقات (المنطق المحدث لضمان دقة الأرباح 100%)
     let totalInvoiceCost = 0;
     let deductedItemsData = [];
-    let quantitiesToDeduct = {}; // لتجميع الكميات التي سيتم خصمها من المخزون
+    let quantitiesToDeduct = {}; 
 
-    // أ. حساب تكلفة المنتجات الأساسية
+    // أ. حساب تكلفة المنتجات الأساسية الموجودة في جدول الفاتورة
     invoiceItems.forEach(item => {
         totalInvoiceCost += (item.costPrice * item.quantity);
         
-        // نجهز الكميات للخصم فقط إذا كانت فاتورة جديدة
+        // خصم المخزون يتم فقط للفواتير الجديدة تماماً
+        // (لأن المبيعات المؤقتة يتم خصم مخزونها لحظة إنشائها كمؤقتة)
         if (!isInvoiceFromPending) {
             quantitiesToDeduct[item.name] = (quantitiesToDeduct[item.name] || 0) + item.quantity;
         }
     });
 
-    // ب. قراءة وحساب تكلفة الملحقات (يتم دائماً الآن لضمان دقة التكلفة وتسجيل البيانات)
-    if (inv_deductibleCostsContainer) {
+    // ب. معالجة الملحقات وتكلفتها (حل مشكلة الربح الزائد)
+    if (isInvoiceFromPending && pendingSaleOriginData) {
+        // إذا كان تأكيد لبيع مؤقت: نسحب الملحقات من البيانات المخزنة سابقاً في الذاكرة
+        // نبحث عنها في كائن invoiceData أو في الكائن الرئيسي للبيع المؤقت
+        const prevDeducted = (pendingSaleOriginData.invoiceData && pendingSaleOriginData.invoiceData.deductedItems) 
+                             ? pendingSaleOriginData.invoiceData.deductedItems 
+                             : (pendingSaleOriginData.deductedItems || []);
+        
+        prevDeducted.forEach(item => {
+            const cost = Number(item.costPrice || item.cost || 0);
+            const qty = Number(item.quantity || 1);
+            totalInvoiceCost += (cost * qty);
+            deductedItemsData.push(item);
+            // ملاحظة: لا نضيف لـ quantitiesToDeduct هنا لأنها خُصمت بالفعل عند عمل "المؤقت"
+        });
+    } else if (inv_deductibleCostsContainer) {
+        // في حالة فاتورة جديدة (ليست من مؤقت): نقرأ من واجهة المستخدم (الـ Checkboxes)
         const checkedBoxes = inv_deductibleCostsContainer.querySelectorAll('input[type="checkbox"]:checked');
         checkedBoxes.forEach(checkbox => {
             const name = checkbox.value;
@@ -6694,21 +6708,16 @@ async function handleSaveInvoice() {
             const qtyToDeduct = parseInt(quantityInput?.value || '0');
             
             if (qtyToDeduct > 0) {
-                // تسجيل البيانات للحفظ في الفاتورة
                 deductedItemsData.push({ name, quantity: qtyToDeduct, costPrice: cost });
-                
-                // إضافة التكلفة للإجمالي (للحصول على صافي ربح دقيق)
                 totalInvoiceCost += (cost * qtyToDeduct);
                 
-                // إضافة للكميات المطلوب خصمها من المخزون (فقط للجديد)
-                if (!isInvoiceFromPending) {
-                    quantitiesToDeduct[name] = (quantitiesToDeduct[name] || 0) + qtyToDeduct;
-                }
+                // إضافة للكميات المطلوب خصمها من المخزون (لأنها فاتورة جديدة)
+                quantitiesToDeduct[name] = (quantitiesToDeduct[name] || 0) + qtyToDeduct;
             }
         });
     }
 
-    // ج. تنفيذ خصم المخزون (فقط للفواتير الجديدة)
+    // ج. تنفيذ خصم المخزون (فقط للفواتير الجديدة لمنع التكرار)
     if (!isInvoiceFromPending) {
         Object.keys(quantitiesToDeduct).forEach(itemName => {
             const productIndex = products.findIndex(p => p.name.toLowerCase() === itemName.toLowerCase());
@@ -6718,8 +6727,8 @@ async function handleSaveInvoice() {
         });
     }
 
-    const finalInvoiceProfit = grandTotal - totalInvoiceCost; 
-
+    // د. حساب الربح النهائي بناءً على التكلفة الشاملة (أساسي + ملحقات)
+    const finalInvoiceProfit = grandTotal - totalInvoiceCost;
     // 4. الحفظ
     if (isPending) {
         // --- حفظ الفاتورة المؤقتة ---
@@ -7274,24 +7283,44 @@ function printPendingSaleAsInvoice(pendingId) {
                 if(inv_grandTotalPriceSpan) inv_grandTotalPriceSpan.textContent = formatCurrency(grandTotal);
             }
 
-         function inv_updateDeductibleCostsCheckboxes() {
+   function inv_updateDeductibleCostsCheckboxes() {
     if (!inv_deductibleCostsContainer) return;
     inv_deductibleCostsContainer.innerHTML = '';
     
-    const itemsInInvoice = inv_invoiceItemsBody ? Array.from(inv_invoiceItemsBody.querySelectorAll('.invoice-item-row')).map(row => row.dataset.itemName.toLowerCase()) : [];
+    // 1. حساب الكميات المستخدمة حالياً داخل جدول الفاتورة
+    const itemsInTable = {};
+    if (inv_invoiceItemsBody) {
+        const rows = Array.from(inv_invoiceItemsBody.querySelectorAll('.invoice-item-row'));
+        rows.forEach(row => {
+            const name = (row.dataset.itemName || "").toLowerCase().trim();
+            const qty = parseInt(row.dataset.itemQty) || 0;
+            if (name) {
+                itemsInTable[name] = (itemsInTable[name] || 0) + qty;
+            }
+        });
+    }
     
-    // استبعاد المنتجات الموجودة في الفاتورة الحالية والمنتجات التي كميتها 0
-    const availableForDeduction = products.filter(p =>
-        !itemsInInvoice.includes(p.name.toLowerCase()) && (Number(p.quantity) || 0) > 0
-    );
+    // 2. تجهيز قائمة المنتجات وحساب المتبقي الحقيقي (المخزن - الموجود بالجدول)
+    const availableForDeduction = products.map(p => {
+        const qtyInStock = Number(p.quantity) || 0;
+        const nameKey = p.name.toLowerCase().trim();
+        const qtyInTable = itemsInTable[nameKey] || 0;
+        const realAvailable = qtyInStock - qtyInTable; // المتبقي الذي يمكن استخدامه كملحق
+        
+        return {
+            ...p,
+            realAvailable: realAvailable
+        };
+    }).filter(p => p.realAvailable > 0); // إظهار المنتجات التي لها رصيد متبقي فقط
 
+    // 3. التحقق من وجود منتجات للعرض
     if (availableForDeduction.length === 0) {
-        inv_deductibleCostsContainer.innerHTML = '<p class="text-center text-sm" style="color:grey;">لا توجد منتجات أخرى متاحة لخصم تكلفتها.</p>';
+        inv_deductibleCostsContainer.innerHTML = '<p class="text-center text-sm" style="color:grey; padding:10px;">لا توجد منتجات متبقية متاحة لخصم تكلفتها.</p>';
         return;
     }
 
+    // 4. ترتيب المنتجات أبجدياً وبناء الواجهة
     availableForDeduction.sort((a, b) => a.name.localeCompare(b.name, 'ar')).forEach(product => {
-        const qtyAvailable = Number(product.quantity) || 0;
         const cost = Number(product.costPrice) || 0;
         const uniqueId = `inv_deductcost_${generateId(product.name)}`;
         
@@ -7303,20 +7332,31 @@ function printPendingSaleAsInvoice(pendingId) {
         label.style.cursor = 'pointer';
         label.htmlFor = uniqueId;
         
-        // بناء HTML بشكل آمن يضمن وجود البيانات
         label.innerHTML = `
-            <input type="checkbox" id="${uniqueId}" value="${product.name}" data-cost="${cost}" data-available="${qtyAvailable}">
+            <input type="checkbox" 
+                   id="${uniqueId}" 
+                   value="${product.name}" 
+                   data-cost="${cost}" 
+                   data-available="${product.realAvailable}">
             <span style="flex-grow: 1; font-size: 0.9em;">
-                 ${product.name} <span class="text-gray-500 text-xs">(ت: ${formatCurrency(cost)} | م: ${qtyAvailable})</span>
+                 ${product.name} 
+                 <span class="text-gray-500 text-xs" style="display:block;">
+                    (ت: ${formatCurrency(cost)} | المتبقي: ${product.realAvailable})
+                 </span>
             </span>
             <span style="flex-shrink: 0; font-size: 0.8em; color: #555;">خصم:</span>
-            <input type="number" class="inv-deducted-item-quantity" min="1" max="${qtyAvailable}" value="1" style="width: 50px; text-align: center; flex-shrink: 0; border: 1px solid #ccc; border-radius: 4px; padding: 2px; font-size: 0.9em;" onclick="event.preventDefault()">
+            <input type="number" 
+                   class="inv-deducted-item-quantity" 
+                   min="1" 
+                   max="${product.realAvailable}" 
+                   value="1" 
+                   style="width: 50px; text-align: center; flex-shrink: 0; border: 1px solid #ccc; border-radius: 4px; padding: 2px; font-size: 0.9em;" 
+                   onclick="event.stopPropagation()">
         `;
         
         inv_deductibleCostsContainer.appendChild(label);
     });
-}
-            // --- Manage Serials Modal Logic ---
+}         // --- Manage Serials Modal Logic ---
             function openManageSerialsModal(productName) {
                 currentManagingSerialsProduct = productName; // Store the product name being managed
                 const product = products.find(p => p.name === productName);
