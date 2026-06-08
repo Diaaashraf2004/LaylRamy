@@ -3905,13 +3905,15 @@ function updateProductListDisplay() {
     const searchTerm = inventorySearchInput.value.trim().toLowerCase();
     const selectedCategory = inventoryCategoryFilter.value;
 
-    // --- 3. تصفية المنتجات بناءً على البحث والقسم ---
-    const filteredProducts = products.filter(product => {
-        const nameMatch = !searchTerm || product.name.toLowerCase().includes(searchTerm);
-        const categoryMatch = (selectedCategory === 'all') || (product.category === selectedCategory);
-        return nameMatch && categoryMatch;
-    });
-
+   // --- 3. تصفية المنتجات بناءً على البحث والقسم والكمية أكبر من صفر ---
+const filteredProducts = products.filter(product => {
+    const nameMatch = !searchTerm || product.name.toLowerCase().includes(searchTerm);
+    const categoryMatch = (selectedCategory === 'all') || (product.category === selectedCategory);
+    // 🌟 التعديل الجديد: إخفاء المنتجات التي كميتها صفر تلقائياً من شاشة العرض
+    const qtyMatch = (Number(product.quantity) || 0) > 0; 
+    
+    return nameMatch && categoryMatch && qtyMatch;
+});
     // --- 4. عرض المنتجات المفلترة ---
     if (filteredProducts.length === 0) {
         if (products.length === 0) {
@@ -14055,23 +14057,40 @@ window.executeCancellation = async function(saleId, accountId, amount) {
         // إزالة أي قيم فارغة (null/undefined)
         itemsToReturn = itemsToReturn.filter(Boolean);
 
-        itemsToReturn.forEach(item => {
-            let product = (item.id ? products.find(p => String(p.id) === String(item.id)) : null)
-                        || products.find(p => p.name.trim().toLowerCase() === (item.name || '').trim().toLowerCase());
+      itemsToReturn.forEach(item => {
+    // تنظيف الاسم من السيريال إن وجد للبحث الدقيق
+    const cleanItemName = (item.name || '').split(' (S/N:')[0].trim().toLowerCase();
+    
+    let product = (item.id ? products.find(p => String(p.id) === String(item.id)) : null) || 
+                  products.find(p => p.name.trim().toLowerCase() === cleanItemName);
+                  
+    const returnedQty = Number(item.quantity) || 1;
 
-            if (product) {
-                // التأكد من أن الكمية المرتجعة صحيحة
-                const returnedQty = Number(item.quantity) || 1; 
-                product.quantity = Number(product.quantity || 0) + returnedQty;
-
-                // تحديث حالة السيريال إن وجد
-                if (item.serial) {
-                    let sLog = serialNumbersLog.find(l => l.serial === item.serial);
-                    if (sLog) sLog.status = 'in_stock';
-                }
-            }
+    if (product) {
+        // إذا كان المنتج موجوداً، نزيد كميته فقط
+        product.quantity = Number(product.quantity || 0) + returnedQty;
+        if (item.serial) {
+            let sLog = serialNumbersLog.find(l => l.serial === item.serial);
+            if (sLog) sLog.status = 'in_stock';
+        }
+    } else {
+        // 🛡️ حماية حرجـة لرأس المال: إذا قمت بحذف المنتج يدوياً سابقاً ولم يجده البرنامج
+        // نقوم بإعادة إنشائه وضخه في المخزن فوراً بتكلفته الأصلية حتى لا يقل رأس المال
+        products.push({
+            id: item.id || "P-" + Date.now() + Math.floor(Math.random() * 100),
+            name: (item.name || '').split(' (S/N:')[0].trim(),
+            quantity: returnedQty,
+            costPrice: Number(item.costPrice || item.cost) || 0,
+            supplierId: item.supplierId || "",
+            category: item.category || "عام"
         });
-
+        
+        if (item.serial) {
+            let sLog = serialNumbersLog.find(l => l.serial === item.serial);
+            if (sLog) sLog.status = 'in_stock';
+        }
+    }
+});
         // ج. معالجة "الربح المتوقع" 
         if (typeof expectedProfitsTotal !== 'undefined' && sale.expectedProfit) {
             expectedProfitsTotal -= Number(sale.expectedProfit);
