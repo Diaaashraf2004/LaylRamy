@@ -1395,7 +1395,7 @@ input:checked:active + .slider:before {
     </div>
 </section>
             <section id="inventory-section" class="widget-card content-section hidden">
-                <div id="add-update-product-form">
+              <div id="add-update-product-form">
                     <h2 id="product-form-title">إضافة / تحديث بضاعة</h2>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div class="mb-4">
@@ -1417,55 +1417,45 @@ input:checked:active + .slider:before {
                             <label for="product-supplier" class="block text-gray-700 text-sm font-bold mb-2">المورد (اختياري):</label>
                             <select id="product-supplier" class="shadow-sm">
                                 <option value="">-- اختر المورد --</option>
-                                </select>
+                            </select>
                         </div>
                         <div class="mb-4">
-    <label for="product-supplier" class="block text-gray-700 text-sm font-bold mb-2">المورد (اختياري):</label>
-    <select id="product-supplier" class="shadow-sm">
-        <option value="">-- اختر المورد --</option>
-    </select>
-</div>
-
-<div class="mb-4">
-    <label for="product-category" class="block text-gray-700 text-sm font-bold mb-2">القسم (اختياري):</label>
-    <input type="text" id="product-category" placeholder="مثال: اكسسوارات، شاشات" class="shadow-sm" list="category-names-list">
-    <datalist id="category-names-list"></datalist>
-</div>
-<div class="mb-4 col-span-full md:col-span-1">
-    <label for="product-deduct-liquidity" class="inline-flex items-center cursor-pointer mt-2">
-                         <div class="mb-4 col-span-full md:col-span-1">
+                            <label for="product-category" class="block text-gray-700 text-sm font-bold mb-2">القسم (اختياري):</label>
+                            <input type="text" id="product-category" placeholder="مثال: اكسسوارات، شاشات" class="shadow-sm" list="category-names-list">
+                            <datalist id="category-names-list"></datalist>
+                        </div>
+                        <div class="mb-4 col-span-full md:col-span-1">
                             <label for="product-deduct-liquidity" class="inline-flex items-center cursor-pointer mt-2">
                                 <input type="checkbox" id="product-deduct-liquidity" class="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-300 focus:ring focus:ring-offset-0 focus:ring-indigo-200 focus:ring-opacity-50 ml-2">
                                 <span class="text-sm text-gray-700 font-medium">خصم تكلفة البضاعة المضافة من السيولة؟</span>
                             </label>
                             <p class="text-xs text-gray-500 mt-1">سيتم خصم تكلفة الكمية *المضافة* فقط.</p>
                             <div id="product-purchase-account-container" class="form-group mt-2 hidden">
-    <label for="product-purchase-account" class="block text-sm font-bold mb-1">خصم من حساب:</label>
-    <select id="product-purchase-account" class="shadow-sm"></select>
-</div>
+                                <label for="product-purchase-account" class="block text-sm font-bold mb-1">خصم من حساب:</label>
+                                <select id="product-purchase-account" class="shadow-sm"></select>
+                            </div>
                         </div>
                         <div id="serial-number-entry-container" class="mb-4 col-span-full hidden">
                             <div class="flex justify-between items-center mb-2 flex-wrap gap-2">
                                 <label for="product-serial-numbers" class="block text-gray-700 text-sm font-bold">
-                                    الأرقام التسلسلية (اختياري - كل رقم في سطر، أو مفصولة بفاصلة/مسافة):
+                                    الأرقام التسلسلية (لكل رقم في سطر، أو مفصولة بفاصلة/مسافة):
                                 </label>
                                 <label for="import-serial-csv-input" class="button-like bg-teal-500 hover:bg-teal-600 text-white text-xs py-1 px-3 rounded-md cursor-pointer">
                                     استيراد من ملف CSV
                                 </label>
                                 <input type="file" id="import-serial-csv-input" accept=".csv,.txt">
                             </div>
-                            <textarea id="product-serial-numbers" rows="4" class="shadow-sm w-full font-mono text-sm" placeholder="SN12345&#10;SN12346, SN12347 SN12348..."></textarea>
+                            <textarea id="product-serial-numbers" rows="4" class="shadow-sm w-full font-mono text-sm" placeholder="SN12345&#10;SN12346, SN12347..."></textarea>
                             <p class="text-xs text-gray-500 mt-1">إذا أدخلت سيريالات، يجب أن يتطابق عددها مع الكمية المضافة.</p>
                             <div id="serial-import-message" class="section-message text-xs mt-2"></div>
                         </div>
                         <div class="col-span-full flex flex-wrap gap-2 items-center">
                            <button id="add-product-button" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded">إضافة/تحديث البضاعة</button>
                            <button id="cancel-edit-product-button" class="bg-gray-400 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded hidden">إلغاء التعديل</button>
-                       </div>
-                       <div id="product-message" class="section-message mt-3 col-span-full"></div>
-                   </div>
+                        </div>
+                        <div id="product-message" class="section-message mt-3 col-span-full"></div>
+                    </div>
                 </div>
-
                 <div class="mt-8 border-t pt-6">
                     <h3 class="sub-heading">قائمة البضائع المتوفرة</h3>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
@@ -3005,7 +2995,31 @@ let customerProfileContent, customerStatementContent, collectionNotesHistory;
 let collectionNoteText, collectionNoteFollowupDate, saveCollectionNoteBtn, collectionNotesMessage;
 let activeCustomerForNotes = null;
 
+// 🌟 دالة د. ضياء لتوليد المعرفات الفريدة الشاملة في السيستم
+function generateGlobalID(prefix) {
+    return prefix + "_" + Date.now() + "_" + Math.floor(Math.random() * 1000000);
+}
 
+// دالة فحص وتأمين البيانات القديمة (تمنح أكواداً للمنتجات التي لا تملك كوداً فور تشغيل البرنامج)
+function clearAndSecureOldData() {
+    if (Array.isArray(products)) {
+        products.forEach(p => {
+            if (!p.id) p.id = generateGlobalID('prod');
+        });
+    }
+    if (Array.isArray(suppliers)) {
+        suppliers.forEach(s => {
+            if (!s.id) s.id = generateGlobalID('supp');
+        });
+    }
+    if (Array.isArray(accounts)) {
+        accounts.forEach(acc => {
+            if (!acc.id) acc.id = generateGlobalID('acc');
+        });
+    }
+}
+// تشغيل التأمين فوراً
+clearAndSecureOldData();
         // --- الدوال المساعدة (Helper Functions) ---
 // دالة مساعدة لإضافة مبلغ إلى السيولة وتسجيله في السجل
 // دالة لحفظ فاتورة الشراء في أرشيف مستقل للرجوع إليها لاحقاً من قسم الالتزامات
@@ -3948,9 +3962,9 @@ const filteredProducts = products.filter(product => {
                             ${categoryHTML}
                         </div>
                         <div class="mt-3 pt-3 border-t border-gray-200 flex justify-end gap-2 product-actions">
-                            <button data-product-name="${product.name}" class="manage-serials-btn text-xs font-semibold py-1 px-2 rounded">إدارة السيريالات</button>
-                            <button data-product-name="${product.name}" class="edit-product-btn text-xs bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-semibold py-1 px-2 rounded border border-yellow-500">تعديل</button>
-                            <button data-product-name="${product.name}" class="delete-product-btn text-xs bg-red-500 hover:bg-red-600 text-white font-semibold py-1 px-2 rounded border border-red-600">حذف</button>
+                            <button data-product-id="${product.id || ''}" data-product-name="${product.name}" class="manage-serials-btn text-xs font-semibold py-1 px-2 rounded">إدارة السيريالات</button>
+                         <button data-product-id="${product.id || ''}" data-product-name="${product.name}" class="edit-product-btn text-xs bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-semibold py-1 px-2 rounded border border-yellow-500">تعديل</button>
+                           <button data-product-id="${product.id || ''}" data-product-name="${product.name}" class="delete-product-btn text-xs bg-red-500 hover:bg-red-600 text-white font-semibold py-1 px-2 rounded border border-red-600">حذف</button>
                         </div>
                     </div>`;
         }).join('');
@@ -3959,7 +3973,8 @@ const filteredProducts = products.filter(product => {
     }
     
     // --- 5. تحديث قائمة الإكمال التلقائي لاسم المنتج (يجب أن تستخدم القائمة الكاملة دائمًا) ---
-    productNamesDatalist.innerHTML = products.map(p => `<option value="${p.name}"></option>`).join('');
+  // الداتاليست لازم تفضل تبعت الاسم فقط (هي للعرض/الإكمال النصي، مش بحث بالـ ID)
+productNamesDatalist.innerHTML = products.map(p => `<option value="${p.name}">${p.name} (القسم: ${p.category || 'عام'}) - المتاح: ${p.quantity}</option>`).join('');
 }
  function updateLogDisplay(){if(!operationLogList){return;} if(operationLog.length === 0){operationLogList.innerHTML = '<li class="text-center text-gray-500 list-none">لا توجد عمليات مسجلة بعد.</li>';} else {operationLogList.innerHTML = [...operationLog].reverse().map(log => `<li class=""><span class="font-semibold text-gray-700">${log.type}:</span> <span class="text-gray-600">${log.details}</span><span class="block text-xs text-gray-400">${formatDateTime(log.timestamp)}</span></li>`).join('');} }
      function updateAdditionalCostsCheckboxes(selectedAttachments = []) {
@@ -5112,29 +5127,32 @@ window.convertPendingSaleToDebt = async function(pendingSaleId, debtMode, target
     if (typeof saveSystemToCloud === 'function') {
         saveSystemToCloud();
     }
-};function populateReturnProductSelect() {
+};
+function populateReturnProductSelect() {
     const returnProductSelect = d('return-product-select');
     if (!returnProductSelect) return;
     
-    const currentSelection = returnProductSelect.value;
+    const currentSelection = returnProductSelect.value; // حفظ الـ ID أو القيمة الحالية
     returnProductSelect.innerHTML = '<option value="">-- اختر من القائمة --</option>';
 
     const productsInStock = products.filter(p => (p.quantity || 0) > 0);
     const sortedProducts = productsInStock.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
 
+    // 🌟 [تعديل د. ضياء]: جعل قائمة أصناف المرتجعات ترسل الـ ID الفريد لمنع تداخل الأصناف متشابهة الاسم
     sortedProducts.forEach(p => {
         const option = document.createElement('option');
-        option.value = p.name;
-        option.textContent = `${p.name} (المتاح: ${p.quantity})`;
+        option.value = p.id || p.name; // 🆔 تمرير الـ ID الفريد كقيمة للخيار
+        option.textContent = `${p.name} (القسم: ${p.category || 'عام'}) - المتاح: ${p.quantity}`;
         option.dataset.cost = p.costPrice;
+        option.dataset.id = p.id || ""; // أمان إضافي لحفظ الـ ID في الداتا سيت
         returnProductSelect.appendChild(option);
     });
 
-    if (sortedProducts.some(p => p.name === currentSelection)) {
+    // 🌟 [تأمين د. ضياء]: التحقق بالـ ID أو الاسم لضمان بقاء المنتج المختار نشطاً دون مسحه أثناء التحديث
+    if (sortedProducts.some(p => (p.id && p.id === currentSelection) || p.name === currentSelection)) {
         returnProductSelect.value = currentSelection;
     }
 }
-
 function updateReturnsUI() {
     updateCompletedReturnsDisplay();
     updatePendingReturnsDisplay();
@@ -5179,52 +5197,6 @@ function updatePendingReturnsDisplay() {
     `).join('');
 }
 
-// ✅✅✅ الكود الجديد والصحيح لدالة handleConfirmReceipt ✅✅✅
-function handleConfirmReceipt(pendingId) {
-    saveStateToHistory();
-    const returnIndex = pendingReturns.findIndex(r => r.id === pendingId);
-    if (returnIndex === -1) {
-        showGlobalMessage("خطأ: لم يتم العثور على المرتجع المعلق.", true);
-        return;
-    }
-
-    const ret = pendingReturns.splice(returnIndex, 1)[0];
-
-    // --- ✅ بداية الإصلاح: هذه الدالة الآن لوجيستية فقط ---
-
-    // 1. تحديث المخزون باستخدام التكلفة الصحيحة المحفوظة
-    ret.items.forEach(item => {
-        // item.costPrice هنا يحتوي على القيمة الصحيحة التي تم حسابها في الخطوة السابقة
-        if (ret.returnAtSalePrice) {
-            const newProductName = `${item.name} - ${ret.customerName} (مرتجع)`;
-            products.push({ name: newProductName, quantity: item.quantity, costPrice: item.costPrice });
-        } else {
-            const pIndex = products.findIndex(p => p.name === item.name);
-            if (pIndex !== -1) {
-                // منطق حساب المتوسط الصحيح
-                const existing = products[pIndex];
-                const oldTotalValue = (existing.costPrice || 0) * (existing.quantity || 0);
-                const newTotalValue = item.costPrice * item.quantity;
-                existing.quantity += item.quantity;
-                existing.costPrice = (oldTotalValue + newTotalValue) / existing.quantity;
-            } else {
-                // إضافة المنتج بتكلفته الصحيحة لأول مرة
-                products.push({ name: item.name, quantity: item.quantity, costPrice: item.costPrice || 0 });
-            }
-        }
-    });
-
-    // 2. نقل المرتجع إلى قائمة المكتملة
-    completedReturns.push({ ...ret, status: 'Completed', timestamp: new Date().toISOString() });
-
-    // 3. تسجيل العملية كإجراء لوجيستي
-    logOperation("تأكيد استلام مرتجع", `تم تأكيد استلام ${ret.items.map(i=> i.quantity + 'x ' + i.name).join(', ')} في المخزن.`);
-    
-    // --- ✅ نهاية الإصلاح: تم حذف كل العمليات المالية من هنا ---
-
-    updateUI();
-    showGlobalMessage("تم تأكيد استلام البضاعة وتحديث المخزون بنجاح.", false);
-}
 
 
 // أضف هذه الدالة الجديدة بالكامل
@@ -5253,8 +5225,22 @@ function handleManualReturn() {
     const returnMessage = d('return-message');
     
     // قراءة البيانات من المدخلات
-    const productName = d('return-product-select').value || d('return-manual-product-name').value.trim();
-    const quantity = parseInputNumber(d('return-quantity'));
+   // قراءة البيانات من المدخلات بالـ ID أو الاسم لمنع المنتجات الوهمية
+    const selectedValue = d('return-product-select').value;
+    const manualName = d('return-manual-product-name').value.trim();
+    let productData = null;
+    let productName = '';
+
+    if (selectedValue) {
+        productData = products.find(p => p.id === selectedValue) || products.find(p => p.name === selectedValue);
+        productName = productData ? productData.name : selectedValue;
+    } else {
+        productName = manualName;
+        if (manualName) {
+            productData = products.find(p => p.name.trim().toLowerCase() === manualName.toLowerCase());
+        }
+    }
+     const quantity = parseInputNumber(d('return-quantity'));
     const customerName = d('return-customer-name').value.trim() || 'عميل';
     const returnedAmount = parseInputNumber(d('return-sale-price-input'));
     const financialType = document.querySelector('input[name="return-financial-type"]:checked').value;
@@ -5277,7 +5263,6 @@ function handleManualReturn() {
     // =================================================================
     // 🔥🔥 التعديل الجوهري هنا: حساب تكلفة البضاعة بناءً على خيارك 🔥🔥
     // =================================================================
-    const productData = products.find(p => p.name === productName);
     let costOfGoods = 0;
 
     if (returnAtSalePrice) {
@@ -5326,41 +5311,52 @@ function handleManualReturn() {
 
     if (receiveNow) {
         if (returnAtSalePrice) {
-            // خيار: إضافة كمنتج منفصل لتمييزه (أو يمكنك دمجه وحساب متوسط جديد)
-            // هنا سنضيفه كمنتج منفصل ليكون واضحاً أنه مرتجع بسعر مختلف
-            products.push({ 
-                name: `${productName} - ${customerName} (مرتجع)`, 
-                quantity: quantity, 
-                costPrice: newUnitCost // هنا سيأخذ سعر البيع كتكلفة
-            });
+            // 🌟 [تأمين د. ضياء]: توليد كود فريد للمنتج المنفصل الجديد لضمان إمكانية بيعه أو تعديله لاحقاً
+            const uniqueProductCode = "code_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
+           products.push({ 
+    id: uniqueProductCode, 
+    name: `${productName} - ${customerName} (مرتجع)`, 
+    quantity: quantity, 
+    costPrice: newUnitCost,
+    category: productData ? (productData.category || "مرتجع") : "مرتجع", // 🌟 الحفاظ على القسم لمنع ظهور الصنف بدون قسم
+    supplierId: productData ? (productData.supplierId || "") : ""        // 🌟 الحفاظ على المورد
+});
         } else {
-            // المنطق العادي: دمج وحساب المتوسط
             if (productData) {
                 const oldTotalValue = (productData.costPrice || 0) * (productData.quantity || 0);
-                const newTotalValue = costOfGoods; // محسوبة بالأعلى
+                const newTotalValue = costOfGoods; 
                 productData.quantity += quantity;
-                // تحديث المتوسط
                 productData.costPrice = (oldTotalValue + newTotalValue) / productData.quantity;
             } else {
-                products.push({ name: productName, quantity, costPrice: newUnitCost });
+                // 🌟 [تأمين د. ضياء]: توليد كود فريد للمنتج اليدوي الجديد كلياً في المخزن
+                const uniqueProductCode = "code_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
+               products.push({ 
+    id: uniqueProductCode, 
+    name: productName, 
+    quantity, 
+    costPrice: newUnitCost,
+    category: "عام", // 🌟 إعطاؤه قسماً افتراضياً لكي لا يظهر فارغاً بالفلاتر
+    supplierId: ""
+});
             }
-        }
-        
-        completedReturns.push({ id: generateId('ret'), items: [{ name: productName, quantity }], customerName, returnedAmount, timestamp: new Date().toISOString() });
-        logOperation("مرتجع فوري", logDetails + " وتم استلام البضاعة.");
+        }    
+      // 🌟 تم تمرير حقل الـ id داخل مصفوفة الأصناف المكتملة لضمان دقة التقارير والجرد التاريخي
+completedReturns.push({ id: generateId('ret'), items: [{ id: productData ? productData.id : null, name: productName, quantity }], customerName, returnedAmount, timestamp: new Date().toISOString() });
+  logOperation("مرتجع فوري", logDetails + " وتم استلام البضاعة.");
         showMessage(returnMessage, "تم تسجيل المرتجع واستلامه بالمخزن بنجاح.", false);
         
-    } else {
-        // --- مرتجع قيد الاستلام ---
+   } else {
         if (typeof pendingReturnsValue !== 'undefined') {
              pendingReturnsValue += returnedAmount;
         }
         
         pendingReturns.push({
             id: generateId('pend-ret'),
-            // 🔥 هنا الإصلاح للمرتجع المعلق: نمرر التكلفة المحسوبة (الجديدة) وليس القديمة 🔥
-            items: [{ name: productName, quantity, costPrice: newUnitCost }],
-            customerName, returnedAmount,
+            // 🌟 [تعديل حاسم بالـ ID]: حفر المعرف الفريد للمنتج داخل الصنف المعلق 
+            // لكي تراه دالة handleConfirmReceipt بالـ ID وتمنع تداخل الأسماء تماماً عند الاستلام الفعلي لاحقاً!
+            items: [{ id: productData ? productData.id : null, name: productName, quantity, costPrice: newUnitCost }],
+            customerName, 
+            returnedAmount,
             returnAtSalePrice: returnAtSalePrice,
         });
         logOperation("مرتجع قيد الاستلام", logDetails + " والبضاعة قيد الاستلام.");
@@ -6252,56 +6248,63 @@ function processMonthlyLiabilities() {
                  }
              }
 
-            // **** دالة جديدة لملء قائمة السيريالات المتاحة مع فلترة ****
-            function populateAvailableSerials(productName, selectElement, searchTerm = '') {
-                if (!selectElement) return;
-                const currentSelectedValue = selectElement.value; // Keep track of current selection if any
-                selectElement.innerHTML = ''; // Clear previous options
+         function populateAvailableSerials(productIdOrName, selectElement, searchTerm = '') {
+    if (!selectElement) return;
+    const currentSelectedValue = selectElement.value; // الاحتفاظ بالسيريال المختار حالياً إن وجد
+    selectElement.innerHTML = ''; // مسح الخيارات القديمة
 
-                const availableSerials = serialNumbersLog.filter(log =>
-                    log.productName === productName && log.status === 'in_stock'
-                );
+    // 🌟 [تعديل د. ضياء الحصري]: العثور على كائن المنتج أولاً للفلترة بكوده الفريد واسمه بدقة
+    const product = products.find(p => p.id === productIdOrName || p.name === productIdOrName);
+    const currentProductName = product ? product.name : productIdOrName;
+    const currentProductId = product ? product.id : null;
 
-                // استبعاد السيريالات الموجودة بالفعل في الفاتورة الحالية (المحجوزة مؤقتاً)
-                const serialsInCurrentInvoice = [];
-                if (inv_invoiceItemsBody) {
-                    inv_invoiceItemsBody.querySelectorAll('.invoice-item-row').forEach(row => {
-                        if (row.dataset.itemSerial) {
-                            serialsInCurrentInvoice.push(row.dataset.itemSerial);
-                        }
-                    });
-                }
+    // تصفية السيريالات المتوفرة بالمخزن والتابعة لهذا الـ ID أو الاسم كخط دفاع بديل
+    const availableSerials = serialNumbersLog.filter(log => {
+        if (currentProductId && log.productId) {
+            return log.productId === currentProductId && log.status === 'in_stock';
+        }
+        return log.productName === currentProductName && log.status === 'in_stock';
+    });
 
-                // فلترة إضافية بناءً على مصطلح البحث
-                const filteredSerials = availableSerials
-                    .filter(log => !serialsInCurrentInvoice.includes(log.serial))
-                    .filter(log => log.serial.toLowerCase().includes(searchTerm.toLowerCase())); // Filter by search term
-
-                if (filteredSerials.length > 0) {
-                     selectElement.innerHTML = '<option value="">-- اختر الرقم التسلسلي --</option>'; // Add default option back
-                    filteredSerials.forEach(log => {
-                        const option = document.createElement('option');
-                        option.value = log.serial;
-                        option.textContent = log.serial;
-                         if (log.serial === currentSelectedValue) { // Re-select if it still matches filter
-                             option.selected = true;
-                         }
-                        selectElement.appendChild(option);
-                    });
-                     // Ensure the previously selected value is still set if it exists after filtering
-                     if (filteredSerials.some(log => log.serial === currentSelectedValue)) {
-                         selectElement.value = currentSelectedValue;
-                     } else {
-                         selectElement.value = ""; // Reset if previous selection is filtered out
-                     }
-                    return true; // Indicate that serials are available
-                } else {
-                     selectElement.innerHTML = `<option value="">-- لا توجد سيريالات مطابقة${searchTerm ? ' للبحث' : ''} --</option>`;
-                     return false; // Indicate no serials available or matching search
-                }
+    // استبعاد السيريالات الموجودة بالفعل في الفاتورة الحالية (المحجوزة مؤقتاً في بقية الأسطر)
+    const serialsInCurrentInvoice = [];
+    if (inv_invoiceItemsBody) {
+        inv_invoiceItemsBody.querySelectorAll('.invoice-item-row').forEach(row => {
+            if (row.dataset.itemSerial) {
+                serialsInCurrentInvoice.push(row.dataset.itemSerial);
             }
+        });
+    }
 
+    // فلترة إضافية بناءً على مصطلح البحث المكتوب واستبعاد المحجوز مؤقتاً
+    const filteredSerials = availableSerials
+        .filter(log => !serialsInCurrentInvoice.includes(log.serial))
+        .filter(log => log.serial.toLowerCase().includes(searchTerm.toLowerCase()));
 
+    if (filteredSerials.length > 0) {
+        selectElement.innerHTML = '<option value="">-- اختر الرقم التسلسلي --</option>'; 
+        filteredSerials.forEach(log => {
+            const option = document.createElement('option');
+            option.value = log.serial;
+            option.textContent = log.serial;
+            if (log.serial === currentSelectedValue) { 
+                option.selected = true;
+            }
+            selectElement.appendChild(option);
+        });
+        
+        // التأكيد على بقاء القيمة المختارة نشطة إذا كانت لا تزال تطابق الفلترة
+        if (filteredSerials.some(log => log.serial === currentSelectedValue)) {
+            selectElement.value = currentSelectedValue;
+        } else {
+            selectElement.value = ""; 
+        }
+        return true; 
+    } else {
+        selectElement.innerHTML = `<option value="">-- لا توجد سيريالات مطابقة${searchTerm ? ' للبحث' : ''} --</option>`;
+        return false; 
+    }
+}
 function inv_addInvoiceItem() {
     // تعريف حقول الإدخال الأساسية
     const nameInput = document.getElementById('inv_itemName');
@@ -6392,7 +6395,7 @@ function inv_addInvoiceItem() {
     newRow.dataset.itemPrice = price.toFixed(2);
     newRow.dataset.itemSubtotal = subtotal.toFixed(2);
     newRow.dataset.itemCost = currentCostPrice.toFixed(2);
-
+if (currentProduct) newRow.dataset.productId = currentProduct.id || ""; // 🌟 حفر كود المنتج الفريد في صف الجدول
     // إضافة بيانات السيريال للصف
     if (selectedSerial && qty === 1) {
         newRow.dataset.itemSerial = selectedSerial;
@@ -6551,31 +6554,50 @@ function processInventoryAndCosts(items, isFromPending) {
 
     // 2. تجميع وخصم الملحقات (الهدايا)
     // يتم هذا فقط للفواتير الجديدة، لأن الفواتير القادمة من "معلق" تم خصم ملحقاتها مسبقاً
+   // 🌟 [تعديل د. ضياء]: جمع الملحقات المخصومة بالـ ID والاسم معاً لضمان عدم التداخل برمجياً
     if (!isFromPending && inv_deductibleCostsContainer) {
         const checkedBoxes = inv_deductibleCostsContainer.querySelectorAll('input[type="checkbox"]:checked');
         checkedBoxes.forEach(checkbox => {
-            const name = checkbox.value;
+            const productIdOrName = checkbox.value;
+            const pId = checkbox.dataset.id || "";
+            const pName = checkbox.dataset.name || productIdOrName;
             const cost = parseFloat(checkbox.dataset.cost) || 0;
             const parentLabel = checkbox.parentElement;
             const qtyInput = parentLabel.querySelector('.inv-deducted-item-quantity');
             const qtyToDeduct = parseInt(qtyInput?.value || '0');
             
             if (qtyToDeduct > 0) {
-                deductedItemsData.push({ name, quantity: qtyToDeduct, costPrice: cost });
-                totalItemsCost += (cost * qtyToDeduct); // نضيف تكلفة الهدية للتكلفة الكلية
-                requiredQuantities[name] = (requiredQuantities[name] || 0) + qtyToDeduct;
+                // 🆔 حفظ الـ id والاسم معاً داخل مصفوفة الملحقات
+                deductedItemsData.push({ 
+                    id: pId || null, 
+                    name: pName, 
+                    quantity: qtyToDeduct, 
+                    costPrice: cost 
+                });
+                
+                totalItemsCost += (cost * qtyToDeduct); // إضافة التكلفة الكلية للملحق
+                
+                // الاعتماد على الـ ID كمفتاح فريد لحجز الكمية، والاسم كبديل للأصناف القديمة
+                const key = pId || pName;
+                requiredQuantities[key] = (requiredQuantities[key] || 0) + qtyToDeduct;
             }
         });
     }
-
-    // 3. التنفيذ الفعلي للخصم من مصفوفة المنتجات العامة
-    Object.keys(requiredQuantities).forEach(itemName => {
-        const productIndex = products.findIndex(p => p.name.toLowerCase() === itemName.toLowerCase());
+   // 🌟 [تعديل د. ضياء الحصري]: التنفيذ الفعلي للخصم المباشر من المخزن بالـ ID الفريد
+if (!isFromPending) {
+    items.forEach(item => {
+        let productIndex = -1;
+        if (item.id) {
+            productIndex = products.findIndex(p => p.id === item.id);
+        }
+        if (productIndex === -1) {
+            productIndex = products.findIndex(p => p.name.toLowerCase() === item.name.toLowerCase());
+        }
         if (productIndex !== -1) {
-            products[productIndex].quantity -= requiredQuantities[itemName];
+            products[productIndex].quantity -= item.quantity;
         }
     });
-
+}
     return { totalItemsCost, deductedItemsData };
 }
 
@@ -6641,15 +6663,15 @@ async function handleSaveInvoice() {
     const customerAddress = inv_customerAddressInput ? inv_customerAddressInput.value.trim() : '';
     const phones = inv_invoiceForm ? Array.from(inv_invoiceForm.querySelectorAll('input[name="phone[]"]')).map(input => input.value.trim()).filter(phone => phone) : [];
     
-    const invoiceItems = inv_invoiceItemsBody ? Array.from(inv_invoiceItemsBody.querySelectorAll('.invoice-item-row')).map(row => ({
-        name: row.dataset.itemName,
-        quantity: parseInt(row.dataset.itemQty),
-        unitPrice: parseFloat(row.dataset.itemPrice),
-        subtotal: parseFloat(row.dataset.itemSubtotal),
-        costPrice: parseFloat(row.dataset.itemCost),
-        serial: row.dataset.itemSerial || null
-    })) : [];
-
+  const invoiceItems = inv_invoiceItemsBody ? Array.from(inv_invoiceItemsBody.querySelectorAll('.invoice-item-row')).map(row => ({ 
+    id: row.dataset.productId || null, // 🌟 التقاط الـ ID الفريد من الجدول
+    name: row.dataset.itemName, 
+    quantity: parseInt(row.dataset.itemQty), 
+    unitPrice: parseFloat(row.dataset.itemPrice), 
+    subtotal: parseFloat(row.dataset.itemSubtotal), 
+    costPrice: parseFloat(row.dataset.itemCost), 
+    serial: row.dataset.itemSerial || null 
+})) : [];
     const shippingCost = parseInputNumber(inv_shippingCostInput) || 0;
     const warranty = inv_warrantyInput ? inv_warrantyInput.value.trim() : '';
     const notes = inv_notesTextarea ? inv_notesTextarea.value.trim() : '';
@@ -6719,16 +6741,24 @@ async function handleSaveInvoice() {
         });
     }
 
-    // ج. تنفيذ خصم المخزون (فقط للفواتير الجديدة لمنع التكرار)
-    if (!isInvoiceFromPending) {
-        Object.keys(quantitiesToDeduct).forEach(itemName => {
-            const productIndex = products.findIndex(p => p.name.toLowerCase() === itemName.toLowerCase());
-            if (productIndex !== -1) {
-                products[productIndex].quantity -= quantitiesToDeduct[itemName];
-            }
-        });
-    }
-
+   // 🌟 [تعديل د. ضياء الحصري]: تنفيذ خصم المخزون بناءً على الـ ID الفريد منعاً لتداخل الأصناف متشابهة الاسم
+if (!isInvoiceFromPending) {
+    invoiceItems.forEach(item => {
+        let productIndex = -1;
+        // أ. محاولة مطابقة الصنف بالـ ID أولاً لضمان الدقة المطلقة
+        if (item.id) {
+            productIndex = products.findIndex(p => p.id === item.id);
+        }
+        // ب. خط دفاع بديل بالاسم لو الفاتورة قديمة ولا تملك ID
+        if (productIndex === -1) {
+            productIndex = products.findIndex(p => p.name.toLowerCase() === item.name.toLowerCase());
+        }
+        // ج. تنفيذ الخصم الفردي من الكارت المقصود حصراً
+        if (productIndex !== -1) {
+            products[productIndex].quantity -= item.quantity;
+        }
+    });
+}
     // د. حساب الربح النهائي بناءً على التكلفة الشاملة (أساسي + ملحقات)
     const finalInvoiceProfit = grandTotal - totalInvoiceCost;
     // 4. الحفظ
@@ -7285,35 +7315,40 @@ function printPendingSaleAsInvoice(pendingId) {
                 if(inv_grandTotalPriceSpan) inv_grandTotalPriceSpan.textContent = formatCurrency(grandTotal);
             }
 
-   function inv_updateDeductibleCostsCheckboxes() {
+  function inv_updateDeductibleCostsCheckboxes() {
     if (!inv_deductibleCostsContainer) return;
     inv_deductibleCostsContainer.innerHTML = '';
     
-    // 1. حساب الكميات المستخدمة حالياً داخل جدول الفاتورة
+    // 1. حساب الكميات المستخدمة حالياً داخل جدول الفاتورة بالـ ID والاسم معاً لضمان عدم التداخل
     const itemsInTable = {};
     if (inv_invoiceItemsBody) {
         const rows = Array.from(inv_invoiceItemsBody.querySelectorAll('.invoice-item-row'));
         rows.forEach(row => {
+            const id = row.dataset.productId || "";
             const name = (row.dataset.itemName || "").toLowerCase().trim();
             const qty = parseInt(row.dataset.itemQty) || 0;
-            if (name) {
-                itemsInTable[name] = (itemsInTable[name] || 0) + qty;
+            const key = id || name; // الاعتماد على الـ ID كمفتاح أساسي والاسم كبديل للأصناف القديمة
+            if (key) {
+                itemsInTable[key] = (itemsInTable[key] || 0) + qty;
             }
         });
     }
     
-    // 2. تجهيز قائمة المنتجات وحساب المتبقي الحقيقي (المخزن - الموجود بالجدول)
+    // 2. تجهيز قائمة المنتجات وحساب المتبقي الحقيقي بالـ ID الفريد
     const availableForDeduction = products.map(p => {
         const qtyInStock = Number(p.quantity) || 0;
+        const idKey = p.id || "";
         const nameKey = p.name.toLowerCase().trim();
-        const qtyInTable = itemsInTable[nameKey] || 0;
-        const realAvailable = qtyInStock - qtyInTable; // المتبقي الذي يمكن استخدامه كملحق
+        
+        // فحص الكمية المحجوزة في الجدول بناءً على الـ ID أولاً ثم الاسم كبديل أمان
+        const qtyInTable = (idKey && itemsInTable[idKey]) ? itemsInTable[idKey] : (itemsInTable[nameKey] || 0);
+        const realAvailable = qtyInStock - qtyInTable; // المتبقي الحقيقي للحساب
         
         return {
             ...p,
             realAvailable: realAvailable
         };
-    }).filter(p => p.realAvailable > 0); // إظهار المنتجات التي لها رصيد متبقي فقط
+    }).filter(p => p.realAvailable > 0); // إظهار الأصناف ذات الرصيد الفعلي فقط
 
     // 3. التحقق من وجود منتجات للعرض
     if (availableForDeduction.length === 0) {
@@ -7321,10 +7356,10 @@ function printPendingSaleAsInvoice(pendingId) {
         return;
     }
 
-    // 4. ترتيب المنتجات أبجدياً وبناء الواجهة
+    // 4. ترتيب المنتجات أبجدياً وبناء الواجهة مع حفر الـ ID في الـ Checkbox
     availableForDeduction.sort((a, b) => a.name.localeCompare(b.name, 'ar')).forEach(product => {
         const cost = Number(product.costPrice) || 0;
-        const uniqueId = `inv_deductcost_${generateId(product.name)}`;
+        const uniqueId = `inv_deductcost_${generateId(product.id || product.name)}`;
         
         const label = document.createElement('label');
         label.style.display = 'flex';
@@ -7334,16 +7369,19 @@ function printPendingSaleAsInvoice(pendingId) {
         label.style.cursor = 'pointer';
         label.htmlFor = uniqueId;
         
+        // 🆔 التعديل هنا: تمرير كود المنتج الفريد في الـ value والـ datasets
         label.innerHTML = `
-            <input type="checkbox" 
-                   id="${uniqueId}" 
-                   value="${product.name}" 
-                   data-cost="${cost}" 
-                   data-available="${product.realAvailable}">
+          <input type="checkbox" 
+       id="${uniqueId}" 
+       value="${product.id || product.name}" 
+       data-id="${product.id || ''}"
+       data-name="${product.name}"
+       data-cost="${cost}" 
+       data-available="${product.realAvailable}">
             <span style="flex-grow: 1; font-size: 0.9em;">
-                 ${product.name} 
+                 ${product.name} <span class="text-xs text-blue-500">(${product.category || 'عام'})</span>
                  <span class="text-gray-500 text-xs" style="display:block;">
-                    (ت: ${formatCurrency(cost)} | المتبقي: ${product.realAvailable})
+                    (ت: ${formatCurrency(cost)} | المتبقي المتاح: ${product.realAvailable})
                  </span>
             </span>
             <span style="flex-shrink: 0; font-size: 0.8em; color: #555;">خصم:</span>
@@ -7358,54 +7396,77 @@ function printPendingSaleAsInvoice(pendingId) {
         
         inv_deductibleCostsContainer.appendChild(label);
     });
-}         // --- Manage Serials Modal Logic ---
-            function openManageSerialsModal(productName) {
-                currentManagingSerialsProduct = productName; // Store the product name being managed
-                const product = products.find(p => p.name === productName);
-                if (!product || !manageSerialsModal) {
-                    showGlobalMessage(`خطأ: لم يتم العثور على المنتج "${productName}" لإدارة سيريالاته.`, true);
-                    return;
-                }
+}      // =====================================================================
+// 🌟 [تحديث د. ضياء]: دالة فتح مودال السيريالات بناءً على الـ ID الفريد منعاً للتداخل
+// =====================================================================
+function openManageSerialsModal(productIdOrName) {
+    let product = null;
 
-                // تحديث معلومات النافذة
-                if (modal_productNameDisplay) modal_productNameDisplay.textContent = productName;
-                const totalQty = Number(product.quantity) || 0;
-                const registeredSerials = serialNumbersLog.filter(log => log.productName === productName);
-                const registeredCount = registeredSerials.length;
-                const unregisteredCount = totalQty - registeredCount;
+    // 1. البحث أولاً باستخدام الكود الفريد المميز للمنتج لضمان الدقة
+    if (productIdOrName) {
+        product = products.find(p => p.id === productIdOrName);
+    }
+    
+    // 2. خط دفاع بديل بالاسم إذا كان المنتج قديماً جداً ولا يملك كود
+    if (!product) {
+        product = products.find(p => p.name === productIdOrName);
+    }
 
-                if (modal_totalQuantity) modal_totalQuantity.textContent = totalQty;
-                if (modal_registeredCount) modal_registeredCount.textContent = registeredCount;
-                if (modal_unregisteredCount) modal_unregisteredCount.textContent = unregisteredCount;
-                if (modal_maxSerialsToAdd) modal_maxSerialsToAdd.textContent = unregisteredCount;
+    if (!product || !manageSerialsModal) {
+        showGlobalMessage(`خطأ: لم يتم العثور على المنتج لإدارة سيريالاته.`, true);
+        return;
+    }
 
-                // مسح حقل الإضافة ورسالة الاستيراد
-                if (modal_productSerialNumbers) modal_productSerialNumbers.value = '';
-                if (modal_serialImportMessage) showMessage(modal_serialImportMessage, '');
+    // تخزين المعرفات في كائن النظام الحالي لتعرف الدوال الأخرى أي منتج نقوم بإدارته
+    currentManagingSerialsProduct = product.name; 
+    window.currentManagingSerialsProductID = product.id || null; // 🌟 حفظ الـ ID الفريد للمنتج الحالي
 
-                // عرض السيريالات المسجلة حالياً
-                if (modal_registeredSerialsList) {
-                    if (registeredCount === 0) {
-                        modal_registeredSerialsList.innerHTML = '<p class="text-center text-gray-500">لا توجد سيريالات مسجلة حالياً.</p>';
-                    } else {
-                        let listHtml = '<ul class="space-y-1">';
-                        registeredSerials.sort((a,b) => a.serial.localeCompare(b.serial)).forEach(log => {
-                             let statusColor = log.status === 'in_stock' ? 'text-green-600' : (log.status === 'sold' ? 'text-red-500' : 'text-gray-500');
-                             let statusText = log.status === 'in_stock' ? 'متوفر' : (log.status === 'sold' ? 'مباع' : (log.status === 'in_invoice_temp' ? 'في فاتورة' : log.status));
-                             listHtml += `<li class="text-sm flex justify-between items-center">
-                                              <span class="font-mono"><strong>${log.serial}</strong></span>
-                                              <span class="text-xs <span class="math-inline">\{statusColor\}"\>\[</span>{statusText}]</span>
-                                           </li>`;
-                        });
-                        listHtml += '</ul>';
-                        modal_registeredSerialsList.innerHTML = listHtml;
-                    }
-                }
+    // تحديث معلومات الواجهة في المودال
+    if (modal_productNameDisplay) modal_productNameDisplay.textContent = product.name;
+    const totalQty = Number(product.quantity) || 0;
 
-                // إظهار النافذة
-                manageSerialsModal.style.display = 'block';
-            }
+    // تصفية السيريالات المرتبطة بهذا المنتج تحديداً (بالـ ID أو بالاسم كخط دفاع بديل)
+    const registeredSerials = serialNumbersLog.filter(log => {
+        if (product.id && log.productId) {
+            return log.productId === product.id;
+        }
+        return log.productName === product.name;
+    });
 
+    const registeredCount = registeredSerials.length;
+    const unregisteredCount = totalQty - registeredCount;
+
+    if (modal_totalQuantity) modal_totalQuantity.textContent = totalQty;
+    if (modal_registeredCount) modal_registeredCount.textContent = registeredCount;
+    if (modal_unregisteredCount) modal_unregisteredCount.textContent = unregisteredCount;
+    if (modal_maxSerialsToAdd) modal_maxSerialsToAdd.textContent = unregisteredCount;
+
+    // مسح حقل الإضافة ورسالة الاستيراد
+    if (modal_productSerialNumbers) modal_productSerialNumbers.value = '';
+    if (modal_serialImportMessage) showMessage(modal_serialImportMessage, '');
+
+    // عرض السيريالات المسجلة حالياً للمنتج المحدد
+    if (modal_registeredSerialsList) {
+        if (registeredCount === 0) {
+            modal_registeredSerialsList.innerHTML = '<p class="text-center text-gray-500">لا توجد سيريالات مسجلة حالياً.</p>';
+        } else {
+            let listHtml = '<ul class="space-y-1">';
+            registeredSerials.sort((a, b) => a.serial.localeCompare(b.serial)).forEach(log => {
+                let statusColor = log.status === 'in_stock' ? 'text-green-600' : (log.status === 'sold' ? 'text-red-500' : 'text-gray-500');
+                let statusText = log.status === 'in_stock' ? 'متوفر' : (log.status === 'sold' ? 'مباع' : (log.status === 'in_invoice_temp' ? 'في فاتورة' : log.status));
+                listHtml += `<li class="text-sm flex justify-between items-center bg-gray-50 p-1 rounded border border-gray-100">
+                                <span class="font-mono"><strong>${log.serial}</strong></span>
+                                <span class="text-xs ${statusColor}">[${statusText}]</span>
+                             </li>`;
+            });
+            listHtml += '</ul>';
+            modal_registeredSerialsList.innerHTML = listHtml;
+        }
+    }
+
+    // إظهار النافذة
+    manageSerialsModal.style.display = 'block';
+}
             function closeManageSerialsModal() {
                 if (manageSerialsModal) {
                     manageSerialsModal.style.display = 'none';
@@ -7413,102 +7474,120 @@ function printPendingSaleAsInvoice(pendingId) {
                 currentManagingSerialsProduct = null; // Reset managed product name
             }
 
-            function saveAddedSerialsFromModal() {
-            saveStateToHistory();
-                if (!currentManagingSerialsProduct || !modal_productSerialNumbers) return;
+function saveAddedSerialsFromModal() {
+    saveStateToHistory();
+    if (!currentManagingSerialsProduct || !modal_productSerialNumbers) return;
 
-                const product = products.find(p => p.name === currentManagingSerialsProduct);
-                if (!product) {
-                    showMessage(d('modal-serial-import-message'), 'خطأ: المنتج لم يعد موجوداً.', true);
-                    return;
-                }
+    // 🌟 [تعديل د. ضياء]: جلب المنتج التابع له السيريال بالـ ID الفريد المخزن في النافذة حالياً لضمان الدقة
+    const product = window.currentManagingSerialsProductID ? products.find(p => p.id === window.currentManagingSerialsProductID) : products.find(p => p.name === currentManagingSerialsProduct);
+    
+    if (!product) {
+        showMessage(d('modal-serial-import-message'), 'خطأ: المنتج لم يعد موجوداً.', true);
+        return;
+    }
 
-                const newSerialsInput = modal_productSerialNumbers.value.trim();
-                if (!newSerialsInput) {
-                    showMessage(d('modal-serial-import-message'), 'لم يتم إدخال أرقام تسلسلية جديدة.', false, true);
-                    return; // لا يوجد شيء للحفظ
-                }
+    const newSerialsInput = modal_productSerialNumbers.value.trim();
+    if (!newSerialsInput) {
+        showMessage(d('modal-serial-import-message'), 'لم يتم إدخال أرقام تسلسلية جديدة.', false, true);
+        return; 
+    }
 
-                const totalQty = Number(product.quantity) || 0;
-                const registeredCount = serialNumbersLog.filter(log => log.productName === currentManagingSerialsProduct).length;
-                const unregisteredCount = totalQty - registeredCount;
+    const totalQty = Number(product.quantity) || 0;
 
-                // فصل السيريالات المدخلة
-                const cleanedInput = newSerialsInput.replace(/[,;\s\t]+/g, '\n');
-                const newSerials = cleanedInput.split('\n').map(s => s.trim()).filter(s => s !== '');
+    // 🌟 [تعديل أمني]: تصفية السيريالات بالـ ID أولاً لضمان دقة العدّ وعدم تداخل الأصناف متشابهة الاسم
+    const initialRegisteredSerials = serialNumbersLog.filter(log => {
+        if (product.id && log.productId) return log.productId === product.id;
+        return log.productName === currentManagingSerialsProduct;
+    });
+    
+    const registeredCount = initialRegisteredSerials.length;
+    const unregisteredCount = totalQty - registeredCount;
 
-                if (newSerials.length === 0) {
-                     showMessage(d('modal-serial-import-message'), 'لم يتم إدخال أرقام تسلسلية صالحة.', true);
-                     return;
-                }
+    // فصل السيريالات المدخلة
+    const cleanedInput = newSerialsInput.replace(/[,;\s\t]+/g, '\n');
+    const newSerials = cleanedInput.split('\n').map(s => s.trim()).filter(s => s !== '');
 
-                if (newSerials.length > unregisteredCount) {
-                     showMessage(d('modal-serial-import-message'), `لا يمكن إضافة ${newSerials.length} سيريال، العدد المتبقي غير المسجل هو ${unregisteredCount} فقط.`, true);
-                     return;
-                }
+    if (newSerials.length === 0) {
+         showMessage(d('modal-serial-import-message'), 'لم يتم إدخال أرقام تسلسلية صالحة.', true);
+         return;
+    }
 
-                // التحقق من التكرار
-                const duplicateCheck = new Set();
-                let error = false;
-                for (const serial of newSerials) {
-                     if (duplicateCheck.has(serial)) {
-                         showMessage(d('modal-serial-import-message'), `الرقم التسلسلي "${serial}" مكرر في المدخلات.`, true);
-                         error = true; break;
-                     }
-                     if (serialNumbersLog.some(log => log.serial === serial)) {
-                         showMessage(d('modal-serial-import-message'), `الرقم التسلسلي "${serial}" مسجل بالفعل في النظام لمنتج آخر أو لهذا المنتج.`, true);
-                         error = true; break;
-                     }
-                     duplicateCheck.add(serial);
-                }
-                if (error) return;
+    if (newSerials.length > unregisteredCount) {
+         showMessage(d('modal-serial-import-message'), `لا يمكن إضافة ${newSerials.length} سيريال، العدد المتبقي غير المسجل هو ${unregisteredCount} فقط.`, true);
+         return;
+    }
 
-                // إضافة السيريالات الجديدة
-                const timestamp = new Date().toISOString();
-                const supplierId = product.supplierId || ""; // استخدم المورد المرتبط بالمنتج إن وجد
-                newSerials.forEach(serial => {
-                    serialNumbersLog.push({
-                        serial: serial,
-                        productName: currentManagingSerialsProduct,
-                        supplierId: supplierId,
-                        addedTimestamp: timestamp,
-                        status: "in_stock"
-                    });
-                });
+    // التحقق من تكرار السيريال في النظام
+    const duplicateCheck = new Set();
+    let error = false;
+    for (const serial of newSerials) {
+         if (duplicateCheck.has(serial)) {
+             showMessage(d('modal-serial-import-message'), `الرقم التسلسلي "${serial}" مكرر في المدخلات.`, true);
+             error = true; break;
+         }
+         if (serialNumbersLog.some(log => log.serial === serial)) {
+             showMessage(d('modal-serial-import-message'), `الرقم التسلسلي "${serial}" مسجل بالفعل في النظام لمنتج آخر أو لهذا المنتج.`, true);
+             error = true; break;
+         }
+         duplicateCheck.add(serial);
+    }
+    if (error) return;
 
-                logOperation("إدارة سيريالات", `تمت إضافة <span class="math-inline">\{newSerials\.length\} رقم تسلسلي للمنتج "</span>{currentManagingSerialsProduct}".`);
-                showMessage(d('modal-serial-import-message'), `تم حفظ ${newSerials.length} رقم تسلسلي بنجاح.`, false);
-                modal_productSerialNumbers.value = ''; // أفرغ الحقل بعد الحفظ
-                // أعد تحديث قائمة السيريالات المسجلة داخل الـ modal وأرقام العد
-                const updatedRegisteredSerials = serialNumbersLog.filter(log => log.productName === currentManagingSerialsProduct);
-                const updatedRegisteredCount = updatedRegisteredSerials.length;
-                const updatedUnregisteredCount = totalQty - updatedRegisteredCount;
+    // إضافة السيريالات الجديدة
+    const timestamp = new Date().toISOString();
+    const supplierId = product.supplierId || ""; 
 
-                if (modal_registeredCount) modal_registeredCount.textContent = updatedRegisteredCount;
-                if (modal_unregisteredCount) modal_unregisteredCount.textContent = updatedUnregisteredCount;
-                if (modal_maxSerialsToAdd) modal_maxSerialsToAdd.textContent = updatedUnregisteredCount;
+    // 🌟 [تعديل د. ضياء]: ربط السيريال المضاف حديثاً بالـ ID الفريد للمنتج لمنع التداخل
+    newSerials.forEach(serial => {
+        serialNumbersLog.push({ 
+            serial: serial, 
+            productName: currentManagingSerialsProduct,
+            productId: product.id || "", // 🆔 حفظ الـ ID هنا خطوة حاسمة لمنع تداخل الأصناف متشابهة الاسم
+            supplierId: supplierId, 
+            addedTimestamp: timestamp, 
+            status: "in_stock" 
+        });
+    });
 
-                 if (modal_registeredSerialsList) {
-                     if (updatedRegisteredCount === 0) {
-                          modal_registeredSerialsList.innerHTML = '<p class="text-center text-gray-500">لا توجد سيريالات مسجلة حالياً.</p>';
-                     } else {
-                          let listHtml = '<ul class="space-y-1">';
-                          updatedRegisteredSerials.sort((a,b) => a.serial.localeCompare(b.serial)).forEach(log => {
-                              let statusColor = log.status === 'in_stock' ? 'text-green-600' : (log.status === 'sold' ? 'text-red-500' : 'text-gray-500');
-                              let statusText = log.status === 'in_stock' ? 'متوفر' : (log.status === 'sold' ? 'مباع' : (log.status === 'in_invoice_temp' ? 'في فاتورة' : log.status));
-                              listHtml += `<li class="text-sm flex justify-between items-center">
-                                               <span class="font-mono"><strong>${log.serial}</strong></span>
-                                               <span class="text-xs <span class="math-inline">\{statusColor\}"\>\[</span>{statusText}]</span>
-                                             </li>`;
-                          });
-                          listHtml += '</ul>';
-                          modal_registeredSerialsList.innerHTML = listHtml;
-                     }
-                 }
+    logOperation("إدارة سيريالات", `تمت إضافة ${newSerials.length} رقم تسلسلي للمنتج "${currentManagingSerialsProduct}".`);
+    showMessage(d('modal-serial-import-message'), `تم حفظ ${newSerials.length} رقم تسلسلي بنجاح.`, false);
+    modal_productSerialNumbers.value = ''; // أفرغ الحقل بعد الحفظ
 
-                updateUI(); // تحديث الواجهة الرئيسية لعكس التغييرات (مثل عدد السيريالات المتوفرة)
-            }
+    // 🌟 [تعديل أمني]: إعادة تحديث القائمة والعدادات بناءً على الـ ID بدقة
+    const updatedRegisteredSerials = serialNumbersLog.filter(log => {
+        if (product.id && log.productId) return log.productId === product.id;
+        return log.productName === currentManagingSerialsProduct;
+    });
+    
+    const updatedRegisteredCount = updatedRegisteredSerials.length;
+    const updatedUnregisteredCount = totalQty - updatedRegisteredCount;
 
+    if (modal_registeredCount) modal_registeredCount.textContent = updatedRegisteredCount;
+    if (modal_unregisteredCount) modal_unregisteredCount.textContent = updatedUnregisteredCount;
+    if (modal_maxSerialsToAdd) modal_maxSerialsToAdd.textContent = updatedUnregisteredCount;
+
+    if (modal_registeredSerialsList) {
+         if (updatedRegisteredCount === 0) {
+              modal_registeredSerialsList.innerHTML = '<p class="text-center text-gray-500">لا توجد سيريالات مسجلة حالياً.</p>';
+         } else {
+              let listHtml = '<ul class="space-y-1">';
+              updatedRegisteredSerials.sort((a,b) => a.serial.localeCompare(b.serial)).forEach(log => {
+                  let statusColor = log.status === 'in_stock' ? 'text-green-600' : (log.status === 'sold' ? 'text-red-500' : 'text-gray-500');
+                  let statusText = log.status === 'in_stock' ? 'متوفر' : (log.status === 'sold' ? 'مباع' : (log.status === 'in_invoice_temp' ? 'في فاتورة' : log.status));
+                  
+                  // تصحيح صياغة الـ HTML بالكامل هنا من الأخطاء النصية القديمة
+                  listHtml += `<li class="text-sm flex justify-between items-center bg-gray-50 p-1 rounded border border-gray-100">
+                                   <span class="font-mono"><strong>${log.serial}</strong></span>
+                                   <span class="text-xs ${statusColor}">[${statusText}]</span>
+                               </li>`;
+              });
+              listHtml += '</ul>';
+              modal_registeredSerialsList.innerHTML = listHtml;
+         }
+    }
+
+    updateUI(); // تحديث الواجهة الرئيسية لعكس التغييرات
+}
 
             // --- المقاصة، تقرير المبيعات، تأكيد/إلغاء المؤقت، البحث ---
             function performTwoPartyOffset() {
@@ -8702,7 +8781,7 @@ if (button.classList.contains('convert-pending-to-debt')) {
     fc_products_list.innerHTML = productsInStock.length > 0
         ? productsInStock.map(prod => {
             const totalValue = (prod.quantity || 0) * (prod.costPrice || 0);
-            return `<label class="flex items-center p-3 bg-gray-50 rounded-md hover:bg-gray-100 cursor-pointer border"><input type="checkbox" class="fc-product-checkbox ml-3" data-name="${prod.name}" data-qty="${prod.quantity}" data-value="${totalValue}" data-cost="${prod.costPrice}" checked>${prod.name} <span class="mr-auto font-mono text-gray-600">(الكمية الحالية: ${prod.quantity}، التكلفة: ${formatCurrency(prod.costPrice)})</span></label>`;
+            return `<label class="flex items-center p-3 bg-gray-50 rounded-md hover:bg-gray-100 cursor-pointer border"><input type="checkbox" class="fc-product-checkbox ml-3" data-name="${prod.name}" data-id="${prod.id}" data-qty="${prod.quantity}" data-value="${totalValue}" data-cost="${prod.costPrice}" checked>${prod.name} <span class="mr-auto font-mono text-gray-600">(الكمية الحالية: ${prod.quantity}، التكلفة: ${formatCurrency(prod.costPrice)})</span></label>`;
         }).join('')
         : '<p class="text-sm text-gray-500">لا توجد منتجات في المخزون حالياً.</p>';
     
@@ -8815,11 +8894,24 @@ function fc_toggle_manual_distribution() {
 function fc_populate_manual_inputs() {
     if (!fc_manual_list || !fc_products_list) return;
     const selectedProducts = Array.from(fc_products_list.querySelectorAll('input:checked'));
-    fc_manual_list.innerHTML = selectedProducts.map(prod => `<div class="flex items-center justify-between p-2"><label for="fc-perc-${prod.dataset.name}">${prod.dataset.name}</label><div class="flex items-center"><input type="number" id="fc-perc-${prod.dataset.name}" data-product-name="${prod.dataset.name}" class="fc-manual-dist-input fc-form-input" min="0" max="100" value="0"><span class="mr-2 font-semibold">%</span></div></div>`).join('') || '<p class="text-sm text-center text-gray-500">اختر المنتجات أولاً.</p>';
+    
+    fc_manual_list.innerHTML = selectedProducts.map(prod => `
+        <div class="flex items-center justify-between p-2">
+            <label for="fc-perc-${prod.dataset.id}">${prod.dataset.name}</label>
+            <div class="flex items-center">
+                <input type="number" 
+                       id="fc-perc-${prod.dataset.id}" 
+                       data-product-id="${prod.dataset.id}" 
+                       data-product-name="${prod.dataset.name}" 
+                       class="fc-manual-dist-input fc-form-input" 
+                       min="0" max="100" value="0">
+                <span class="mr-2 font-semibold">%</span>
+            </div>
+        </div>`).join('') || '<p class="text-sm text-center text-gray-500">اختر المنتجات أولاً.</p>';
+    
     document.querySelectorAll('.fc-manual-dist-input').forEach(input => input.addEventListener('input', fc_validate_and_simulate));
     fc_validate_percentages();
 }
-
 function fc_validate_percentages() {
     if (!fc_percentage_total) return false;
     let currentTotal = 0;
@@ -8844,8 +8936,11 @@ function fc_validate_and_simulate() {
 
 function fc_get_simulation_results() {
     let totalExpenses = 0;
-    if (d('fc-manual-cost-mode-radio').checked) { totalExpenses = parseFloat(fc_manual_cost_input.value) || 0; } 
-    else { fc_expenses_list.querySelectorAll('input:checked').forEach(e => totalExpenses += parseFloat(e.dataset.amount)); }
+    if (d('fc-manual-cost-mode-radio').checked) { 
+        totalExpenses = parseFloat(fc_manual_cost_input.value) || 0; 
+    } else { 
+        fc_expenses_list.querySelectorAll('input:checked').forEach(e => totalExpenses += parseFloat(e.dataset.amount)); 
+    }
     
     const selectedProductsEls = Array.from(fc_products_list.querySelectorAll('input:checked'));
     if (selectedProductsEls.length === 0 || totalExpenses <= 0) {
@@ -8855,14 +8950,17 @@ function fc_get_simulation_results() {
     const distributionMethod = document.querySelector('input[name="fc-distribution-method"]:checked').value;
     let productUpdates = [];
     
+    // 🌟 1. التوزيع حسب الكمية
     if (distributionMethod === 'quantity') {
         let totalQty = 0; selectedProductsEls.forEach(p => totalQty += parseInt(p.dataset.qty));
         if (totalQty === 0) return { error: "مجموع كميات المنتجات صفر." };
         const costPerItem = totalExpenses / totalQty;
         selectedProductsEls.forEach(p => {
-            productUpdates.push({ name: p.dataset.name, addedCost: costPerItem });
+            productUpdates.push({ id: p.dataset.id, name: p.dataset.name, addedCost: costPerItem });
         });
-    } else if (distributionMethod === 'value') {
+    } 
+    // 🌟 2. التوزيع حسب القيمة
+    else if (distributionMethod === 'value') {
         let totalValue = 0; selectedProductsEls.forEach(p => totalValue += parseFloat(p.dataset.value));
         if (totalValue === 0) return { error: "مجموع قيمة المنتجات صفر." };
         selectedProductsEls.forEach(p => {
@@ -8870,22 +8968,24 @@ function fc_get_simulation_results() {
             const val = parseFloat(p.dataset.value);
             const costShare = (val / totalValue) * totalExpenses;
             const addedPerItem = qty > 0 ? costShare / qty : 0;
-            productUpdates.push({ name: p.dataset.name, addedCost: addedPerItem });
+            productUpdates.push({ id: p.dataset.id, name: p.dataset.name, addedCost: addedPerItem });
         });
-    } else if (distributionMethod === 'manual') {
+    } 
+    // 🌟 3. التوزيع اليدوي
+    else if (distributionMethod === 'manual') {
         if (!fc_validate_percentages()) return { error: "مجموع النسب المئوية يجب أن يكون 100%." };
         selectedProductsEls.forEach(p => {
-            const percentageInput = d(`fc-perc-${p.dataset.name}`);
-            const percentage = parseFloat(percentageInput.value) || 0;
+            // التعديل هنا: البحث عن الـ input بالـ ID وليس بالاسم
+            const percentageInput = d(`fc-perc-${p.dataset.id}`);
+            const percentage = parseFloat(percentageInput?.value) || 0;
             const qty = parseInt(p.dataset.qty);
             const costShare = (percentage / 100) * totalExpenses;
             const addedPerItem = qty > 0 ? costShare / qty : 0;
-            productUpdates.push({ name: p.dataset.name, addedCost: addedPerItem });
+            productUpdates.push({ id: p.dataset.id, name: p.dataset.name, addedCost: addedPerItem });
         });
     }
     return { productUpdates };
 }
-
 function fc_simulate_distribution() {
     if (!fc_preview_results || !fc_preview_container) return;
 
@@ -8922,18 +9022,26 @@ function fc_execute_cost_distribution() {
         return;
     }
 
-    // --- تحديث تكاليف المنتجات (هذا الجزء لم يتغير) ---
+     // --- تحديث تكاليف المنتجات ---
     let logDetails = [];
     results.productUpdates.forEach(update => {
-        const productIndex = products.findIndex(p => p.name === update.name);
+        // 🌟 التعديل هنا: البحث بالـ ID لضمان تحديث المنتج الصحيح بدقة
+        const productIndex = products.findIndex(p => p.id === update.id); 
+        
         if (productIndex > -1) {
             const oldCost = products[productIndex].costPrice;
             products[productIndex].costPrice += update.addedCost;
             const newCost = products[productIndex].costPrice;
-            logDetails.push(`"${update.name}" (من ${formatCurrency(oldCost)} إلى ${formatCurrency(newCost)})`);
+            logDetails.push(`"${products[productIndex].name}" (من ${formatCurrency(oldCost)} إلى ${formatCurrency(newCost)})`);
+        } else {
+            // خط دفاع أخير بالاسم في حالة كان المنتج قديماً جداً بلا ID
+            const fallbackIndex = products.findIndex(p => p.name === update.name);
+            if (fallbackIndex > -1) {
+                products[fallbackIndex].costPrice += update.addedCost;
+                logDetails.push(`"${products[fallbackIndex].name}" (بالاسم)`);
+            }
         }
     });
-
     // --- الجزء الجديد: تحديث عداد الديون المعالجة التي تم توزيعها ---
     const distributedExpenseCheckboxes = Array.from(d('fc-expenses-to-distribute-list').querySelectorAll('input:checked'));
     distributedExpenseCheckboxes.forEach(checkbox => {
@@ -9109,11 +9217,13 @@ function handleInvoiceReturnConfirmation(invoiceId, invoiceNumber) {
 
     if(receiveNow) {
         itemsToReturn.forEach(item => {
-            const productIndex = products.findIndex(p => p.name === item.name);
+            const productIndex = products.findIndex(p => (item.id && p.id === item.id) || p.name === item.name);
             if (productIndex !== -1) {
                 products[productIndex].quantity += item.quantity;
             } else {
-                products.push({ name: item.name, quantity: item.quantity, costPrice: item.costPrice, supplierId: '' });
+              // 🌟 [تعديل د. ضياء]: توليد ID فريد للمنتج الجديد لحمايته من التداخل
+const uniqueProductCodeReturn = "code_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
+products.push({ id: uniqueProductCodeReturn, name: item.name, quantity: item.quantity, costPrice: item.costPrice, supplierId: '' });
             }
         });
         totalProfit -= profitToReverse;
@@ -9131,9 +9241,12 @@ function handleInvoiceReturnConfirmation(invoiceId, invoiceNumber) {
     updateUI();
 }
 
-// ✅✅✅ الكود الجديد والصحيح لدالة handleConfirmReceipt ✅✅✅
+// =====================================================================
+// 🌟 [تحديث د. ضياء النهائي الموحد]: دالة تأكيد استلام المرتجع المعلق بالـ ID الفريد
+// =====================================================================
 function handleConfirmReceipt(pendingId) {
     saveStateToHistory();
+    
     const returnIndex = pendingReturns.findIndex(r => r.id === pendingId);
     if (returnIndex === -1) {
         showGlobalMessage("خطأ: لم يتم العثور على المرتجع المعلق.", true);
@@ -9142,26 +9255,54 @@ function handleConfirmReceipt(pendingId) {
 
     const ret = pendingReturns.splice(returnIndex, 1)[0];
 
-    // --- ✅ بداية الإصلاح: هذه الدالة الآن لوجيستية فقط ---
+    // --- 📦 إجراء لوجيستي ومخزني آمن بالكامل ---
 
-    // 1. خصم القيمة من "الأصول المعلقة"
-    pendingReturnsValue -= ret.returnedAmount;
+    // 1. خصم القيمة من "الأصول المعلقة" (إن كان المتغير معرفاً بالسيستم)
+    if (typeof pendingReturnsValue !== 'undefined') {
+        pendingReturnsValue -= (ret.returnedAmount || 0);
+    }
 
-    // 2. تحديث المخزون (إضافة القيمة إلى أصل المخزون)
+    // 2. تحديث المخزون باستخدام المعرف الفريد ID لمنع تداخل الأصناف متشابهة الاسم
     ret.items.forEach(item => {
         if (ret.returnAtSalePrice) {
             const newProductName = `${item.name} - ${ret.customerName} (مرتجع)`;
-            products.push({ name: newProductName, quantity: item.quantity, costPrice: item.costPrice });
+            const uniqueProductCode = "code_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
+            
+            products.push({ 
+                id: uniqueProductCode, 
+                name: newProductName, 
+                quantity: item.quantity, 
+                costPrice: item.costPrice,
+                category: "مرتجع"
+            });
         } else {
-            const pIndex = products.findIndex(p => p.name === item.name);
+            // 🌟 [التأمين بالأكواد]: البحث بالـ ID أولاً لضمان زيادة المنتج الصحيح
+            let pIndex = -1;
+            if (item.id) {
+                pIndex = products.findIndex(p => p.id === item.id);
+            }
+            // خط دفاع بديل بالاسم إذا كان منتجاً قديماً
+            if (pIndex === -1) {
+                pIndex = products.findIndex(p => p.name.trim().toLowerCase() === item.name.trim().toLowerCase());
+            }
+
             if (pIndex !== -1) {
+                // المنتج موجود: نقوم بزيادة كميته وتعديل متوسط التكلفة بدقة
                 const existing = products[pIndex];
                 const oldTotalValue = (existing.costPrice || 0) * (existing.quantity || 0);
-                const newTotalValue = item.costPrice * item.quantity;
+                const newTotalValue = (item.costPrice || 0) * item.quantity;
+                
                 existing.quantity += item.quantity;
                 existing.costPrice = (oldTotalValue + newTotalValue) / existing.quantity;
             } else {
-                products.push({ name: item.name, quantity: item.quantity, costPrice: item.costPrice || 0 });
+                // المنتج غير موجود: يتم إنشاؤه لأول مرة بكود فريد جديد
+                const uniqueProductCode = "code_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
+                products.push({ 
+                    id: item.id || uniqueProductCode, 
+                    name: item.name, 
+                    quantity: item.quantity, 
+                    costPrice: item.costPrice || 0 
+                });
             }
         }
     });
@@ -9169,15 +9310,12 @@ function handleConfirmReceipt(pendingId) {
     // 3. نقل المرتجع إلى قائمة المكتملة
     completedReturns.push({ ...ret, status: 'Completed', timestamp: new Date().toISOString() });
 
-    // 4. تسجيل العملية كإجراء لوجيستي فقط
-    logOperation("تأكيد استلام مرتجع", `تم تأكيد استلام ${ret.items.map(i=> i.quantity + 'x ' + i.name).join(', ')} في المخزن.`);
+    // 4. تسجيل العملية كإجراء لوجيستي في العمليات
+    logOperation("تأكيد استلام مرتجع", `تم تأكيد استلام ${ret.items.map(i => i.quantity + 'x ' + i.name).join(', ')} في المخزن.`);
     
-    // --- ✅ نهاية الإصلاح: تم حذف كل العمليات المالية من هنا ---
-
     updateUI();
     showGlobalMessage("تم تأكيد استلام البضاعة وتحديث المخزون بنجاح.", false);
 }
-
 
 function pi_addItem() {
     const name = piItemNameInput.value.trim();
@@ -9452,8 +9590,8 @@ function handlePendingPurchaseActions(event) {
             // التكلفة النهائية للوحدة = السعر الأساسي + نصيبها من المصاريف الإضافية
             const finalUnitCost = item.cost + extraCostPerUnit;
 
-            const productIndex = products.findIndex(prod => prod.name.toLowerCase() === item.name.toLowerCase());
-            
+// 🌟 [تعديل د. ضياء الحصري]: البحث بالـ ID الممرر من الفاتورة لضمان خيارات الفصل والدمج
+const productIndex = products.findIndex(prod => (item.id && prod.id === item.id) || prod.name.toLowerCase() === item.name.toLowerCase());            
             if (productIndex !== -1) {
                 // تحديث منتج موجود
                 const existing = products[productIndex];
@@ -9469,13 +9607,16 @@ function handlePendingPurchaseActions(event) {
                 if (item.category) existing.category = item.category;
             } else {
                 // إضافة منتج جديد تماماً
-                products.push({ 
-                    name: item.name, 
-                    quantity: item.quantity, 
-                    costPrice: finalUnitCost, 
-                    supplierId: p.supplierId,
-                    category: item.category || "" // ✅ نقل التصنيف هنا
-                });
+            // 🌟 [تعديل د. ضياء]: توليد كود فريد للمنتج عند النقل
+const uniqueProductCodeTransfer = "code_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
+products.push({ 
+    id: uniqueProductCodeTransfer, // 🆔 حفر الكود الفريد هنا
+    name: item.name, 
+    quantity: item.quantity, 
+    costPrice: finalUnitCost, 
+    supplierId: p.supplierId,
+    category: item.category || "" // ✅ نقل التصنيف هنا
+});
             }
 
             // معالجة السيريالات
@@ -9575,9 +9716,16 @@ async function pi_confirmPurchaseInvoice() {
         const q = parseInt(row.dataset.quantity);
         const c = parseFloat(row.dataset.cost);
         itemsSubtotal += (q * c);
-        return { name: row.dataset.name, category: row.dataset.category || "", quantity: q, cost: c, serials: JSON.parse(row.dataset.serials || '[]') };
+        return { 
+            name: row.dataset.name, 
+            category: row.dataset.category || "", 
+            quantity: q, 
+            cost: c, 
+            serials: JSON.parse(row.dataset.serials || '[]'),
+            // 🌟 [تم التحديث]: قراءة قرار المودال الذكي (دمج / فصل / اسم جديد) المحفور في الـ DOM
+            duplicateResolution: row.dataset.duplicateResolution || "" 
+        };
     });
-
     let extraCostsList = [];
     let totalExtraCostsVal = 0;
     let totalLiabilitiesVal = 0;
@@ -9635,23 +9783,77 @@ async function pi_confirmPurchaseInvoice() {
         paidFromAccountId: (deductFromLiquidity && paidAmountValue > 0) ? selectedAccountId : null
     };
 
-    const supplier = suppliers.find(s => s.id === invoiceData.supplierId);
-     extraCostsList.forEach(cost => {
-        if (!cost.isLiability || cost.amount <= 0) return;
+    // =====================================================================
+        // 🛠️ [تعديل ذكي لـ د. ضياء] - اعتراض وفحص تكرار الأسماء داخل فاتورة المشتريات
+        // =====================================================================
+        let hasDuplicateInInvoice = false;
 
-        // لو المستخدم اختار التزام موجود بالفعل
-        if (cost.linkedLiabilityId) {
-            const existingLiability = liabilities.find(l => l.id === cost.linkedLiabilityId);
+        for (let i = 0; i < invoiceData.items.length; i++) {
+            const item = invoiceData.items[i];
+            
+            if (!item.duplicateResolution) {
+                const duplicate = products.find(p => p.name.toLowerCase() === item.name.toLowerCase());
+                window.lastPurchaseDuplicateID = duplicate.id || null; // 🆔 حفظ كود صنف المشتريات المكرر في الذاكرة
+                if (duplicate) {
+                    hasDuplicateInInvoice = true;
+                    
+                    window.pendingPurchaseInvoiceItem = {
+                        item: item,
+                        duplicate: duplicate,
+                        resumeCallback: () => {
+                            if (typeof pi_confirmPurchaseInvoice === 'function') {
+                                pi_confirmPurchaseInvoice(); 
+                            }
+                        }
+                    };
 
-            if (existingLiability) {
-                existingLiability.amount = (Number(existingLiability.amount) || 0) + cost.amount;
+                    const modal = document.getElementById("productDuplicateNameModal");
+                    const modalText = document.getElementById("duplicateModalText");
+                    if (modal && modalText) {
+                        modalText.innerHTML = `تنبيه (فاتورة المشتريات): البند <strong>"${item.name}"</strong> مسجل مسبقاً في المخزن بقسم <strong>"${duplicate.category || 'عام'}"</strong>.<br><br>الكمية الحالية له بالسيستم: <strong>${duplicate.quantity}</strong> قطعة.<br>اختر الإجراء المناسب لتوجيه هذا البند بالفاتورة:`;
+                        modal.style.display = "flex";
+                        document.querySelector('input[name="duplicateAction"][value="merge"]').checked = true;
+                        document.getElementById("renameInputContainer").classList.add('hidden');
+                        document.getElementById("newProductNameInput").value = item.name + " - جديد";
+                    }
+                    return; // 🛑 إيقاف الحفظ الفوري للفاتورة لحين حل التكرار من خلال المودال
+                }
+            }
+        }
 
-                logOperation(
-                    "ربط تكلفة إضافية بالتزام موجود",
-                    `تمت إضافة "${cost.name}" بقيمة ${formatCurrency(cost.amount)} إلى الالتزام "${existingLiability.name}" ضمن فاتورة الشراء رقم "${invoiceData.invoiceNumber || invoiceData.id}".`
-                );
+        window.pendingPurchaseInvoiceItem = null; // تصفير كائن الانتظار بعد العبور الآمن
+
+        // [تأمين القيود]: يتم تسجيل التكاليف الإضافية في الالتزامات الآن بعد عبور الفحص بنجاح
+        const supplier = suppliers.find(s => s.id === invoiceData.supplierId);
+        extraCostsList.forEach(cost => {
+            if (!cost.isLiability || cost.amount <= 0) return;
+
+            if (cost.linkedLiabilityId) {
+                const existingLiability = liabilities.find(l => l.id === cost.linkedLiabilityId);
+                if (existingLiability) {
+                    existingLiability.amount = (Number(existingLiability.amount) || 0) + cost.amount;
+                    logOperation(
+                        "ربط تكلفة إضافية بالتزام موجود",
+                        `تمت إضافة "${cost.name}" بقيمة ${formatCurrency(cost.amount)} إلى الالتزام "${existingLiability.name}" ضمن فاتورة الشراء رقم "${invoiceData.invoiceNumber || invoiceData.id}".`
+                    );
+                } else {
+                    const newLiability = {
+                        id: generateId('liab'),
+                        name: `${cost.name} - ${supplier?.name || 'مورد غير محدد'}`,
+                        amount: cost.amount,
+                        purchaseInvoiceId: invoiceData.id,
+                        source: 'purchase_extra_cost',
+                        invoiceNumber: invoiceData.invoiceNumber || '',
+                        supplierId: invoiceData.supplierId,
+                        createdAt: new Date().toISOString()
+                    };
+                    liabilities.push(newLiability);
+                    logOperation(
+                        "إنشاء التزام تلقائي",
+                        `تم إنشاء التزام جديد للتكلفة الإضافية "${cost.name}" بقيمة ${formatCurrency(cost.amount)} لأن الالتزام المرتبط لم يتم العثور عليه.`
+                    );
+                }
             } else {
-                // لو الـ ID موجود لكن الالتزام نفسه غير موجود لأي سبب
                 const newLiability = {
                     id: generateId('liab'),
                     name: `${cost.name} - ${supplier?.name || 'مورد غير محدد'}`,
@@ -9662,74 +9864,69 @@ async function pi_confirmPurchaseInvoice() {
                     supplierId: invoiceData.supplierId,
                     createdAt: new Date().toISOString()
                 };
-
                 liabilities.push(newLiability);
-
                 logOperation(
-                    "إنشاء التزام تلقائي",
-                    `تم إنشاء التزام جديد للتكلفة الإضافية "${cost.name}" بقيمة ${formatCurrency(cost.amount)} لأن الالتزام المرتبط لم يتم العثور عليه.`
+                    "إنشاء التزام تكلفة إضافية",
+                    `تم إنشاء التزام جديد باسم "${newLiability.name}" بقيمة ${formatCurrency(cost.amount)} من فاتورة الشراء رقم "${invoiceData.invoiceNumber || invoiceData.id}".`
                 );
             }
-        } else {
-            // لو المستخدم اختار "كالتزام" لكن لم يربطه بالتزام موجود
-            const newLiability = {
-                id: generateId('liab'),
-                name: `${cost.name} - ${supplier?.name || 'مورد غير محدد'}`,
-                amount: cost.amount,
-                purchaseInvoiceId: invoiceData.id,
-                source: 'purchase_extra_cost',
-                invoiceNumber: invoiceData.invoiceNumber || '',
-                supplierId: invoiceData.supplierId,
-                createdAt: new Date().toISOString()
-            };
-
-            liabilities.push(newLiability);
-
-            logOperation(
-                "إنشاء التزام تكلفة إضافية",
-                `تم إنشاء التزام جديد باسم "${newLiability.name}" بقيمة ${formatCurrency(cost.amount)} من فاتورة الشراء رقم "${invoiceData.invoiceNumber || invoiceData.id}".`
-            );
-        }
-    });
-
-    // دالة تحديث المخزون
-    const processInventoryUpdate = () => {
-        invoiceData.items.forEach(item => {
-            let extraCostPerUnit = 0;
-            if (itemsSubtotal > 0) {
-                const itemTotalBaseCost = item.quantity * item.cost;
-                const itemShareOfExtra = (itemTotalBaseCost / itemsSubtotal) * totalExtraCostsVal;
-                extraCostPerUnit = itemShareOfExtra / item.quantity;
-            }
-            const finalCostPerUnit = item.cost + extraCostPerUnit;
-            const productIndex = products.findIndex(p => p.name.toLowerCase() === item.name.toLowerCase());
-            if (productIndex !== -1) {
-                const existing = products[productIndex];
-                existing.quantity += item.quantity;
-                existing.costPrice = ((existing.quantity - item.quantity) * existing.costPrice + item.quantity * finalCostPerUnit) / existing.quantity;
-                if (item.category) existing.category = item.category;
-            } else {
-                products.push({ name: item.name, quantity: item.quantity, costPrice: finalCostPerUnit, supplierId: invoiceData.supplierId, category: item.category || "" });
-            }
         });
-    };
 
-    // التنفيذ النهائي والحفظ السحابي
-    if (goodsReceived) {
+        // تنفيذ الخصم المالي الفعلي من حساب السيولة
         if (invoiceData.paidAmount > 0 && deductFromLiquidity && account) {
             account.balance -= invoiceData.paidAmount;
             const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
-            liquidityLog.push({ id: `liq-${Date.now()}`, type: "remove", amount: invoiceData.paidAmount, description: `دفع فاتورة شراء لـ ${supplier?.name}`, currentBalance: newTotalLiquidity });
+            liquidityLog.push({ 
+                id: `liq-${Date.now()}`, 
+                type: "remove", 
+                amount: invoiceData.paidAmount, 
+                description: goodsReceived ? `دفع فاتورة شراء لـ ${supplier?.name}` : `عربون شراء لـ ${supplier?.name}`, 
+                currentBalance: newTotalLiquidity 
+            });
         }
-        processInventoryUpdate();
-        purchaseInvoices.push(invoiceData);
-    } else {
-        if (invoiceData.paidAmount > 0 && deductFromLiquidity && account) {
-            account.balance -= invoiceData.paidAmount;
-            liquidityLog.push({ id: `liq-${Date.now()}`, type: "remove", amount: invoiceData.paidAmount, description: `عربون شراء لـ ${supplier?.name}`, currentBalance: accounts.reduce((sum, acc) => sum + acc.balance, 0) });
+
+        // ترحيل البضائع للمخزن الفعلي أو الحفظ كفاتورة معلقة
+        if (goodsReceived) {
+            invoiceData.items.forEach(item => {
+                let extraCostPerUnit = 0;
+                if (itemsSubtotal > 0) {
+                    const itemTotalBaseCost = item.quantity * item.cost;
+                    const itemShareOfExtra = (itemTotalBaseCost / itemsSubtotal) * totalExtraCostsVal;
+                    extraCostPerUnit = itemShareOfExtra / item.quantity;
+                }
+                const finalCostPerUnit = item.cost + extraCostPerUnit;
+
+                let productIndex = -1;
+                if (item.duplicateResolution === 'separate') {
+                    productIndex = -1; // إجبار السيستم على الفصل ومنحه كود جديد
+                } else {
+                    productIndex = products.findIndex(p => p.name.toLowerCase() === item.name.toLowerCase());
+                }
+
+                if (productIndex !== -1) {
+                    const existing = products[productIndex];
+                    const oldQty = Number(existing.quantity) || 0;
+                    const oldCost = Number(existing.costPrice) || 0;
+                    existing.quantity += item.quantity;
+                    existing.costPrice = ((oldQty * oldCost) + (item.quantity * finalCostPerUnit)) / existing.quantity;
+                    if (item.category) existing.category = item.category;
+                } else {
+                    const uniqueProductCode = "code_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
+                    products.push({ 
+                        id: uniqueProductCode, 
+                        name: item.name, 
+                        quantity: item.quantity, 
+                        costPrice: finalCostPerUnit, 
+                        supplierId: invoiceData.supplierId, 
+                        category: item.category || "" 
+                    });
+                }
+                delete item.duplicateResolution; // تنظيف فلاج القرار بعد اكتمال الترحيل الآمن
+            });
+            purchaseInvoices.push(invoiceData);
+        } else {
+            pendingPurchases.push(invoiceData);
         }
-        pendingPurchases.push(invoiceData);
-    }
 
     // تسجيل الالتزام إذا وجد متبقي
    if (invoiceData.remainingBalance > 0.001) {
@@ -10975,7 +11172,7 @@ if (resetButtonAlt) {
 if (addProductButton) {
     addProductButton.addEventListener("click", () => {
         saveStateToHistory();
-        const name = productNameInput.value.trim();
+        let name = productNameInput.value.trim();
         const quantity = parseInputNumber(productQuantityInput);
         const costPrice = parseInputNumber(productCostPriceInput);
         const supplierId = productSupplierSelect.value;
@@ -10985,38 +11182,198 @@ if (addProductButton) {
         const account = accounts.find(acc => acc.id === selectedAccountId);
         const serialNumbersInput = productSerialNumbersTextarea ? productSerialNumbersTextarea.value.trim() : '';
 
+        // 1. التحقق من الحقول الأساسية
         if (!name || isNaN(quantity) || quantity < 0 || isNaN(costPrice) || costPrice < 0) {
             showMessage(productMessage, "يرجى ملء اسم وكمية (>=0) وسعر تكلفة (>=0) المنتج بشكل صحيح.", true);
             return;
         }
 
-        if (deductLiquidity && !selectedAccountId) {
-            showMessage(productMessage, "يرجى اختيار الحساب الذي سيتم الخصم منه.", true);
+        // [تعديل أمني]: التحقق التام من كائن الحساب قبل التعامل معه لمنع توقف البرنامج
+        if (deductLiquidity && (!selectedAccountId || !account)) {
+            showMessage(productMessage, "يرجى اختيار حساب مالي صحيح للخصم منه.", true);
             return;
         }
 
-        if (editingProductName) {
-            // منطق التعديل
-            const productIndex = products.findIndex(p => p.name === editingProductName);
+        // 🌟 [تنفيذ فكرة د. ضياء]: اعتراض تكرار الاسم وفتح مودال التوجيه الذكي بالـ ID
+        // نتحقق من وجود منتج بنفس الاسم بشرط ألا يكون هو نفس المنتج الذي نعدله حالياً (باستخدام الـ ID الفريد)
+        const duplicateProduct = products.find(p => p.name.toLowerCase() === name.toLowerCase() && 
+            (!window.currentEditingProductID || p.id !== window.currentEditingProductID));
+
+        if (duplicateProduct && !window.bypassDuplicateCheck) {
+            window.currentDuplicateProductID = duplicateProduct.id || null;
+            // حفظ البيانات مؤقتاً في كائن الانتظار لحين اختيارك من المودال
+            window.pendingDuplicateProduct = {
+                editingProductName, name, quantity, costPrice, supplierId, category, deductLiquidity, selectedAccountId
+            };
+
+            const modal = document.getElementById("productDuplicateNameModal");
+            const modalText = document.getElementById("duplicateModalText");
+            if (modal && modalText) {
+                modalText.innerHTML = `تنبيه: يوجد بالفعل منتج مسجل بنفس الاسم <strong>"${duplicateProduct.name}"</strong> في قسم <strong>"${duplicateProduct.category || 'عام'}"</strong>.<br><br>الكمية الحالية له: <strong>${duplicateProduct.quantity}</strong> قطعة بمتوسط تكلفة <strong>${formatCurrency(duplicateProduct.costPrice)}</strong>.`;
+                modal.style.display = "flex";
+                document.querySelector('input[name="duplicateAction"][value="merge"]').checked = true;
+                document.getElementById("renameInputContainer").classList.add('hidden');
+                document.getElementById("newProductNameInput").value = name + " - جديد";
+            }
+            return; // 🛑 إيقاف الحفظ الفوري بانتظار قرارك من داخل المودال!
+        }
+
+        // تصفير فلاج التخطي بعد العبور الآمن لفحص التكرار
+        window.bypassDuplicateCheck = false;
+
+        // 2. معالجة وتقسيم الأرقام التسلسلية (السيريالات) المدخلة إن وجدت
+        let enteredSerials = [];
+        if (serialNumbersInput) {
+            enteredSerials = serialNumbersInput.split(/[\n, ]+/).map(s => s.trim()).filter(Boolean);
+        }
+
+        // 🌟 [التمييز الذكي لوضع التعديل بالـ ID والاسم معاً]
+        if (editingProductName || window.currentEditingProductID) {
+            // =========================================================
+            // وضع التعديل (Edit Mode) - معالجة السيريالات والتكلفة بالـ ID لمنع التداخل
+            // =========================================================
+            let productIndex = -1;
+            if (window.currentEditingProductID) {
+                productIndex = products.findIndex(p => p.id === window.currentEditingProductID);
+            }
+            if (productIndex === -1 && editingProductName) {
+                productIndex = products.findIndex(p => p.name === editingProductName);
+            }
+            
             if (productIndex === -1) return;
             
-            // ... (باقي منطق التعديل كما هو) ...
+            const oldProduct = products[productIndex];
+            const oldQty = Number(oldProduct.quantity) || 0;
+            const oldCost = Number(oldProduct.costPrice) || 0;
+
+            // 🌟 [مودال تقليص الكمية]: اعتراض عملية تقليص الكمية وفتح مودال التسوية المالية فوراً
+            if (quantity < oldQty) {
+                const reducedQty = oldQty - quantity;
+                const totalRefundValue = reducedQty * oldCost; // احتساب الفارق بالتكلفة المقيدة حالياً بالسيستم
+
+                // تخزين البيانات مؤقتاً في كائن الانتظار لحين اتخاذ القرار من المودال
+                window.pendingProductEdit = {
+                    productIndex,
+                    name,
+                    category,
+                    quantity,
+                    costPrice, 
+                    supplierId,
+                    reducedQty,
+                    totalRefundValue,
+                    enteredSerials // تمرير السيريالات الجديدة إن وجدت
+                };
+
+                // فتح وتعبئة مودال التسوية المالية
+                const modal = document.getElementById("productDecreaseModal");
+                const modalText = document.getElementById("decreaseModalText");
+                const accSelect = document.getElementById("decreaseAccountSelect");
+
+                if (modal && modalText && accSelect) {
+                    modalText.innerHTML = `لقد قمت بتقليص كمية منتج <strong>"${oldProduct.name}"</strong> من <strong>${oldQty}</strong> إلى <strong>${quantity}</strong> قطعة.<br><br>فارق الكمية المنقوصة هو <strong>${reducedQty}</strong> قطعة، وقيمتها المالية الإجمالية تساوي <strong>${formatCurrency(totalRefundValue)}</strong>.`;
+                    
+                    // شحن الخزن المتاحة بالبرنامج
+                    accSelect.innerHTML = accounts.map(acc => `<option value="${acc.id}">${acc.name} (الرصيد الحالي: ${formatCurrency(acc.balance)})</option>`).join('');
+                    
+                    // إظهار المودال وإعادة ضبط الخيارات
+                    modal.style.display = "flex";
+                    document.querySelector('input[name="decreaseAction"][value="deposit"]').checked = true;
+                    document.getElementById("decreaseAccountContainer").classList.remove('hidden');
+                }
+                return; // 🛑 إيقاف الحفظ المباشر هنا بانتظار قرارك من داخل المودال!
+            }
+
+            // أ. التحقق من السيريالات في وضع التعديل (إذا زادت الكمية، يجب أن يطابق عدد السيريالات الفارق الزائد)
+            if (enteredSerials.length > 0 && quantity > oldQty) {
+                const addedQty = quantity - oldQty;
+                if (enteredSerials.length !== addedQty) {
+                    showMessage(productMessage, `في وضع التعديل، عدد السيريالات الجديدة المدخلة (${enteredSerials.length}) يجب أن يتطابق تماماً مع كمية القطع المضافة الزائدة (${addedQty}).`, true);
+                    return;
+                }
+            }
+
+            // 🛠️ معالجة زيادة الكمية محاسبياً وحفظ الخزنة ومتوسط التكلفة
+            if (quantity > oldQty) {
+                const addedQty = quantity - oldQty;
+
+                if (deductLiquidity) {
+                    const costToDeduct = addedQty * costPrice;
+                    if (costToDeduct > account.balance) {
+                        showMessage(productMessage, `لا توجد سيولة كافية في حساب "${account.name}".`, true);
+                        return;
+                    }
+                    account.balance -= costToDeduct;
+                    logOperation("شراء بضاعة (تعديل كمية)", `خصم ${formatCurrency(costToDeduct)} من حساب "${account.name}" لزيادة كمية منتج "${name}" بمقدار ${addedQty} قطعة.`);
+                    
+                    // معادلة متوسط التكلفة المرجح الحقيقية لحماية تقارير الأرباح
+                    products[productIndex].costPrice = ((oldQty * oldCost) + (addedQty * costPrice)) / quantity;
+                } else {
+                    // إذا لم يتم تفعيل خصم السيولة، نعتمد التكلفة المدخلة مباشرة للكمية الجديدة
+                    products[productIndex].costPrice = costPrice;
+                }
+            } else {
+                // إذا بقيت الكمية ثابتة نعتمد السعر الجديد مباشرة لمنع تجمد الأسعار
+                products[productIndex].costPrice = costPrice;
+            }
+
+            // ج. حفظ الأرقام التسلسلية الجديدة بنجاح في السجل العام للبرنامج
+            if (enteredSerials.length > 0) {
+                enteredSerials.forEach(serial => {
+                    if (!serialNumbersLog.some(s => s.serial === serial)) {
+                        serialNumbersLog.push({ 
+                            serial, 
+                            productName: name, 
+                            supplierId: supplierId || "", 
+                            addedTimestamp: new Date().toISOString(), 
+                            status: 'in_stock' 
+                        });
+                    }
+                });
+            }
+
+            // 🛠️ تحديث اسم المنتج داخل سجل السيريالات القديمة لكي لا تنفصل عن المنتج بعد تعديل اسمه
+            if (editingProductName !== name) {
+                serialNumbersLog.forEach(s => {
+                    if (s.productName === editingProductName) {
+                        s.productName = name;
+                    }
+                });
+            }
+
+            // د. حفظ البيانات النصية المحدثة بالمنتج
             products[productIndex].name = name;
             products[productIndex].category = category;
             products[productIndex].quantity = quantity;
-            products[productIndex].costPrice = costPrice;
             products[productIndex].supplierId = supplierId;
+            
             showMessage(productMessage, `تم تحديث المنتج "${name}" بنجاح.`);
             resetProductForm();
 
         } else {
-            // منطق الإضافة الجديدة
-            const existingIndex = products.findIndex(p => p.name.toLowerCase() === name.toLowerCase());
+            // =========================================================
+            // وضع الإضافة الجديدة (Add Mode)
+            // =========================================================
+         // 🌟 [تعديل د. ضياء]: البحث والدمج بالـ ID أولاً لمنع دمج الصنف في القسم الخاطئ عند تشابه الأسماء
+        let existingIndex = -1;
+        if (window.currentDuplicateProductID) {
+            existingIndex = products.findIndex(p => p.id === window.currentDuplicateProductID);
+        }
+        // خط دفاع بديل بالاسم إذا كان منتجاً قديماً بلا ID
+        if (existingIndex === -1) {
+            existingIndex = products.findIndex(p => p.name.toLowerCase() === name.toLowerCase());
+        }
+
             let newQuantity = Number(quantity);
             const newCostPriceInput = Number(costPrice);
 
+            // التحقق من تطابق السيريالات مع الكمية المضافة عند الإضافة الجديدة أو زيادة المخزون
+            if (enteredSerials.length > 0 && enteredSerials.length !== newQuantity) {
+                showMessage(productMessage, `عدد الأرقام التسلسلية المدخلة (${enteredSerials.length}) لا يتطابق مع الكمية المضافة (${newQuantity}).`, true);
+                return;
+            }
+
             if (existingIndex !== -1) {
-                 // منتج موجود مسبقاً
+                 // الحالة الأولى: المنتج موجود مسبقاً بنفس الاسم والقسم (زيادة كمية عادية)
                  if (newQuantity <= 0) { showMessage(productMessage, "الكمية المضافة يجب أن تكون أكبر من صفر.", true); return; }
                  const existing = products[existingIndex];
                  
@@ -11033,14 +11390,29 @@ if (addProductButton) {
                 const oldQuantity = Number(existing.quantity) || 0;
                 const oldCostPrice = Number(existing.costPrice) || 0;
                 const totalQuantity = oldQuantity + newQuantity;
+                
                 existing.quantity = totalQuantity;
                 existing.costPrice = ((oldQuantity * oldCostPrice) + (newQuantity * newCostPriceInput)) / totalQuantity;
                 existing.supplierId = supplierId || existing.supplierId;
                 existing.category = category || existing.category;
-                showMessage(productMessage, `تم تحديث المنتج "${name}".`);
+
+                // حقن السيريالات الجديدة المضافة بنجاح في السجل العام للبرنامج
+                enteredSerials.forEach(serial => {
+                    if (!serialNumbersLog.some(s => s.serial === serial)) {
+                        serialNumbersLog.push({ 
+                            serial, 
+                            productName: existing.name, 
+                            supplierId: supplierId || "", 
+                            addedTimestamp: new Date().toISOString(), 
+                            status: 'in_stock' 
+                        });
+                    }
+                });
+
+                showMessage(productMessage, `تم تحديث كمية المنتج "${name}" بنجاح.`);
 
             } else {
-                // منتج جديد كلياً
+                // الحالة الثانية: منتج جديد كلياً في قاعدة البيانات
                 if (newQuantity <= 0) { showMessage(productMessage, "كمية المنتج الجديد يجب أن تكون أكبر من صفر.", true); return; }
 
                 if (deductLiquidity && newQuantity > 0) {
@@ -11053,8 +11425,32 @@ if (addProductButton) {
                     logOperation("شراء بضاعة جديدة", `خصم ${formatCurrency(costToDeduct)} من حساب "${account.name}" لشراء ${newQuantity}x ${name}.`);
                 }
 
-                products.push({ name, quantity: newQuantity, costPrice, supplierId: supplierId || "", category: category });
-                showMessage(productMessage, "تمت إضافة المنتج الجديد بنجاح.");
+                // 🆔 [توليد كود مخصص وحصري فريد]: منح كود فريد لكل منتج جديد يدخل النظام
+                const uniqueProductCode = "code_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
+
+                products.push({ 
+                    id: uniqueProductCode, 
+                    name, 
+                    quantity: newQuantity, 
+                    costPrice, 
+                    supplierId: supplierId || "", 
+                    category: category 
+                });
+
+                // حقن السيريالات للمنتج الجديد كلياً في السجل العام للبرنامج
+                enteredSerials.forEach(serial => {
+                    if (!serialNumbersLog.some(s => s.serial === serial)) {
+                        serialNumbersLog.push({ 
+                            serial, 
+                            productName: name, 
+                            supplierId: supplierId || "", 
+                            addedTimestamp: new Date().toISOString(), 
+                            status: 'in_stock' 
+                        });
+                    }
+                });
+
+                showMessage(productMessage, "تمت إضافة المنتج الجديد بنجاح بكود فريد.");
             }
             resetProductForm();
         }
@@ -11160,6 +11556,194 @@ if (productDeductLiquidityCheckbox) {
                  }
 
                  if (cancelEditProductButton) { cancelEditProductButton.addEventListener('click', resetProductForm); }
+                 // =====================================================================
+// 🌟 [تنفيذ فكرة د. ضياء الشاملة] - تشغيل وإدارة عمليات مودال تسوية تقليل الكمية
+// =====================================================================
+const confirmDecreaseBtn = document.getElementById("confirmDecreaseBtn");
+const cancelDecreaseModalBtn = document.getElementById("cancelDecreaseModalBtn");
+const closeDecreaseModalBtn = document.getElementById("closeDecreaseModalBtn");
+const productDecreaseModal = document.getElementById("productDecreaseModal");
+
+const closeDecreaseModal = () => {
+    if (productDecreaseModal) productDecreaseModal.style.display = "none";
+    window.pendingProductEdit = null;
+};
+
+if (closeDecreaseModalBtn) closeDecreaseModalBtn.addEventListener("click", closeDecreaseModal);
+if (cancelDecreaseModalBtn) cancelDecreaseModalBtn.addEventListener("click", closeDecreaseModal);
+
+// ربط إظهار وإخفاء الخزن بناءً على خيار الراديو المختار
+document.querySelectorAll('input[name="decreaseAction"]').forEach(radio => {
+    radio.addEventListener('change', (e) => {
+        const container = document.getElementById("decreaseAccountContainer");
+        if (container) {
+            if (e.target.value === 'deposit') {
+                container.classList.remove('hidden');
+            } else {
+                container.classList.add('hidden');
+            }
+        }
+    });
+});
+
+// زر تأكيد التسوية المحاسبية النهائية داخل المودال
+if (confirmDecreaseBtn) {
+    confirmDecreaseBtn.addEventListener("click", () => {
+        if (!window.pendingProductEdit) return;
+        
+        const { productIndex, name, category, quantity, costPrice, supplierId, reducedQty, totalRefundValue } = window.pendingProductEdit;
+        const actionType = document.querySelector('input[name="decreaseAction"]:checked').value;
+        
+        if (actionType === 'deposit') {
+            // الخيار الأول: زيادة السيولة النقدية وإيداع المبلغ في الخزنة المحددة
+            const selectedAccountId = document.getElementById("decreaseAccountSelect").value;
+            const account = accounts.find(acc => acc.id === selectedAccountId);
+            if (!account) {
+                alert("يرجى اختيار حساب مالي صحيح لإيداع الفارق.");
+                return;
+            }
+            account.balance += totalRefundValue;
+            logOperation("تسوية مخزن (إيداع)", `إضافة ${formatCurrency(totalRefundValue)} لحساب "${account.name}" مقابل مرتجع/تقليص كمية منتج "${name}" بمقدار ${reducedQty} قطعة.`);
+        } else {
+            // الخيار الثاني: الخصم المباشر من رأس المال (تسجيل خسارة / هالك بضاعة) دون كاش
+            logOperation("تسوية مخزن (هالك/خسارة)", `تقليص كمية منتج "${name}" بمقدار ${reducedQty} قطعة واعتبارها هالك/خسارة قيمتها ${formatCurrency(totalRefundValue)} دون إدخال سيولة.`);
+        }
+
+        // تحديث بيانات البضاعة في مصفوفة البرنامج بعد التسوية الحسابية بنجاح
+        products[productIndex].name = name;
+        products[productIndex].category = category;
+        products[productIndex].quantity = quantity;
+        products[productIndex].costPrice = costPrice; // اعتماد السعر الجديد لتحديثاتك اللاحقة
+        products[productIndex].supplierId = supplierId;
+
+        showMessage(productMessage, `تم تسوية الفارق الحسابي وتحديث المنتج "${name}" بنجاح.`);
+        closeDecreaseModal();
+        if (typeof resetProductForm === 'function') resetProductForm();
+        if (typeof updateUI === 'function') updateUI();
+    });
+}
+// =====================================================================
+// 🌟 إدارة خيارات مودال اعتراض تكرار الأسماء (المخزون + المشتريات) - تطوير د. ضياء
+// =====================================================================
+const confirmDuplicateBtn = document.getElementById("confirmDuplicateBtn");
+const cancelDuplicateModalBtn = document.getElementById("cancelDuplicateModalBtn");
+const closeDuplicateModalBtn = document.getElementById("closeDuplicateModalBtn");
+const productDuplicateNameModal = document.getElementById("productDuplicateNameModal");
+
+const closeDuplicateModal = () => {
+    if (productDuplicateNameModal) productDuplicateNameModal.style.display = "none";
+    window.pendingDuplicateProduct = null;
+};
+
+if (closeDuplicateModalBtn) closeDuplicateModalBtn.addEventListener("click", closeDuplicateModal);
+if (cancelDuplicateModalBtn) cancelDuplicateModalBtn.addEventListener("click", closeDuplicateModal);
+
+// التحكم في إظهار حقل كتابة الاسم الجديد عند اختيار "إعادة التسمية"
+document.querySelectorAll('input[name="duplicateAction"]').forEach(radio => {
+    radio.addEventListener('change', (e) => {
+        const container = document.getElementById("renameInputContainer");
+        if (container) {
+            if (e.target.value === 'rename') {
+                container.classList.remove('hidden');
+                document.getElementById("newProductNameInput").focus();
+            } else {
+                container.classList.add('hidden');
+            }
+        }
+    });
+});
+
+if (confirmDuplicateBtn) {
+    confirmDuplicateBtn.addEventListener("click", () => {
+        const selectedAction = document.querySelector('input[name="duplicateAction"]:checked').value;
+
+        // [الحالة الأولى]: المخزون والإضافة يدوياً
+        if (window.pendingDuplicateProduct) {
+            const data = window.pendingDuplicateProduct;
+
+            if (selectedAction === 'merge') {
+                window.bypassDuplicateCheck = true;
+                closeDuplicateModal();
+                if (addProductButton) addProductButton.click();
+                
+            } else if (selectedAction === 'rename') {
+                const newName = document.getElementById("newProductNameInput").value.trim();
+                if (!newName) { alert("يرجى كتابة اسم جديد للمنتج."); return; }
+                if (products.some(p => p.name.toLowerCase() === newName.toLowerCase())) {
+                    alert("الاسم الجديد مكرر أيضاً! اختر اسماً آخر."); return;
+                }
+                productNameInput.value = newName;
+                window.bypassDuplicateCheck = true;
+                closeDuplicateModal();
+                if (addProductButton) addProductButton.click();
+
+            } else if (selectedAction === 'separate') {
+                window.bypassDuplicateCheck = true;
+                closeDuplicateModal();
+
+                const account = accounts.find(acc => acc.id === data.selectedAccountId);
+                if (data.deductLiquidity && data.quantity > 0 && account) {
+                    const costToDeduct = data.quantity * data.costPrice;
+                    if (costToDeduct <= account.balance) {
+                        account.balance -= costToDeduct;
+                        logOperation("شراء بضاعة (منفصلة الاسم)", `خصم ${formatCurrency(costToDeduct)} من حساب "${account.name}" لشراء منتج مستقل يحمل اسم مكرر "${data.name}".`);
+                    }
+                }
+
+                const uniqueProductCode = "code_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
+                products.push({
+                    id: uniqueProductCode,
+                    name: data.name,
+                    quantity: data.quantity,
+                    costPrice: data.costPrice,
+                    supplierId: data.supplierId || "",
+                    category: data.category
+                });
+                showMessage(productMessage, `تم تسجيل "${data.name}" كمنتج مستقل بكود جديد بنجاح.`);
+                resetProductForm();
+                updateUI();
+            }
+        }
+        
+        // [الحالة الثانية]: بند داخل فاتورة المشتريات
+        else if (window.pendingPurchaseInvoiceItem) {
+            const { item, resumeCallback } = window.pendingPurchaseInvoiceItem;
+
+            // تحديد صف الجدول الحقيقي بالـ DOM المطابق لهذا الصنف المكرر بالفاتورة
+            const rows = Array.from(document.querySelectorAll('#pi_items_body tr'));
+            const matchingRow = rows.find(r => r.dataset.name === item.name);
+
+            if (selectedAction === 'merge') {
+                // حفر القرار مباشرة في صف الجدول ليصمد أثناء تكرار الفحص والدالة
+                if (matchingRow) matchingRow.dataset.duplicateResolution = 'merge';
+                closeDuplicateModal();
+                if (typeof resumeCallback === 'function') resumeCallback();
+
+            } else if (selectedAction === 'rename') {
+                const newName = document.getElementById("newProductNameInput").value.trim();
+                if (!newName) { alert("يرجى كتابة اسم جديد للبند."); return; }
+                if (products.some(p => p.name.toLowerCase() === newName.toLowerCase())) {
+                    alert("الاسم المقترح مكرر في المخزن أيضاً! اختر اسماً آخر."); return;
+                }
+                
+                if (matchingRow) {
+                    matchingRow.dataset.name = newName; // تحديث داتا الاسم بالجدول
+                    matchingRow.dataset.duplicateResolution = 'rename'; // حفر قرار التسمية
+                    // تحديث النص المرئي للاسم في أول خلية بالصف فوراً للعميل
+                    const firstCell = matchingRow.querySelector('td');
+                    if (firstCell) firstCell.textContent = newName;
+                }
+                closeDuplicateModal();
+                if (typeof resumeCallback === 'function') resumeCallback();
+
+            } else if (selectedAction === 'separate') {
+                if (matchingRow) matchingRow.dataset.duplicateResolution = 'separate';
+                closeDuplicateModal();
+                if (typeof resumeCallback === 'function') resumeCallback();
+            }
+        }
+    });
+}
                  if (productList) {
                      productList.addEventListener('click', (e) => {
                          const target = e.target.closest('button');
@@ -11167,46 +11751,85 @@ if (productDeductLiquidityCheckbox) {
                          const productName = target.dataset.productName;
                          if (!productName) return;
 
-                         if (target.classList.contains('edit-product-btn')) {
-                             const productToEdit = products.find(p => p.name === productName);
-                             if (productToEdit && productNameInput && productQuantityInput && productCostPriceInput && productSupplierSelect && addProductButton && productFormTitle && cancelEditProductButton) {
-                                 editingProductName = productName;
-                                 productNameInput.value = productToEdit.name;
-                                 productQuantityInput.value = productToEdit.quantity;
-                                 productCostPriceInput.value = productToEdit.costPrice;
-                                 productSupplierSelect.value = productToEdit.supplierId || "";
-                                 productCategoryInput.value = productToEdit.category || "";
-                                 addProductButton.textContent = "تحديث المنتج";
-                                 addProductButton.classList.remove('bg-green-500', 'hover:bg-green-600');
-                                 addProductButton.classList.add('bg-blue-500', 'hover:bg-blue-600');
-                                 productFormTitle.textContent = `تعديل المنتج: ${productName}`;
-                                 cancelEditProductButton.classList.remove('hidden');
-                                 serialNumberEntryContainer.classList.add('hidden'); // Ensure serial field is hidden during edit mode
-                                 if(productSerialNumbersTextarea) productSerialNumbersTextarea.value = '';
-                                 d('add-update-product-form').scrollIntoView({ behavior: 'smooth' });
-                             } else {
-                                 showMessage(productMessage, `لم يتم العثور على المنتج "${productName}" للتعديل أو عناصر النموذج غير جاهزة.`, true);
-                             }
-                         } else if (target.classList.contains('delete-product-btn')) {
-                             if (confirm(`هل أنت متأكد من حذف المنتج "${productName}"؟ سيتم حذف جميع الأرقام التسلسلية المرتبطة به أيضاً.`)) {
-                                 saveStateToHistory();
-                                 const initialLength = products.length;
-                                 products = products.filter(p => p.name !== productName);
-                                 // **** حذف السيريالات المرتبطة بالمنتج المحذوف ****
-                                 const initialSerialCount = serialNumbersLog.length;
-                                 serialNumbersLog = serialNumbersLog.filter(log => log.productName !== productName);
-                                 const deletedSerialCount = initialSerialCount - serialNumbersLog.length;
-                                 if (products.length < initialLength) {
-                                     logOperation("حذف منتج", `تم حذف المنتج "${productName}". تم حذف ${deletedSerialCount} رقم تسلسلي مرتبط.`);
-                                     showMessage(productMessage, `تم حذف المنتج "${productName}" و ${deletedSerialCount} رقم تسلسلي مرتبط بنجاح.`);
-                                     if (editingProductName === productName) { resetProductForm(); }
-                                     updateUI();
-                                 }
-                             }
-                         } else if (target.classList.contains('manage-serials-btn')) { // **** جديد: التعامل مع زر إدارة السيريالات ****
-                             openManageSerialsModal(productName);
-                         }
-                     
+                    if (target.classList.contains('edit-product-btn')) {
+            const productId = target.dataset.productId;
+            let productToEdit = null;
+            
+            // 1. البحث عن المنتج بالـ ID الفريد أولاً لضمان عدم التداخل الحسابي
+            if (productId) {
+                productToEdit = products.find(p => p.id === productId);
+            }
+            // 2. خط دفاع بديل بالاسم إذا كان المنتج قديماً جداً ولا يملك كود
+            if (!productToEdit) {
+                productToEdit = products.find(p => p.name === productName);
+            }
+
+            if (productToEdit && productNameInput && productQuantityInput && productCostPriceInput && productSupplierSelect && addProductButton && productFormTitle && cancelEditProductButton) {
+                editingProductName = productToEdit.name;
+                window.currentEditingProductID = productToEdit.id || null; // 🌟 حفظ الـ ID الفريد للمنتج الجاري تعديله حالياً
+                
+                productNameInput.value = productToEdit.name;
+                productQuantityInput.value = productToEdit.quantity;
+                productCostPriceInput.value = productToEdit.costPrice;
+                productSupplierSelect.value = productToEdit.supplierId || "";
+                productCategoryInput.value = productToEdit.category || "";
+                
+                addProductButton.textContent = "تحديث المنتج";
+                addProductButton.classList.remove('bg-green-500', 'hover:bg-green-600');
+                addProductButton.classList.add('bg-blue-500', 'hover:bg-blue-600');
+                productFormTitle.textContent = `تعديل المنتج: ${productToEdit.name}`;
+                cancelEditProductButton.classList.remove('hidden');
+                serialNumberEntryContainer.classList.add('hidden'); // تأكيد إخفاء السيريالات في وضع التعديل
+                if(productSerialNumbersTextarea) productSerialNumbersTextarea.value = '';
+                d('add-update-product-form').scrollIntoView({ behavior: 'smooth' });
+            } else {
+                showMessage(productMessage, `لم يتم العثور على المنتج "${productName}" للتعديل أو عناصر النموذج غير جاهزة.`, true);
+            }
+        } else if (target.classList.contains('delete-product-btn')) {
+            const productId = target.dataset.productId;
+            const productName = target.dataset.productName;
+
+            if (confirm(`هل أنت متأكد من حذف المنتج "${productName}" نهائياً من المخزن؟`)) {
+                saveStateToHistory();
+                
+                let productIndex = -1;
+                // 1. البحث بالـ ID الفريد أولاً منعاً لحذف المنتجات المتشابهة في الاسم
+                if (productId) {
+                    productIndex = products.findIndex(p => p.id === productId);
+                }
+                // 2. خط دفاع بديل بالاسم لو منتج قديم لا يملك كود
+                if (productIndex === -1) {
+                    productIndex = products.findIndex(p => p.name === productName);
+                }
+
+                if (productIndex !== -1) {
+                    const product = products[productIndex];
+                    const qty = Number(product.quantity) || 0;
+                    const cost = Number(product.costPrice) || 0;
+                    const totalCardValue = qty * cost;
+
+                    // **** حذف السيريالات المرتبطة بالمنتج المحذوف ****
+                    const initialSerialCount = serialNumbersLog.length;
+                    serialNumbersLog = serialNumbersLog.filter(log => log.productName !== productName);
+                    const deletedSerialCount = initialSerialCount - serialNumbersLog.length;
+
+                    logOperation("حذف منتج", `تم حذف المنتج "${productName}" (الكمية: ${qty} قطعة، التكلفة الإجمالية المحذوفة من رأس المال: ${formatCurrency(totalCardValue)}).`);
+                    showMessage(productMessage, `تم حذف المنتج "${productName}" و ${deletedSerialCount} رقم تسلسلي مرتبط بنجاح.`);
+
+                    // 🛠️ [التعديل الأهم]: الحذف الفعلي لعنصر واحد فقط من المصفوفة لمنع تدمير باقي المنتجات
+                    products.splice(productIndex, 1);
+
+                    if (editingProductName === productName) {
+                        resetProductForm();
+                    }
+                    updateUI();
+                }
+            }
+       } else if (target.classList.contains('manage-serials-btn')) {
+    // **** [تحديث د. ضياء]: التعامل مع زر إدارة السيريالات بالـ ID الفريد لمنع تداخل الأصناف متشابهة الاسم
+    const productId = target.dataset.productId;
+    openManageSerialsModal(productId || productName);
+}              
                      });
                  }
                  if (inventorySearchInput) { inventorySearchInput.addEventListener('input', updateProductListDisplay); }
@@ -11340,12 +11963,12 @@ function sellProduct() {
         return;
     }
 
-    // 3. التحقق من المخزون
-    const mainProductIndex = products.findIndex(p => p.name.trim() === mainProductName.trim());
-    if (mainProductIndex === -1) {
-        showMessage(sellMessage, `المنتج "${mainProductName}" غير موجود.`, true);
-        return;
-    }
+   // 🌟 [تعديل د. ضياء]: البحث الذكي بالـ ID أولاً ثم الاسم لمنع تداخل البيع السريع
+const mainProductIndex = products.findIndex(p => p.id === mainProductName || p.name.trim().toLowerCase() === mainProductName.trim().toLowerCase());
+if (mainProductIndex === -1) {
+    showMessage(sellMessage, `المنتج "${mainProductName}" غير موجود في المخزن.`, true);
+    return;
+}
     const mainProduct = products[mainProductIndex];
     if (mainProduct.quantity < quantitySold) {
         showMessage(sellMessage, `الكمية غير متوفرة. المتاح: ${mainProduct.quantity}`, true);
@@ -12213,13 +12836,16 @@ if (ppConfirmBtn) {
                 if (item.category) existing.category = item.category;
             } else {
                 // ✅ إضافة منتج جديد بالتصنيف والتكلفة الشاملة
-                products.push({ 
-                    name: item.name, 
-                    quantity: item.quantity, 
-                    costPrice: finalCostWithOverhead, 
-                    supplierId: purchase.supplierId,
-                    category: item.category || "" 
-                });
+              // 🌟 [تعديل د. ضياء]: تأمين البضاعة الجديدة الناتجة عن توزيع المصاريف بكود فريد
+const uniqueProductCodeOverhead = "code_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
+products.push({ 
+    id: uniqueProductCodeOverhead, // 🆔 إضافة الـ ID لمنع الكراش والتداخل مستقبلاً
+    name: item.name, 
+    quantity: item.quantity, 
+    costPrice: finalCostWithOverhead, 
+    supplierId: purchase.supplierId,
+    category: item.category || "" 
+});
             }
 
             // تسجيل السيريالات إن وجدت
@@ -14384,7 +15010,6 @@ window.closeDeleteDebtRefundModal = function() {
             console.log("❌ غير متصل بالسحابة");
         }
     });
-
     console.log("🚀 نظام السحابة (Firebase) جاهز ومؤمن ضد أخطاء التحميل");
 </script>
 <div id="refundModal" class="modal" style="display:none; z-index: 2100;">
@@ -14457,6 +15082,112 @@ window.closeDeleteDebtRefundModal = function() {
         </div>
         <div class="modal-footer">
             <button id="confirmDeleteRefundBtn" class="bg-red-500 hover:bg-red-600 text-white w-full py-2 rounded font-bold">تأكيد الحذف والإيداع في الحساب</button>
+        </div>
+    </div>
+</div>
+<div id="productDecreaseModal" class="modal" style="display: none; z-index: 2500; align-items: center; justify-content: center; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5);">
+    <div class="modal-content" style="max-width: 450px; border-top: 5px solid #f97316; background: white; padding: 20px; border-radius: 8px; width: 90%; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+        <div class="modal-header flex justify-between items-center pb-3 border-b">
+            <h2 class="text-lg font-bold text-orange-600">⚠️ تسوية فارق تقليل الكمية</h2>
+            <span class="modal-close-btn cursor-pointer text-2xl font-bold" id="closeDecreaseModalBtn">&times;</span>
+        </div>
+        <div class="modal-body py-4">
+            <p id="decreaseModalText" class="text-sm text-gray-700 bg-orange-50 p-3 rounded mb-4 leading-relaxed border border-orange-200"></p>
+            
+            <div class="mb-4">
+                <label class="block text-sm font-bold mb-2 text-gray-800">اختر الإجراء المحاسبي:</label>
+                <div class="space-y-2">
+                    <label class="inline-flex items-center cursor-pointer bg-gray-50 p-2 rounded w-full border border-gray-200 hover:bg-gray-100 transition">
+                        <input type="radio" name="decreaseAction" value="deposit" checked class="ml-2">
+                        <span class="text-xs font-semibold text-gray-700">💰 إيداع قيمة الفارق في الخزنة (مرتجع كاش من مورد / بيع خارجي)</span>
+                    </label>
+                    <label class="inline-flex items-center cursor-pointer bg-gray-50 p-2 rounded w-full border border-gray-200 hover:bg-gray-100 transition">
+                        <input type="radio" name="decreaseAction" value="loss" class="ml-2">
+                        <span class="text-xs font-semibold text-gray-700">📉 تسجيل كـ (هالك / خسارة) والخصم من رأس المال مباشرة (دون إيداع كاش)</span>
+                    </label>
+                </div>
+            </div>
+
+            <div id="decreaseAccountContainer" class="form-group">
+                <label for="decreaseAccountSelect" class="block text-sm font-bold mb-1 text-gray-700">اختر الحساب المراد إيداع الفارق فيه:</label>
+                <select id="decreaseAccountSelect" class="shadow-sm w-full p-2 border rounded bg-white"></select>
+            </div>
+        </div>
+        <div class="modal-footer pt-3 border-t flex gap-2">
+            <button id="confirmDecreaseBtn" class="bg-orange-500 text-white flex-1 py-2 rounded font-bold hover:bg-orange-600 transition">تأكيد التسوية الحسابية</button>
+            <button id="cancelDecreaseModalBtn" class="bg-gray-300 text-gray-700 px-4 py-2 rounded font-bold hover:bg-gray-400 transition">إلغاء</button>
+        </div>
+    </div>
+</div>
+<div id="productDuplicateNameModal" class="modal" style="display: none; z-index: 2600; align-items: center; justify-content: center; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5);">
+    <div class="modal-content" style="max-width: 500px; border-top: 5px solid #3b82f6; background: white; padding: 20px; border-radius: 8px; width: 90%; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+        <div class="modal-header flex justify-between items-center pb-3 border-b">
+            <h2 class="text-lg font-bold text-blue-600">⚠️ تنبيه: اسم المنتج مكرر بالفعل</h2>
+            <span class="modal-close-btn cursor-pointer text-2xl font-bold" id="closeDuplicateModalBtn">&times;</span>
+        </div>
+        <div class="modal-body py-4">
+            <p id="duplicateModalText" class="text-sm text-gray-700 bg-blue-50 p-3 rounded mb-4 leading-relaxed border border-blue-200"></p>
+            
+            <div class="mb-4">
+                <label class="block text-sm font-bold mb-2 text-gray-800">اختر كيف ترغب في معالجة هذا المنتج:</label>
+                <div class="space-y-2">
+                    <label class="inline-flex items-center cursor-pointer bg-gray-50 p-2 rounded w-full border border-gray-200 hover:bg-gray-100 transition">
+                        <input type="radio" name="duplicateAction" value="merge" checked class="ml-2">
+                        <span class="text-xs font-semibold text-gray-700">📥 دمج الكمية مع المنتج القديم (سيتم تحديث الكمية ومتوسط التكلفة)</span>
+                    </label>
+                    <label class="inline-flex items-center cursor-pointer bg-gray-50 p-2 rounded w-full border border-gray-200 hover:bg-gray-100 transition">
+                        <input type="radio" name="duplicateAction" value="rename" class="ml-2">
+                        <span class="text-xs font-semibold text-gray-700">✏️ إعادة تسمية المنتج الجديد لتفادي التكرار تماماً</span>
+                    </label>
+                    <div id="renameInputContainer" class="mt-2 pr-6 hidden">
+                        <input type="text" id="newProductNameInput" placeholder="اكتب الاسم الجديد هنا..." class="shadow-sm w-full p-2 border rounded text-sm bg-gray-50">
+                    </div>
+                    <label class="inline-flex items-center cursor-pointer bg-gray-50 p-2 rounded w-full border border-gray-200 hover:bg-gray-100 transition">
+                        <input type="radio" name="duplicateAction" value="separate" class="ml-2">
+                        <span class="text-xs font-semibold text-gray-700">🆔 استمرار بنفس الاسم ولكن كمنتج مستقل (بكود فريد وقسم خاص به)</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer pt-3 border-t flex gap-2">
+            <button id="confirmDuplicateBtn" class="bg-blue-500 text-white flex-1 py-2 rounded font-bold hover:bg-blue-600 transition">تأكيد الإجراء المحاسبي</button>
+            <button id="cancelDuplicateModalBtn" class="bg-gray-300 text-gray-700 px-4 py-2 rounded font-bold hover:bg-gray-400 transition">إلغاء</button>
+        </div>
+    </div>
+</div>
+<div id="productDuplicateNameModal" class="modal" style="display: none; z-index: 2600; align-items: center; justify-content: center; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5);">
+    <div class="modal-content" style="max-width: 500px; border-top: 5px solid #3b82f6; background: white; padding: 20px; border-radius: 8px; width: 90%; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+        <div class="modal-header flex justify-between items-center pb-3 border-b">
+            <h2 class="text-lg font-bold text-blue-600">⚠️ تنبيه: اسم المنتج مكرر بالفعل</h2>
+            <span class="modal-close-btn cursor-pointer text-2xl font-bold" id="closeDuplicateModalBtn">&times;</span>
+        </div>
+        <div class="modal-body py-4">
+            <p id="duplicateModalText" class="text-sm text-gray-700 bg-blue-50 p-3 rounded mb-4 leading-relaxed border border-blue-200"></p>
+            
+            <div class="mb-4">
+                <label class="block text-sm font-bold mb-2 text-gray-800">اختر كيف ترغب في معالجة هذا المنتج:</label>
+                <div class="space-y-2">
+                    <label class="inline-flex items-center cursor-pointer bg-gray-50 p-2 rounded w-full border border-gray-200 hover:bg-gray-100 transition">
+                        <input type="radio" name="duplicateAction" value="merge" checked class="ml-2">
+                        <span class="text-xs font-semibold text-gray-700">📥 دمج الكمية مع المنتج القديم (سيتم تحديث الكمية ومتوسط التكلفة)</span>
+                    </label>
+                    <label class="inline-flex items-center cursor-pointer bg-gray-50 p-2 rounded w-full border border-gray-200 hover:bg-gray-100 transition">
+                        <input type="radio" name="duplicateAction" value="rename" class="ml-2">
+                        <span class="text-xs font-semibold text-gray-700">✏️ إعادة تسمية المنتج الجديد لتفادي التكرار تماماً</span>
+                    </label>
+                    <div id="renameInputContainer" class="mt-2 pr-6 hidden">
+                        <input type="text" id="newProductNameInput" placeholder="اكتب الاسم الجديد هنا..." class="shadow-sm w-full p-2 border rounded text-sm bg-gray-50">
+                    </div>
+                    <label class="inline-flex items-center cursor-pointer bg-gray-50 p-2 rounded w-full border border-gray-200 hover:bg-gray-100 transition">
+                        <input type="radio" name="duplicateAction" value="separate" class="ml-2">
+                        <span class="text-xs font-semibold text-gray-700">🆔 استمرار بنفس الاسم ولكن كمنتج مستقل (بكود فريد وقسم خاص به)</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer pt-3 border-t flex gap-2">
+            <button id="confirmDuplicateBtn" class="bg-blue-500 text-white flex-1 py-2 rounded font-bold hover:bg-blue-600 transition">تأكيد الإجراء المحاسبي</button>
+            <button id="cancelDuplicateModalBtn" class="bg-gray-300 text-gray-700 px-4 py-2 rounded font-bold hover:bg-gray-400 transition">إلغاء</button>
         </div>
     </div>
 </div>
