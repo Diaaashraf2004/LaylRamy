@@ -293,7 +293,8 @@
         .modal-close-btn:hover, .modal-close-btn:focus { color: #374151; text-decoration: none; }
         .modal-body { padding: 1rem 1.25rem; max-height: 70vh; overflow-y: auto; }
         .modal-footer { padding: 0.75rem 1rem; background-color: #f9fafb; border-top: 1px solid #e5e7eb; text-align: left; display: flex; justify-content: flex-start; flex-wrap: wrap; gap: 0.5rem; border-bottom-left-radius: 0.5rem; border-bottom-right-radius: 0.5rem; }
-        .modal-footer button { padding: 0.5rem 1rem; border-radius: 0.375rem; font-weight: 500; color: white; border: 1px solid transparent; transition: all 0.2s ease-in-out; cursor: pointer; }
+        .modal-footer button { padding: 0.5rem 1rem; border-radius: 0.375rem; font-weight: 500; border: 1px solid transparent; transition: all 0.2s ease-in-out; cursor: pointer; }
+        .modal-footer button:not([class*="text-"]) { color: white; }
         .modal-footer button.modal-close-btn-footer { background-color: #6b7280; border-color: #6b7280; margin-right: auto; margin-left: 0; } /* Adjusted margin */
         .modal-footer button.modal-close-btn-footer:hover { background-color: #4b5563; border-color: #4b5563;}
 
@@ -1743,80 +1744,69 @@ input:checked:active + .slider:before {
                 </div>
             </section>
 
-            <section id="sell-product" class="widget-card content-section hidden">
-                <div>
-                    <h2>بيع بضاعة (سريع / مؤقت)</h2>
-                    <p class="text-sm text-gray-500 mb-4">للبيع السريع أو المؤقت بدون فاتورة تفصيلية. لإنشاء فاتورة مفصلة، استخدم الزر الأخضر أدناه.</p>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div class="mb-4">
-                            <label for="sell-product-name" class="block text-gray-700 text-sm font-bold mb-2">اسم البضاعة المباعة:<span class="required">*</span></label>
-                            <input type="text" id="sell-product-name" placeholder="اسم المنتج الرئيسي" list="product-names-list" class="shadow-sm">
-                            </div>
-                        <div class="mb-4">
-                            <label for="sell-customer-name" class="block text-gray-700 text-sm font-bold mb-2">اسم العميل:</label>
-                            <input type="text" id="sell-customer-name" placeholder="اسم العميل (اختياري)" class="shadow-sm">
-                        </div>
-                        <div class="mb-4">
-                            <label for="sell-quantity" class="block text-gray-700 text-sm font-bold mb-2">الكمية المباعة:<span class="required">*</span></label>
-                            <input type="number" id="sell-quantity" value="1" min="1" class="shadow-sm">
-                        </div>
-                        <div id="sell-serial-container" class="mb-4 hidden">
-    <label for="sell-serial-input" class="block text-gray-700 text-sm font-bold mb-2">الرقم التسلسلي (للمنتج المحدد):</label>
-    <input type="text" id="sell-serial-input" list="sell-serials-datalist" placeholder="اختر او اكتب السيريال" class="shadow-sm">
-    <datalist id="sell-serials-datalist"></datalist>
-    <p class="text-xs text-blue-500 mt-1">هذا المنتج يتطلب تحديد سيريال.</p>
-</div>
+     <!-- ======================================================= -->
+<!-- START: Updated Sales Dashboard Section (Layl Ramy ERP)   -->
+<!-- ======================================================= -->
+<section id="sell-product" class="widget-card content-section hidden" style="border-top: 5px solid #6366f1;">
+    
+    <!-- عنوان اللوحة المركزية -->
+    <div class="text-center mb-6 pt-2">
+        <h2 class="text-2xl font-bold text-gray-800 flex items-center justify-center gap-2">
+            <i class="fas fa-cash-register text-indigo-600"></i> لوحة إدارة المبيعات والفواتير
+        </h2>
+        <p class="text-sm text-gray-500 mt-1">اختر الإجراء المطلوب لبدء العملية فوراً من خلال النوافذ المنبثقة الذكية</p>
+    </div>
 
-                      
+    <!-- أزرار إطلاق النوافذ (Modals) بتصميم كروت عصري -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        
+        <!-- كرت البيع السريع -->
+        <div onclick="window.openQuickSellModal()" class="p-6 bg-gradient-to-br from-blue-50 to-white border border-blue-200 rounded-xl shadow-sm hover:shadow-md transition cursor-pointer flex flex-col items-center text-center group">
+            <div class="w-14 h-14 bg-blue-500 text-white rounded-full flex items-center justify-center text-2xl mb-4 group-hover:scale-105 transition shadow-md">
+                <i class="fas fa-bolt"></i>
+            </div>
+            <h3 class="text-lg font-bold text-blue-900 mb-1">⚡ بيع بضاعة (سريع / مؤقت)</h3>
+            <p class="text-xs text-gray-500 max-w-sm leading-relaxed">لإجراء مبيعات خاطفة ومباشرة لقطع منفردة من المخزن مع خيارات تحديد الخزنة والبيع المعلق.</p>
+        </div>
 
-                        <div class="mb-4 md:col-start-1">
-                            <label for="sell-price" class="block text-gray-700 text-sm font-bold mb-2">إجمالي سعر البيع:<span class="required">*</span></label>
-                            <input type="number" id="sell-price" value="0" min="0" step="0.01" placeholder="السعر الإجمالي للكمية" class="shadow-sm">
-                        </div>
-                    </div>
-                    <div class="mt-4">
-                        <label class="block text-gray-700 text-sm font-bold mb-2">خصم تكاليف إضافية (للحزم أو المرفقات):</label>
-                        <div id="additional-costs-container">
-                            <p class="text-center text-gray-500 text-sm">أدخل اسم المنتج الرئيسي لعرض المرفقات المتاحة.</p>
-                        </div>
-                    </div>
-                    <div class="mt-4">
-                        <label for="sell-pending" class="inline-flex items-center cursor-pointer">
-                            <input type="checkbox" id="sell-pending" class="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-offset-0 focus:ring-blue-200 focus:ring-opacity-50 ml-2">
-                            <span class="text-sm text-gray-700 font-medium">بيع مؤقت (تحت التسوية)</span>
-                        </label>
-                    </div>
-                    <div class="form-group mt-3">
-    <label for="sell-account-select" class="block text-gray-700 text-sm font-bold mb-1">إيداع في حساب:</label>
-    <select id="sell-account-select" class="shadow-sm"></select>
-</div>
-                    <div class="flex flex-wrap gap-4 mt-6">
-                        <button id="sell-button" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded">بيع البضاعة (سريع/مؤقت)</button>
-                        <button id="cancel-edit-pending-button" class="bg-gray-400 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded hidden">إلغاء التعديل</button>
-                        <button type="button" id="openInvoiceModalBtn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded">إنشاء فاتورة بيع مفصلة</button>
-                    </div>
-                    <div id="sell-message" class="section-message mt-3"></div>
-                </div>
+        <!-- كرت الفاتورة التفصيلية -->
+        <div onclick="document.getElementById('openInvoiceModalBtn').click()" class="p-6 bg-gradient-to-br from-green-50 to-white border border-green-200 rounded-xl shadow-sm hover:shadow-md transition cursor-pointer flex flex-col items-center text-center group">
+            <div class="w-14 h-14 bg-green-500 text-white rounded-full flex items-center justify-center text-2xl mb-4 group-hover:scale-105 transition shadow-md">
+                <i class="fas fa-file-invoice-dollar"></i>
+            </div>
+            <h3 class="text-lg font-bold text-green-900 mb-1">📄 إنشاء فاتورة بيع مفصلة</h3>
+            <p class="text-xs text-gray-500 max-w-sm leading-relaxed">لإنشاء فواتير مبيعات شاملة لعدة أصناف معاً للعملاء مع دعم كامل للطباعة والأرشيف السحابي.</p>
+        </div>
+    </div>
 
-                <div id="pending-sales-container" class="mt-8 border-t pt-6">
-                    <h3 class="sub-heading">المبيعات المؤقتة الحالية</h3>
+    <!-- زر الفاتورة الأصلي (مخفي) ليتم الضغط عليه برمجياً عند الضغط على الكرت الأخضر لضمان عمل دالتك الأصلية دون تعديل -->
+    <button type="button" id="openInvoiceModalBtn" class="hidden"></button>
 
-                    <div id="pending-sales-controls" class="flex flex-wrap gap-4 mb-4 items-center border-b pb-4">
-                        <div id="pending-sales-search-group" class="flex-grow min-w-[250px]">
-                            <label for="pending-sales-search-input" class="block text-sm font-medium text-gray-600 mb-1">بحث في المبيعات المؤقتة:</label>
-                            <input type="text" id="pending-sales-search-input" placeholder="ابحث بالاسم أو المنتج..." class="shadow-sm text-sm p-2">
-                        </div>
-                        <div id="pending-sales-totals-group" class="flex-shrink-0 space-x-4 space-x-reverse text-sm font-semibold">
-                            <span>الإجمالي:</span>
-                            <span id="pending-sales-total-cost" class="text-purple-600">التكلفة: 0.00 جنيه</span>
-                            <span id="pending-sales-total-profit" class="text-green-600">الربح المتوقع: 0.00 جنيه</span>
-                        </div>
-                    </div>
-                     <div id="pending-sales-list">
-                        <p class="text-center text-gray-500 text-sm">لا توجد مبيعات مؤقتة حاليًا.</p>
-                    </div>
-                </div>
-            </section><section id="liquidity-section" class="widget-card content-section hidden">
+    <!-- قسم المبيعات المؤقتة الحالية (محتفظ به تماماً كما هو لضمان استقرار قراءة البيانات والتقارير المعلقة) -->
+    <div id="pending-sales-container" class="mt-8 border-t pt-6">
+        <h3 class="sub-heading font-bold text-gray-700 flex items-center gap-2 mb-4">
+            <i class="fas fa-clock text-amber-500"></i> المبيعات المؤقتة الحالية
+        </h3>
+
+        <div id="pending-sales-controls" class="flex flex-wrap gap-4 mb-4 items-center border-b pb-4">
+            <div id="pending-sales-search-group" class="flex-grow min-w-[250px]">
+                <label for="pending-sales-search-input" class="block text-sm font-medium text-gray-600 mb-1">بحث في المبيعات المؤقتة:</label>
+                <input type="text" id="pending-sales-search-input" placeholder="ابحث بالاسم أو المنتج..." class="shadow-sm text-sm p-2 w-full border rounded">
+            </div>
+            <div id="pending-sales-totals-group" class="flex-shrink-0 flex gap-3 text-sm font-semibold items-center">
+                <span class="text-gray-600">الإجمالي:</span>
+                <span id="pending-sales-total-cost" class="text-purple-600 bg-purple-50 px-2.5 py-1 rounded border border-purple-200 font-mono">التكلفة: 0.00 جنيه</span>
+                <span id="pending-sales-total-profit" class="text-green-600 bg-green-50 px-2.5 py-1 rounded border border-green-200 font-mono">الربح المتوقع: 0.00 جنيه</span>
+            </div>
+        </div>
+        <div id="pending-sales-list">
+            <p class="text-center text-gray-500 text-sm">لا توجد مبيعات مؤقتة حاليًا.</p>
+        </div>
+    </div>
+</section>
+<!-- ======================================================= -->
+<!-- END: Updated Sales Dashboard Section                     -->
+<!-- ======================================================= --><section id="liquidity-section" class="widget-card content-section hidden">
                  <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid #e5e7eb;">
         <i class="fas fa-university" style="font-size: 1.5rem; color: #1d4ed8;"></i>
         <h2 style="margin: 0; border: none; padding: 0;">الخزينة والمركز المالي</h2>
@@ -2345,16 +2335,46 @@ input:checked:active + .slider:before {
                             <fieldset>
                                 <legend>تفاصيل البضاعة</legend>
                                 <div class="add-item-section no-print">
-                                    <h4>إضافة بند جديد</h4>
+                                    <h4>إضافة بند جديد (POS)</h4>
+                                    
+                                    <!-- شبكة المنتجات POS الفاتورة (جديد) -->
+                                    <div class="mb-4 p-3 bg-gray-50 border rounded-xl w-full">
+                                        <div class="flex justify-between items-center mb-3">
+                                            <h3 class="font-bold text-gray-700 text-sm">البحث السريع (POS)</h3>
+                                            <button type="button" onclick="window.togglePOSGrid('inv')" class="text-xs bg-gray-200 hover:bg-gray-300 px-3 py-1 rounded text-gray-700 font-bold transition"><i class="fas fa-eye"></i> إخفاء / إظهار</button>
+                                        </div>
+                                        <div id="pos_container_inv">
+                                            <div class="flex gap-2 mb-3">
+                                                <input type="text" id="pos_search_inv" placeholder="بحث باسم المنتج..." class="w-full p-2 border rounded-lg shadow-sm text-sm" oninput="window.renderPOSInvGrid()">
+                                            </div>
+                                            <div id="pos_categories_inv" class="flex gap-2 overflow-x-auto pb-2 mb-2" style="-ms-overflow-style: none; scrollbar-width: none; display: flex;">
+                                                <!-- يتم الحقن بالجافاسكريبت -->
+                                            </div>
+                                            <div id="pos_grid_inv" class="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-60 overflow-y-auto pr-2">
+                                                <!-- يتم الحقن بالجافاسكريبت -->
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="bg-blue-50 border-r-4 border-blue-500 p-3 mb-4 rounded shadow-sm w-full" id="pos_selected_alert_inv">
+                                        <p class="text-xs text-gray-500">البند المحدد:</p>
+                                        <p class="font-bold text-blue-800" id="pos_selected_name_inv">لم يتم التحديد بعد</p>
+                                    </div>
+
                                     <div class="form-row">
-                                        <div class="form-group">
+                                        <div class="form-group hidden">
                                             <label for="inv_itemName">اسم البند:<span class="required">*</span></label>
                                             <input type="text" id="inv_itemName" list="product-names-list" placeholder="اسم المنتج أو الخدمة">
+                                            <div id="inv-cost-display" class="text-sm font-bold mt-1 text-green-700 hidden">تكلفة المنتج: <span>0</span> جنيه</div>
                                         </div>
 
                                         <div class="form-group" style="flex: 0.5;">
                                             <label for="inv_itemQty">الكمية:<span class="required">*</span></label>
-                                            <input type="number" id="inv_itemQty" value="1" min="1">
+                                            <div class="flex shadow-sm rounded border">
+                                                <button type="button" onclick="window.changePOSQtyInv(1)" class="bg-gray-200 px-3 font-bold hover:bg-gray-300">+</button>
+                                                <input type="number" id="inv_itemQty" value="1" min="1" class="w-full p-2 text-center focus:outline-none border-x">
+                                                <button type="button" onclick="window.changePOSQtyInv(-1)" class="bg-gray-200 px-3 font-bold hover:bg-gray-300">-</button>
+                                            </div>
                                         </div>
                                         <div class="form-group" style="flex: 0.5;">
                                             <label for="inv_itemPrice">سعر الوحدة:<span class="required">*</span></label>
@@ -2379,6 +2399,10 @@ input:checked:active + .slider:before {
                                     <div id="inv_itemAddError" class="error-message"></div>
                                 </div>
                                 <hr class="no-print my-4">
+                              <button type="button" onclick="window.openUnifiedSellModal('invoice')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded mb-3 w-full shadow transition block text-center">
+    <i class="fas fa-stream ml-1"></i> فتح المودل الذكي للاختيار المجمع وحساب الأرباح المتوقعة
+</button>
+                              
                                 <table id="inv_invoiceItemsTable">
                                     <thead>
                                         <tr>
@@ -2447,6 +2471,11 @@ input:checked:active + .slider:before {
                                         <label>المبلغ الإجمالي المطلوب:</label>
                                         <strong id="inv_grandTotalPrice">0.00 جنيه</strong>
                                     </div>
+                                </div>
+                                <!-- صندوق الربح المتوقع للفاتورة (جديد) -->
+                                <div id="inv_profit_box" style="margin-top: 15px; padding: 10px; border-radius: 6px; border: 1px solid #bbf7d0; background-color: rgba(240, 253, 244, 0.6); text-align: center;">
+                                    <span style="display: block; font-size: 12px; font-weight: 600; color: #15803d; margin-bottom: 2px;">الربح الصافي المتوقع من الفاتورة</span>
+                                    <strong id="inv_expected_profit_display" style="font-size: 20px; font-weight: bold; color: #166534; font-family: monospace;">0.00 ج.م</strong>
                                 </div>
                             </fieldset>
                             <fieldset>
@@ -3134,7 +3163,7 @@ async function fetchOnlineDataForDate(dateString) {
     }
 }
         function saveData(key, data){ console.log(`saveData: Saving data for key: ${key}`); try { localStorage.setItem(key, JSON.stringify(data)) } catch(e) { console.error(`Error saving data for key "${key}":`, e); showGlobalMessage("حدث خطأ أثناء حفظ البيانات. قد يكون التخزين ممتلئًا.", true) } }
-        function formatCurrency(amount){ const numAmount = Number(amount); return isNaN(numAmount) ? '0.00 جنيه' : `${numAmount.toFixed(2)} جنيه` }
+function formatCurrency(amount) { const numAmount = Number(amount); if (isNaN(numAmount)) return '0 ج.م'; return (numAmount % 1 === 0 ? numAmount : numAmount.toFixed(1)) + ' ج.م'; }
      function normalizeArabicText(text) {
     if (!text) return "";
     return String(text)
@@ -6201,6 +6230,43 @@ function processMonthlyLiabilities() {
     }
 }
             // --- Invoice Modal Logic ---
+            function resetInvoiceForm() {
+                window.pos_selectedProductInv = null;
+                const alertBox = document.getElementById('pos_selected_alert_inv');
+                if (alertBox) {
+                    alertBox.className = "bg-blue-50 border-r-4 border-blue-500 p-3 mb-4 rounded shadow-sm w-full";
+                }
+                const nameDisplay = document.getElementById('pos_selected_name_inv');
+                if (nameDisplay) {
+                    nameDisplay.innerText = "لم يتم التحديد بعد";
+                }
+                window.pos_currentCategoryInv = 'الكل';
+                const searchInput = document.getElementById('pos_search_inv');
+                if (searchInput) searchInput.value = '';
+                if (typeof window.renderPOSInvGrid === 'function') window.renderPOSInvGrid();
+
+                if(inv_invoiceForm) inv_invoiceForm.reset();
+                if(inv_invoiceItemsBody) inv_invoiceItemsBody.innerHTML = '';
+                if(inv_phoneNumbersContainer) {
+                    inv_phoneNumbersContainer.innerHTML = `<div class="form-row inv-phone-entry">
+                                                            <div class="form-group">
+                                                                <label for="inv_phone1">رقم هاتف 1:</label>
+                                                                <input type="tel" id="inv_phone1" name="phone[]" placeholder="رقم الهاتف">
+                                                            </div>
+                                                            </div>`;
+                }
+                inv_phoneCounter = 1;
+                if(inv_validationErrorDiv) { inv_validationErrorDiv.textContent = ''; inv_validationErrorDiv.classList.remove('visible','error'); }
+                if(inv_itemAddErrorDiv) { inv_itemAddErrorDiv.textContent = ''; inv_itemAddErrorDiv.classList.remove('visible','error'); }
+                if(inv_serialSelectContainer) inv_serialSelectContainer.classList.add('hidden');
+                if(inv_serialSearchInput) inv_serialSearchInput.value = '';
+                const existingNote = inv_invoiceItemsBody?.parentNode.querySelector('p.invoice-origin-note');
+                if(existingNote) existingNote.remove();
+                if(typeof inv_updateDeductibleCostsCheckboxes === 'function') inv_updateDeductibleCostsCheckboxes();
+                if(typeof inv_calculateTotals === 'function') inv_calculateTotals();
+            }
+            window.resetInvoiceForm = resetInvoiceForm;
+
             function inv_openModal() {
                 console.log("inv_openModal called");
                 if (!isInvoiceFromPending) {
@@ -6208,26 +6274,7 @@ function processMonthlyLiabilities() {
                 }
                 if (inv_modal) {
                     inv_modal.style.display = 'block';
-                    if(inv_invoiceForm) inv_invoiceForm.reset();
-                    if(inv_invoiceItemsBody) inv_invoiceItemsBody.innerHTML = '';
-                    // Reset phone numbers to just one entry
-                    if(inv_phoneNumbersContainer) {
-                        inv_phoneNumbersContainer.innerHTML = `<div class="form-row inv-phone-entry">
-                                                                <div class="form-group">
-                                                                    <label for="inv_phone1">رقم هاتف 1:</label>
-                                                                    <input type="tel" id="inv_phone1" name="phone[]" placeholder="رقم الهاتف">
-                                                                </div>
-                                                                </div>`;
-                    }
-                    inv_phoneCounter = 1;
-                    if(inv_validationErrorDiv) { inv_validationErrorDiv.textContent = ''; inv_validationErrorDiv.classList.remove('visible','error'); }
-                    if(inv_itemAddErrorDiv) { inv_itemAddErrorDiv.textContent = ''; inv_itemAddErrorDiv.classList.remove('visible','error'); }
-                    if(inv_serialSelectContainer) inv_serialSelectContainer.classList.add('hidden'); // Hide serial select initially
-                    if(inv_serialSearchInput) inv_serialSearchInput.value = ''; // Clear serial search input
-                    const existingNote = inv_invoiceItemsBody?.parentNode.querySelector('p.invoice-origin-note');
-                    if(existingNote) existingNote.remove(); // Remove previous origin notes
-                    inv_updateDeductibleCostsCheckboxes();
-                    inv_calculateTotals();
+                    resetInvoiceForm();
                 } else {
                     console.error("Modal element not found");
                 }
@@ -6245,6 +6292,7 @@ function processMonthlyLiabilities() {
                              console.log(`Serial ${log.serial} status reverted to 'in_stock' on modal close.`);
                          }
                      });
+                     resetInvoiceForm();
                  }
              }
 
@@ -6416,8 +6464,12 @@ if (currentProduct) newRow.dataset.productId = currentProduct.id || ""; // 🌟 
             ${name}
             ${selectedSerial && qty === 1 ? `<span class="serial-display no-print" style="display:block; font-size:0.8em; color:#666;">(S/N: ${selectedSerial})</span>` : ''}
         </td>
-        <td class="item-qty" style="text-align:center;">${qty}</td>
-        <td class="item-price" style="text-align:center;">${formatMoney(price)}</td>
+        <td class="item-qty" style="text-align:center;">
+            <input type="number" class="row-qty-input" value="${qty}" min="1" style="width: 60px; text-align: center; border: 1px solid #ddd; border-radius: 4px; padding: 2px;" ${selectedSerial && qty === 1 ? 'readonly title="لا يمكن تغيير الكمية لمنتج مسيرل"' : ''}>
+        </td>
+        <td class="item-price" style="text-align:center;">
+            <input type="number" class="row-price-input" value="${price}" min="0" step="any" style="width: 80px; text-align: center; border: 1px solid #ddd; border-radius: 4px; padding: 2px;">
+        </td>
         <td class="item-subtotal" style="text-align:center; font-weight:bold;">${formatMoney(subtotal)}</td>
         <td class="no-print" style="text-align:center;"><button type="button" class="remove-item-btn" style="color:red; font-weight:bold; border:none; background:none; cursor:pointer;">×</button></td>
     `;
@@ -6642,36 +6694,31 @@ function updateGlobalState(account, amountToCollect, customerName, grandTotal, d
     }
 }
 
-async function handleSaveInvoice() {
-    saveStateToHistory(); 
-    
-    // 1. التحقق من صحة النموذج
+async function handleSaveInvoice(skipConfirmation = true) {
     if (!inv_validateForm()) { return; }
 
     const isPending = d('inv_markAsPending').checked; 
     const selectedAccountId = d('inv_payment_account').value;
     const account = accounts.find(acc => acc.id === selectedAccountId);
 
-    // إذا كانت فاتورة نهائية، يجب اختيار حساب
     if (!isPending && !account) {
         showMessage(d('inv_validationError'), "يرجى اختيار حساب الإيداع.", true);
         return;
     }
 
-    // 2. تجميع البيانات
     const customerName = inv_customerNameInput.value.trim();
     const customerAddress = inv_customerAddressInput ? inv_customerAddressInput.value.trim() : '';
     const phones = inv_invoiceForm ? Array.from(inv_invoiceForm.querySelectorAll('input[name="phone[]"]')).map(input => input.value.trim()).filter(phone => phone) : [];
     
-  const invoiceItems = inv_invoiceItemsBody ? Array.from(inv_invoiceItemsBody.querySelectorAll('.invoice-item-row')).map(row => ({ 
-    id: row.dataset.productId || null, // 🌟 التقاط الـ ID الفريد من الجدول
-    name: row.dataset.itemName, 
-    quantity: parseInt(row.dataset.itemQty), 
-    unitPrice: parseFloat(row.dataset.itemPrice), 
-    subtotal: parseFloat(row.dataset.itemSubtotal), 
-    costPrice: parseFloat(row.dataset.itemCost), 
-    serial: row.dataset.itemSerial || null 
-})) : [];
+    const invoiceItems = inv_invoiceItemsBody ? Array.from(inv_invoiceItemsBody.querySelectorAll('.invoice-item-row')).map(row => ({ 
+        id: row.dataset.productId || null, 
+        name: row.dataset.itemName, 
+        quantity: parseInt(row.dataset.itemQty), 
+        unitPrice: parseFloat(row.dataset.itemPrice), 
+        subtotal: parseFloat(row.dataset.itemSubtotal), 
+        costPrice: parseFloat(row.dataset.itemCost), 
+        serial: row.dataset.itemSerial || null 
+    })) : [];
     const shippingCost = parseInputNumber(inv_shippingCostInput) || 0;
     const warranty = inv_warrantyInput ? inv_warrantyInput.value.trim() : '';
     const notes = inv_notesTextarea ? inv_notesTextarea.value.trim() : '';
@@ -6679,37 +6726,26 @@ async function handleSaveInvoice() {
     const totalGoods = invoiceItems.reduce((sum, item) => sum + item.subtotal, 0);
     const grandTotal = totalGoods + shippingCost; 
 
-    // --- معالجة العربون ---
     let depositAlreadyPaid = 0;
     if (isInvoiceFromPending && pendingSaleOriginData && pendingSaleOriginData.depositPaid) {
         depositAlreadyPaid = Number(pendingSaleOriginData.depositPaid) || 0;
     }
     
-    // المبلغ الذي سيدخل الخزنة الآن
     let amountToCollectNow = grandTotal - depositAlreadyPaid;
     if (amountToCollectNow < 0) amountToCollectNow = 0; 
-    // ----------------------
 
-   // 3. حساب التكلفة ومعالجة الملحقات (المنطق المحدث لضمان دقة الأرباح 100%)
     let totalInvoiceCost = 0;
     let deductedItemsData = [];
     let quantitiesToDeduct = {}; 
 
-    // أ. حساب تكلفة المنتجات الأساسية الموجودة في جدول الفاتورة
     invoiceItems.forEach(item => {
         totalInvoiceCost += (item.costPrice * item.quantity);
-        
-        // خصم المخزون يتم فقط للفواتير الجديدة تماماً
-        // (لأن المبيعات المؤقتة يتم خصم مخزونها لحظة إنشائها كمؤقتة)
         if (!isInvoiceFromPending) {
             quantitiesToDeduct[item.name] = (quantitiesToDeduct[item.name] || 0) + item.quantity;
         }
     });
 
-    // ب. معالجة الملحقات وتكلفتها (حل مشكلة الربح الزائد)
     if (isInvoiceFromPending && pendingSaleOriginData) {
-        // إذا كان تأكيد لبيع مؤقت: نسحب الملحقات من البيانات المخزنة سابقاً في الذاكرة
-        // نبحث عنها في كائن invoiceData أو في الكائن الرئيسي للبيع المؤقت
         const prevDeducted = (pendingSaleOriginData.invoiceData && pendingSaleOriginData.invoiceData.deductedItems) 
                              ? pendingSaleOriginData.invoiceData.deductedItems 
                              : (pendingSaleOriginData.deductedItems || []);
@@ -6719,10 +6755,8 @@ async function handleSaveInvoice() {
             const qty = Number(item.quantity || 1);
             totalInvoiceCost += (cost * qty);
             deductedItemsData.push(item);
-            // ملاحظة: لا نضيف لـ quantitiesToDeduct هنا لأنها خُصمت بالفعل عند عمل "المؤقت"
         });
     } else if (inv_deductibleCostsContainer) {
-        // في حالة فاتورة جديدة (ليست من مؤقت): نقرأ من واجهة المستخدم (الـ Checkboxes)
         const checkedBoxes = inv_deductibleCostsContainer.querySelectorAll('input[type="checkbox"]:checked');
         checkedBoxes.forEach(checkbox => {
             const name = checkbox.value;
@@ -6734,77 +6768,74 @@ async function handleSaveInvoice() {
             if (qtyToDeduct > 0) {
                 deductedItemsData.push({ name, quantity: qtyToDeduct, costPrice: cost });
                 totalInvoiceCost += (cost * qtyToDeduct);
-                
-                // إضافة للكميات المطلوب خصمها من المخزون (لأنها فاتورة جديدة)
                 quantitiesToDeduct[name] = (quantitiesToDeduct[name] || 0) + qtyToDeduct;
             }
         });
     }
 
-   // 🌟 [تعديل د. ضياء الحصري]: تنفيذ خصم المخزون بناءً على الـ ID الفريد منعاً لتداخل الأصناف متشابهة الاسم
-if (!isInvoiceFromPending) {
-    invoiceItems.forEach(item => {
-        let productIndex = -1;
-        // أ. محاولة مطابقة الصنف بالـ ID أولاً لضمان الدقة المطلقة
-        if (item.id) {
-            productIndex = products.findIndex(p => p.id === item.id);
-        }
-        // ب. خط دفاع بديل بالاسم لو الفاتورة قديمة ولا تملك ID
-        if (productIndex === -1) {
-            productIndex = products.findIndex(p => p.name.toLowerCase() === item.name.toLowerCase());
-        }
-        // ج. تنفيذ الخصم الفردي من الكارت المقصود حصراً
-        if (productIndex !== -1) {
-            products[productIndex].quantity -= item.quantity;
-        }
-    });
-}
-    // د. حساب الربح النهائي بناءً على التكلفة الشاملة (أساسي + ملحقات)
     const finalInvoiceProfit = grandTotal - totalInvoiceCost;
-    // 4. الحفظ
-    if (isPending) {
-        // --- حفظ الفاتورة المؤقتة ---
-   const pendingInvoiceData = {
-    id: isInvoiceFromPending && pendingSaleOriginData ? pendingSaleOriginData.id : `pending-inv-${Date.now()}`,
-    createdAt: pendingSaleOriginData?.createdAt || new Date().toISOString(),
-    timestamp: new Date().toISOString(),
-    saleDate: pendingSaleOriginData?.saleDate || currentLoadedDate || new Date().toISOString().split('T')[0],
-    customerName,
-    customerAddress,
-    phones,
-    items: invoiceItems,
-    shippingCost,
-    warranty,
-    notes,
-    deductedItems: deductedItemsData,
-    totalSellPrice: grandTotal,
-    totalCost: totalInvoiceCost,
-    potentialProfit: finalInvoiceProfit,
-    depositPaid: depositAlreadyPaid,
-    status: 'pending',
-    invoiceData: {
-        customerAddress,
-        phones,
-        warranty,
-        notes,
-        deductedItems: deductedItemsData
+
+    if (!skipConfirmation) {
+        window.showConfirmSaleModal(finalInvoiceProfit, () => {
+            handleSaveInvoice(true);
+        });
+        return;
     }
-};
-   // حذف القديم إذا كان تعديل
+
+    saveStateToHistory(); 
+
+    if (!isInvoiceFromPending) {
+        invoiceItems.forEach(item => {
+            let productIndex = -1;
+            if (item.id) {
+                productIndex = products.findIndex(p => p.id === item.id);
+            }
+            if (productIndex === -1) {
+                productIndex = products.findIndex(p => p.name.toLowerCase() === item.name.toLowerCase());
+            }
+            if (productIndex !== -1) {
+                products[productIndex].quantity -= item.quantity;
+            }
+        });
+    }
+
+    if (isPending) {
+        const pendingInvoiceData = {
+            id: isInvoiceFromPending && pendingSaleOriginData ? pendingSaleOriginData.id : `pending-inv-${Date.now()}`,
+            createdAt: pendingSaleOriginData?.createdAt || new Date().toISOString(),
+            timestamp: new Date().toISOString(),
+            saleDate: pendingSaleOriginData?.saleDate || currentLoadedDate || new Date().toISOString().split('T')[0],
+            customerName,
+            customerAddress,
+            phones,
+            items: invoiceItems,
+            shippingCost,
+            warranty,
+            notes,
+            deductedItems: deductedItemsData,
+            totalSellPrice: grandTotal,
+            totalCost: totalInvoiceCost,
+            potentialProfit: finalInvoiceProfit,
+            depositPaid: depositAlreadyPaid,
+            status: 'pending',
+            invoiceData: {
+                customerAddress,
+                phones,
+                warranty,
+                notes,
+                deductedItems: deductedItemsData
+            }
+        };
+
         if (isInvoiceFromPending && pendingSaleOriginData && pendingSaleOriginData.id) {
             const idx = pendingSales.findIndex(s => String(s.id).trim() === String(pendingSaleOriginData.id).trim());
             if (idx !== -1) pendingSales.splice(idx, 1);
         }
 
         pendingSales.push(pendingInvoiceData);
-        
         logOperation("فاتورة مؤقتة", `تم حفظ فاتورة مفصلة مؤقتة للعميل ${customerName} بقيمة ${formatCurrency(grandTotal)}.`);
         showMessage(globalMessage, "تم حفظ الفاتورة في قائمة المبيعات المؤقتة بنجاح.", false);
-
     } else {
-        // --- حفظ نهائي (Confirmed) ---
-        
-        // أ. تحديث السيولة
         if (amountToCollectNow > 0) {
             account.balance += amountToCollectNow;
             const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
@@ -6825,7 +6856,6 @@ if (!isInvoiceFromPending) {
             });
         }
 
-        // ب. تحديث السيريالات
         invoiceItems.forEach(item => {
             if (item.serial) {
                 const idx = serialNumbersLog.findIndex(log => log.serial === item.serial);
@@ -6833,16 +6863,13 @@ if (!isInvoiceFromPending) {
             }
         });
 
-        // ج. تحديث الأرباح
         totalProfit += finalInvoiceProfit;
 
-        // د. حذف البيع المؤقت الأصلي
         if (isInvoiceFromPending && pendingSaleOriginData && pendingSaleOriginData.id) {
             const idx = pendingSales.findIndex(s => String(s.id).trim() === String(pendingSaleOriginData.id).trim());
             if (idx !== -1) pendingSales.splice(idx, 1);
         }
 
-        // هـ. إنشاء السجل
         const todayStr = currentLoadedDate ? currentLoadedDate.replace(/-/g, '') : getTodayDateString().replace(/-/g, '');
         let maxSeq = 0;
         salesToday.forEach(sale => {
@@ -6853,37 +6880,36 @@ if (!isInvoiceFromPending) {
         });
         const generatedInvoiceNumber = `${todayStr}-${(maxSeq + 1).toString().padStart(3, '0')}`;
 
-
         const originalSaleDate =
-    pendingSaleOriginData?.saleDate ||
-    (pendingSaleOriginData?.createdAt ? pendingSaleOriginData.createdAt.split('T')[0] : null) ||
-    (pendingSaleOriginData?.timestamp ? pendingSaleOriginData.timestamp.split('T')[0] : null) ||
-    currentLoadedDate ||
-    getTodayDateString();
+            pendingSaleOriginData?.saleDate ||
+            (pendingSaleOriginData?.createdAt ? pendingSaleOriginData.createdAt.split('T')[0] : null) ||
+            (pendingSaleOriginData?.timestamp ? pendingSaleOriginData.timestamp.split('T')[0] : null) ||
+            currentLoadedDate ||
+            getTodayDateString();
 
-    const invoiceRecord = {
-    id: isInvoiceFromPending && pendingSaleOriginData ? pendingSaleOriginData.id.replace('pending','inv') : `inv-${Date.now()}`,
-    invoiceNumber: generatedInvoiceNumber,
-    type: 'invoice',
-    timestamp: new Date().toISOString(),
-    createdAt: pendingSaleOriginData?.createdAt || new Date().toISOString(),
-    saleDate: originalSaleDate,
-    customerName,
-    customerAddress,
-    phones,
-    items: invoiceItems,
-    shippingCost,
-    totalGoodsPrice: totalGoods,
-    grandTotal,
-    paidAmount: grandTotal,
-    depositPaid: depositAlreadyPaid,
-    warranty,
-    notes,
-    deductedItems: deductedItemsData,
-    totalCost: totalInvoiceCost,
-    profit: finalInvoiceProfit,
-    accountId: selectedAccountId
-};
+        const invoiceRecord = {
+            id: isInvoiceFromPending && pendingSaleOriginData ? pendingSaleOriginData.id.replace('pending','inv') : `inv-${Date.now()}`,
+            invoiceNumber: generatedInvoiceNumber,
+            type: 'invoice',
+            timestamp: new Date().toISOString(),
+            createdAt: pendingSaleOriginData?.createdAt || new Date().toISOString(),
+            saleDate: originalSaleDate,
+            customerName,
+            customerAddress,
+            phones,
+            items: invoiceItems,
+            shippingCost,
+            totalGoodsPrice: totalGoods,
+            grandTotal,
+            paidAmount: grandTotal,
+            depositPaid: depositAlreadyPaid,
+            warranty,
+            notes,
+            deductedItems: deductedItemsData,
+            totalCost: totalInvoiceCost,
+            profit: finalInvoiceProfit,
+            accountId: selectedAccountId
+        };
         
         salesToday.push(invoiceRecord);
         await saveInvoiceToFirestore(invoiceRecord); 
@@ -6901,6 +6927,7 @@ if (!isInvoiceFromPending) {
     pendingSaleOriginData = null;
     updateUI();
     inv_closeModal();
+    window.showPostSaleModal('invoice');
 }
             // (استكمالاً للجزء 8أ)
 function printPendingSaleAsInvoice(pendingId) {
@@ -7302,9 +7329,13 @@ function printPendingSaleAsInvoice(pendingId) {
 
             function inv_calculateTotals() {
                 let goodsTotal = 0;
+                let goodsCost = 0;
                 if(inv_invoiceItemsBody) {
                     inv_invoiceItemsBody.querySelectorAll('.invoice-item-row').forEach(row => {
                         goodsTotal += parseFloat(row.dataset.itemSubtotal || 0);
+                        const qty = parseInt(row.dataset.itemQty || 0);
+                        const cost = parseFloat(row.dataset.itemCost || 0);
+                        goodsCost += (cost * qty);
                     });
                 }
                 const shippingCost = inv_shippingCostInput ? (parseInputNumber(inv_shippingCostInput) || 0) : 0;
@@ -7313,6 +7344,34 @@ function printPendingSaleAsInvoice(pendingId) {
                 if(inv_totalGoodsPriceSpan) inv_totalGoodsPriceSpan.textContent = formatCurrency(goodsTotal);
                 if(inv_totalShippingCostSpan) inv_totalShippingCostSpan.textContent = formatCurrency(shippingCost);
                 if(inv_grandTotalPriceSpan) inv_grandTotalPriceSpan.textContent = formatCurrency(grandTotal);
+
+                // حساب التكاليف المخصومة المحددة (الملحقات)
+                let deductedItemsCost = 0;
+                if (inv_deductibleCostsContainer) {
+                    const checkedBoxes = inv_deductibleCostsContainer.querySelectorAll('input[type="checkbox"]:checked');
+                    checkedBoxes.forEach(checkbox => {
+                        const cost = parseFloat(checkbox.dataset.cost) || 0;
+                        const parentLabel = checkbox.parentElement;
+                        const quantityInput = parentLabel.querySelector('.inv-deducted-item-quantity');
+                        const qtyToDeduct = parseInt(quantityInput?.value || '0');
+                        if (qtyToDeduct > 0) {
+                            deductedItemsCost += (cost * qtyToDeduct);
+                        }
+                    });
+                }
+
+                const totalCost = goodsCost + deductedItemsCost;
+                const expectedProfit = grandTotal - totalCost;
+
+                const profitDisplay = document.getElementById('inv_expected_profit_display');
+                if (profitDisplay) {
+                    profitDisplay.textContent = formatCurrency(expectedProfit);
+                    if (expectedProfit >= 0) {
+                        profitDisplay.style.color = '#166534';
+                    } else {
+                        profitDisplay.style.color = '#dc2626';
+                    }
+                }
             }
 
   function inv_updateDeductibleCostsCheckboxes() {
@@ -10946,6 +11005,23 @@ collectionNotesMessage = d("collection-notes-message");
                 const itemName = inv_itemNameInput.value.trim();
                 const qty = parseInt(inv_itemQtyInput.value);
                 
+                // تحديث عرض التكلفة وتعبئة السعر التلقائي
+                const costDisplay = document.getElementById('inv-cost-display');
+                if (costDisplay && typeof products !== 'undefined') {
+                    const product = products.find(p => p.name === itemName);
+                    if (product) {
+                        costDisplay.querySelector('span').textContent = typeof formatCurrency === 'function' ? formatCurrency(product.costPrice) : product.costPrice;
+                        costDisplay.classList.remove('hidden');
+                        
+                        // تعبئة السعر تلقائياً لتسهيل الإضافة السريعة
+                        if (inv_itemPriceInput) {
+                            inv_itemPriceInput.value = product.sellPrice || 0;
+                        }
+                    } else {
+                        costDisplay.classList.add('hidden');
+                    }
+                }
+                
                 // البحث عن العناصر مباشرة
                 const container = document.getElementById('inv_serialSelectContainer');
                 const inputField = document.getElementById('inv_itemSerialInput');
@@ -11000,153 +11076,294 @@ collectionNotesMessage = d("collection-notes-message");
 // نحتفظ بحاويات الرسائل والنتائج لأننا ما زلنا نستخدمها
 searchMessageContainer = d('search-message');
 searchResultsListContainer = d('search-results-list');
-
 // تعريف عناصر الإدخال والزر الجديد
 const smartSearchBtn = d('smart-search-btn');
 const smartSearchInput = d('smart-search-input');
 
                  openBackupHistoryButton = d('open-backup-history-button');
+
 autoBackupMessage = d('auto-backup-message');
+
 backupHistoryModal = d('backupHistoryModal');
+
 backupHistoryList = d('backup-history-list');
                   // --- Financial Center (FC) Elements ---
+
 fc_main_tabs = d('fc-main-tabs');
+
 fc_tab_buttons = document.querySelectorAll('.fc-tab-button');
+
+
 fc_tab_contents = document.querySelectorAll('.fc-tab-content');
+
 fc_month_select = d('fc-distribution-month');
+
 fc_expenses_list = d('fc-expenses-to-distribute-list');
+
 fc_products_list = d('fc-products-to-load-list');
+
 fc_total_expenses_display = d('fc-total-selected-expenses');
+
 fc_preview_container = d('fc-cost-preview-container');
+
 fc_preview_results = d('fc-cost-preview-results');
+
 fc_manual_container = d('fc-manual-distribution-container');
+
 fc_manual_list = d('fc-manual-percentage-list');
+
 fc_percentage_feedback = d('fc-percentage-total-feedback');
+
 fc_percentage_total = d('fc-percentage-total');
+
 fc_expenses_wrapper = d('fc-expenses-selection-wrapper');
+
 fc_manual_cost_wrapper = d('fc-manual-cost-input-wrapper');
+
 fc_manual_cost_input = d('fc-manual-cost-input');
+
 fc_debt_select = d('fc-debt-to-process');
+
 fc_execute_dist_btn = d('fc-execute-distribution-btn');
+
 fc_execute_debt_btn = d('fc-execute-debt-treatment-btn');
 
 
+
+
+
     // ربط مستمعات الأحداث (event listeners)
+
     // ... ضع كل addEventListener هنا ...
+
     // مثال: if (saveButtonAlt) { saveButtonAlt.addEventListener(...); }
+
      // --- Attach Event Listeners ---
+
                  // Monthly Liabilities Listeners
+
 if (addMonthlyLiabilityButton) { addMonthlyLiabilityButton.addEventListener('click', addOrUpdateMonthlyLiability); }
+
 if (cancelEditMonthlyLiabilityButton) { cancelEditMonthlyLiabilityButton.addEventListener('click', resetMonthlyLiabilityForm); }
+
 if (monthlyLiabilitiesList) {
+
     monthlyLiabilitiesList.addEventListener('click', (e) => {
+
         const target = e.target.closest('button');
+
         if (!target) return;
+
         const liabilityId = target.dataset.id;
+
         if (!liabilityId) return;
 
+
+
         if (target.classList.contains('edit-monthly-liability-btn')) {
+
             const liability = monthlyLiabilities.find(l => l.id === liabilityId);
+
             if (liability) {
+
                 editingMonthlyLiabilityId = liability.id;
+
                 monthlyLiabilityNameInput.value = liability.name;
+
                 monthlyLiabilityAmountInput.value = liability.amount;
+
                 monthlyLiabilityFormTitle.textContent = `تعديل: ${liability.name}`;
+
                 addMonthlyLiabilityButton.textContent = "تحديث";
+
                 cancelEditMonthlyLiabilityButton.classList.remove('hidden');
+
                 d('add-update-monthly-liability-form').scrollIntoView({ behavior: 'smooth' });
+
             }
+
         } else if (target.classList.contains('delete-monthly-liability-btn')) {
+
             const liabilityIndex = monthlyLiabilities.findIndex(l => l.id === liabilityId);
+
             if (liabilityIndex > -1) {
+
                  const liabilityName = monthlyLiabilities[liabilityIndex].name;
+
                  if (confirm(`هل أنت متأكد من حذف الالتزام الشهري "${liabilityName}"؟`)) {
+
                      monthlyLiabilities.splice(liabilityIndex, 1);
+
                      logOperation("حذف التزام شهري", `تم حذف الالتزام الشهري الدائم "${liabilityName}".`);
+
                      showMessage(monthlyLiabilityMessage, `تم حذف "${liabilityName}".`);
+
                      updateUI();
+
                  }
+
             }
+
         }
+
     });
+
 }
+
                  if (mainNav) { mainNav.addEventListener('click', (e) => { if (e.target.tagName === 'BUTTON' && e.target.classList.contains('nav-button')) { const targetId = e.target.dataset.target; contentSections.forEach(section => { section.classList.add('hidden'); }); const targetSection = d(targetId); if (targetSection) { targetSection.classList.remove('hidden'); } navButtons.forEach(button => { button.classList.remove('active'); }); e.target.classList.add('active'); } }); }
+
                  // --- Financial Center Tabs Listener ---
+
 if (fc_main_tabs) {
+
     fc_main_tabs.addEventListener('click', (e) => {
+
         const button = e.target.closest('.fc-tab-button');
+
         if (!button) return; // إذا لم يتم الضغط على زر، لا تفعل شيئاً
 
+
+
         // 1. أزل علامة "نشط" من كل الأزرار
+
         fc_tab_buttons.forEach(btn => btn.classList.remove('active'));
+
         // 2. أضف علامة "نشط" للزر الذي تم الضغط عليه
+
         button.classList.add('active');
 
+
+
         // 3. أخفِ جميع أقسام المحتوى
+
         fc_tab_contents.forEach(content => content.classList.add('hidden'));
+
         
+
         // 4. أظهر القسم المرتبط بالزر الذي تم الضغط عليه
+
         const targetId = button.dataset.target;
+
         const targetContent = d(targetId);
+
         if (targetContent) {
+
             targetContent.classList.remove('hidden');
+
         }
 
+
+
         // 5. قم بتعبئة بيانات القسم الذي تم إظهاره (مهم جداً)
+
         if (targetId === 'fc-tab-distribution') {
+
             fc_populate_month_select(); // تعبئة قائمة الشهور
+
         } else if (targetId === 'fc-tab-debt-treatment') {
+
             fc_populate_debt_treatment(); // تعبئة قائمة الديون
+
         }
+
     });
+
 }
+
+
 
                  // ... داخل دالة initializeApp() مع باقي الـ event listeners
 
 
+
+
+
 if (d('undo-button')) { d('undo-button').addEventListener('click', undo); }
+
 if (d('redo-button')) { d('redo-button').addEventListener('click', redo); }
+
                if (saveButtonAlt) {
+
     saveButtonAlt.addEventListener("click", async () => {
+
         // تحديد التاريخ المستهدف
+
         const todayString = getTodayDateString();
+
         const targetDate = currentLoadedDate || todayString;
+
         
+
         // رسالة التأكيد
+
         let confirmMsg = `هل تريد حفظ التغييرات لتاريخ ${formatDateForDisplay(targetDate)}؟`;
+
         
+
         // التحقق من وجود بيانات سابقة محلياً (اختياري للتحذير)
+
         if (typeof lsPrefix !== 'undefined') {
+
             const storageKey = lsPrefix + targetDate;
+
             if (localStorage.getItem(storageKey)) {
+
                 if (currentLoadedDate === targetDate) {
+
                     confirmMsg += `\n(سيتم تحديث البيانات الحالية)`;
+
                 } else {
+
                     confirmMsg = `أنت تعرض بيانات يوم ${formatDateForDisplay(currentLoadedDate)}. هل تريد الحفظ فوق بيانات يوم ${formatDateForDisplay(targetDate)}؟`;
+
                 }
+
             }
+
         }
 
+
+
         if (confirm(confirmMsg)) {
+
             // تغيير نص الزر ليدل على التحميل
+
             const originalText = saveButtonAlt.textContent;
+
             saveButtonAlt.textContent = "جاري الحفظ...";
+
             saveButtonAlt.disabled = true;
+
             
+
             await saveCurrentStateByDate(targetDate);
+
             
+
             // إعادة الزر لحالته الطبيعية
+
             saveButtonAlt.textContent = originalText;
+
             saveButtonAlt.disabled = false;
+
         }
+
     });
+
 }
+
   if (loadDataButtonAlt) { loadDataButtonAlt.addEventListener("click", async () => { const dateToLoad = loadDateInputAlt ? loadDateInputAlt.value : null; const loadResult = loadDataForDate(dateToLoad); if(loadResult) updateUI(); }); } // Update UI only if loadDataForDate indicates a change happened
+
                  if (loadDateInputAlt) { loadDateInputAlt.addEventListener('change', (e) => { const dateValue = e.target.value; updateLoadDateDayName(dateValue, loadDateDayNameDisplayAlt); }); }
+
                  if (clearLogButton) { clearLogButton.addEventListener("click", () => { if (confirm("هل أنت متأكد من رغبتك في مسح سجل عمليات اليوم الحالي المعروض؟ لن يتم حفظ هذا التغيير إلا بالضغط على زر الحفظ.")) { operationLog = []; updateLogDisplay(); showGlobalMessage("تم مسح سجل اليوم الحالي من العرض. اضغط 'حفظ' لتثبيت التغيير.", false, true); } }); }
+
                 // 🎯🎯🎯 الكود المعدل للزر الأحمر 🎯🎯🎯
+
 if (resetButtonAlt) { 
+
     resetButtonAlt.addEventListener("click", () => { 
+
         // رسالة تأكيد جديدة وأكثر وضوحًا
         if (confirm("تحذير خطير: سيتم مسح كل البيانات المعروضة على الشاشة نهائيًا (المخزون، الموردين، الديون، إلخ) والبدء من جديد. هذا الإجراء لا يمكن التراجع عنه. هل أنت متأكد؟")) { 
             resetAllData(); // 👈🏻 يستدعي الدالة الجديدة الشاملة
@@ -11885,6 +12102,25 @@ function resetSellForm() {
     if (additionalCostsContainer) {
         additionalCostsContainer.innerHTML = '<p class="text-center text-gray-500 text-sm">أدخل اسم المنتج الرئيسي لعرض المرفقات المتاحة.</p>';
     }
+
+    // تفريغ تحديد الـ POS
+    window.pos_selectedProductQuick = null;
+    const alertBox = document.getElementById('pos_selected_alert_quick');
+    if (alertBox) {
+        alertBox.className = "bg-blue-50 border-r-4 border-blue-500 p-3 mb-4 rounded shadow-sm";
+    }
+    const nameDisplay = document.getElementById('pos_selected_name_quick');
+    if (nameDisplay) {
+        nameDisplay.innerText = 'لم يتم التحديد بعد';
+    }
+    window.pos_currentCategoryQuick = 'الكل';
+    const searchInput = document.getElementById('pos_search_quick');
+    if (searchInput) searchInput.value = '';
+    if (typeof window.renderPOSQuickGrid === 'function') window.renderPOSQuickGrid();
+
+    // إخفاء تكلفة المنتج
+    const costDisplay = document.getElementById('quick-sell-cost-display');
+    if (costDisplay) costDisplay.classList.add('hidden');
     
     showMessage(sellMessage, ""); 
 }
@@ -11922,6 +12158,18 @@ function updateQuickSaleSerialUI() {
 
     const productName = sellProductNameInput.value.trim();
     
+    // تحديث عرض التكلفة
+    const costDisplay = document.getElementById('quick-sell-cost-display');
+    if (costDisplay && typeof products !== 'undefined') {
+        const product = products.find(p => p.name === productName);
+        if (product) {
+            costDisplay.querySelector('span').textContent = typeof formatCurrency === 'function' ? formatCurrency(product.costPrice) : product.costPrice;
+            costDisplay.classList.remove('hidden');
+        } else {
+            costDisplay.classList.add('hidden');
+        }
+    }
+
     // 2. إذا كان هناك اسم منتج، أظهر الحقل فوراً
     if (productName) {
         sellSerialContainer.classList.remove('hidden');
@@ -11938,74 +12186,114 @@ function updateQuickSaleSerialUI() {
         sellSerialInput.value = '';
     }
 }
-function sellProduct() {
+window.closeConfirmSaleModal = function() {
+    document.getElementById('confirmSaleModal').style.display = 'none';
+};
+
+window.closePostSaleModal = function() {
+    document.getElementById('postSaleModal').style.display = 'none';
+};
+
+window.showConfirmSaleModal = function(profit, onConfirmCallback) {
+    const modal = document.getElementById('confirmSaleModal');
+    const profitEl = document.getElementById('confirmSaleProfitAmount');
+    const confirmBtn = document.getElementById('confirmSaleBtn');
+    
+    profitEl.textContent = formatCurrency(profit);
+    
+    const newBtn = confirmBtn.cloneNode(true);
+    confirmBtn.parentNode.replaceChild(newBtn, confirmBtn);
+    
+    newBtn.addEventListener('click', () => {
+        modal.style.display = 'none';
+        if(onConfirmCallback) onConfirmCallback();
+    });
+    
+    modal.style.display = 'flex';
+};
+
+window.showPostSaleModal = function(type) {
+    const modal = document.getElementById('postSaleModal');
+    const newBtn = document.getElementById('postSaleNewBtn');
+    const closeBtn = document.getElementById('postSaleCloseBtn');
+    
+    const newBtnClone = newBtn.cloneNode(true);
+    newBtn.parentNode.replaceChild(newBtnClone, newBtn);
+    
+    const closeBtnClone = closeBtn.cloneNode(true);
+    closeBtn.parentNode.replaceChild(closeBtnClone, closeBtn);
+    
+    newBtnClone.addEventListener('click', () => {
+        modal.style.display = 'none';
+        if(type === 'quick') {
+            resetSellForm();
+        } else if(type === 'invoice') {
+            resetInvoiceForm();
+        }
+    });
+    
+    closeBtnClone.addEventListener('click', () => {
+        modal.style.display = 'none';
+        if(type === 'quick') {
+            window.closeQuickSellModal();
+        } else if(type === 'invoice') {
+            window.closeInvoiceModal();
+        }
+    });
+    
+    modal.style.display = 'flex';
+};
+
+function sellProduct(skipConfirmation = true) {
     const isPendingSale = sellPendingCheckbox.checked;
     const mainProductName = sellProductNameInput.value.trim();
     const customerName = d("sell-customer-name").value.trim();
     const quantitySold = parseInputNumber(sellQuantityInput);
     const totalSellPrice = parseInputNumber(sellPriceInput);
     
-    // قراءة السيريال (إن وجد)
     const selectedSerial = sellSerialInput ? sellSerialInput.value.trim() : '';
     
     const selectedAccountId = d('sell-account-select').value;
     const account = accounts.find(acc => acc.id === selectedAccountId);
 
-    // 1. التحقق من المدخلات الأساسية
     if (!mainProductName || isNaN(quantitySold) || quantitySold <= 0 || isNaN(totalSellPrice) || totalSellPrice < 0) {
         showMessage(sellMessage, "يرجى ملء البيانات بشكل صحيح.", true);
         return;
     }
 
-    // 2. التحقق من الحساب
     if (!isPendingSale && !account) {
         showMessage(sellMessage, "يرجى اختيار الحساب.", true);
         return;
     }
 
-   // 🌟 [تعديل د. ضياء]: البحث الذكي بالـ ID أولاً ثم الاسم لمنع تداخل البيع السريع
-const mainProductIndex = products.findIndex(p => p.id === mainProductName || p.name.trim().toLowerCase() === mainProductName.trim().toLowerCase());
-if (mainProductIndex === -1) {
-    showMessage(sellMessage, `المنتج "${mainProductName}" غير موجود في المخزن.`, true);
-    return;
-}
+    const mainProductIndex = products.findIndex(p => p.id === mainProductName || p.name.trim().toLowerCase() === mainProductName.trim().toLowerCase());
+    if (mainProductIndex === -1) {
+        showMessage(sellMessage, `المنتج "${mainProductName}" غير موجود في المخزن.`, true);
+        return;
+    }
     const mainProduct = products[mainProductIndex];
     if (mainProduct.quantity < quantitySold) {
         showMessage(sellMessage, `الكمية غير متوفرة. المتاح: ${mainProduct.quantity}`, true);
         return;
     }
 
-    // --- معالجة السيريال (المنطق المرن الجديد) ---
+    let serialIndex = -1;
     if (selectedSerial) {
         if (quantitySold !== 1) {
              showMessage(sellMessage, "تنبيه: عند تحديد سيريال، يفضل بيع قطعة واحدة فقط لضمان الدقة.", true);
              return;
         }
         
-        // البحث عن السيريال في النظام
-        const serialIndex = serialNumbersLog.findIndex(s => s.serial === selectedSerial && s.productName === mainProductName);
+        serialIndex = serialNumbersLog.findIndex(s => s.serial === selectedSerial && s.productName === mainProductName);
         
         if (serialIndex !== -1) {
-            // أ: السيريال موجود -> نحدث حالته
             if (serialNumbersLog[serialIndex].status === 'sold') {
                 showMessage(sellMessage, `تحذير: هذا السيريال (${selectedSerial}) مسجل كمباع مسبقاً!`, true);
-                return; // نمنع بيع المباع فقط
+                return;
             }
-            serialNumbersLog[serialIndex].status = isPendingSale ? 'pending_sale' : 'sold';
-        } else {
-            // ب: السيريال جديد (غير مسجل) -> نقوم بإنشائه الآن وتسجيله كمباع
-            // هذا هو ما طلبته: السماح بإدخال سيريال غير محفوظ
-            serialNumbersLog.push({
-                serial: selectedSerial,
-                productName: mainProductName,
-                supplierId: mainProduct.supplierId || "",
-                addedTimestamp: new Date().toISOString(),
-                status: isPendingSale ? 'pending_sale' : 'sold'
-            });
         }
     }
 
-    // 4. حساب التكاليف والملحقات
     let costOfGoodsSold = (Number(mainProduct.costPrice) || 0) * quantitySold;
     let additionalItemsDataForPending = [];
     let additionalItemsToUpdate = [];
@@ -12028,12 +12316,12 @@ if (mainProductIndex === -1) {
                 stockCheckFailed = true;
             } else {
                 costOfGoodsSold += (Number(additionalProduct.costPrice) || 0) * qtyToDeduct;
-               additionalItemsDataForPending.push({ 
-    id: additionalProduct.id,
-    name: additionalProduct.name, 
-    quantity: qtyToDeduct, 
-    costPrice: additionalProduct.costPrice
-});
+                additionalItemsDataForPending.push({ 
+                    id: additionalProduct.id,
+                    name: additionalProduct.name, 
+                    quantity: qtyToDeduct, 
+                    costPrice: additionalProduct.costPrice
+                });
                 additionalItemsToUpdate.push({ index: additionalProductIndex, quantity: qtyToDeduct });
             }
         }
@@ -12041,61 +12329,78 @@ if (mainProductIndex === -1) {
 
     if (stockCheckFailed) return;
 
-    // 5. تنفيذ الخصم من المخزون
+    const profit = totalSellPrice - costOfGoodsSold;
+
+    if (!skipConfirmation) {
+        window.showConfirmSaleModal(profit, () => {
+            sellProduct(true);
+        });
+        return;
+    }
+
+    if (selectedSerial) {
+        if (serialIndex !== -1) {
+            serialNumbersLog[serialIndex].status = isPendingSale ? 'pending_sale' : 'sold';
+        } else {
+            serialNumbersLog.push({
+                serial: selectedSerial,
+                productName: mainProductName,
+                supplierId: mainProduct.supplierId || "",
+                addedTimestamp: new Date().toISOString(),
+                status: isPendingSale ? 'pending_sale' : 'sold'
+            });
+        }
+    }
+
     products[mainProductIndex].quantity -= quantitySold;
     
     additionalItemsToUpdate.forEach(item => {
         products[item.index].quantity -= item.quantity;
     });
-   
 
-    const profit = totalSellPrice - costOfGoodsSold;
-
-    // 6. تجهيز الاسم للعرض في الفاتورة (مع السيريال إن وجد)
     let productNameWithSerial = mainProduct.name;
     if (selectedSerial) {
         productNameWithSerial += ` (S/N: ${selectedSerial})`;
     }
 
-    // 7. الحفظ
     if (isPendingSale) {
         goodsOnConsignmentValue += costOfGoodsSold;
-  const pendingSaleData = {
-  id: `pending-${Date.now()}`,
-  createdAt: new Date().toISOString(),
-  timestamp: new Date().toISOString(),
-  saleDate: currentLoadedDate || new Date().toISOString().split('T')[0],
-  customerName,
+        const pendingSaleData = {
+            id: `pending-${Date.now()}`,
+            createdAt: new Date().toISOString(),
+            timestamp: new Date().toISOString(),
+            saleDate: currentLoadedDate || new Date().toISOString().split('T')[0],
+            customerName,
 
-mainProduct: {
-  id: mainProduct.id,
-  name: mainProduct.name,
-  quantity: Number(quantitySold) || 0,
-  costPrice: Number(mainProduct.costPrice) || 0
-}, // 👈 الفاصلة هنا
+            mainProduct: {
+                id: mainProduct.id,
+                name: mainProduct.name,
+                quantity: Number(quantitySold) || 0,
+                costPrice: Number(mainProduct.costPrice) || 0
+            },
 
-additionalItems: (additionalItemsDataForPending || []).map(item => ({
-  ...item,
-  quantity: Number(item.quantity) || 0,
-  costPrice: Number(item.costPrice) || 0
-})),
+            additionalItems: (additionalItemsDataForPending || []).map(item => ({
+                ...item,
+                quantity: Number(item.quantity) || 0,
+                costPrice: Number(item.costPrice) || 0
+            })),
 
-  totalSellPrice: Number(totalSellPrice) || 0,
-  totalCost: Number(costOfGoodsSold) || 0,
-  potentialProfit: Number(profit) || 0,
-  depositPaid: 0,
-  paidAmount: 0,
-  status: 'pending'
-};
+            totalSellPrice: Number(totalSellPrice) || 0,
+            totalCost: Number(costOfGoodsSold) || 0,
+            potentialProfit: Number(profit) || 0,
+            depositPaid: 0,
+            paidAmount: 0,
+            status: 'pending'
+        };
         pendingSales.push(pendingSaleData);
         logOperation("بيع مؤقت", `بيع مؤقت: ${productNameWithSerial}`);
-        showMessage(sellMessage, "تم تسجيل البيع المؤقت.");
+        showMessage(sellMessage, "تم تسجيل البيع المؤقت بنجاح.");
     } else {
         account.balance += totalSellPrice;
         totalProfit += profit;
         
         const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
-        liquidityLog.push({ id: `liq-${Date.now()}`, timestamp: new Date().toISOString(), type: "add", amount: totalSellPrice, description: `بيع سريع: ${productNameWithSerial}`, currentBalance: newTotalLiquidity });
+        liquidityLog.push({ id: `liq-${Date.now()}`, timestamp: new Date().toISOString(), type: "add", amount: totalSellPrice, description: `بيع بضاعة: ${productNameWithSerial}`, currentBalance: newTotalLiquidity });
 
         const allItems = [
             { name: mainProduct.name, quantity: quantitySold, costPrice: mainProduct.costPrice, serial: selectedSerial },
@@ -12109,16 +12414,13 @@ additionalItems: (additionalItemsDataForPending || []).map(item => ({
         };
         salesToday.push(saleRecord);
         saveInvoiceToFirestore(saleRecord);
-        logOperation("بيع سريع", `بيع ${productNameWithSerial} بقيمة ${formatCurrency(totalSellPrice)}`);
-        showMessage(sellMessage, `تم البيع بنجاح. الربح: ${formatCurrency(profit)}`);
+        logOperation("بيع بضاعة", `بيع ${productNameWithSerial} بسعر ${formatCurrency(totalSellPrice)}`);
+        showMessage(sellMessage, "تم تسجيل البيعة بنجاح.");
     }
 
     updateUI();
-    resetSellForm();
-    sellSerialContainer.classList.add('hidden');
-    sellSerialInput.value = '';
+    window.showPostSaleModal('quick');
 }
-
 function updatePendingSale(pendingId) {
     const saleIndex = pendingSales.findIndex(s => s.id === pendingId);
     if (saleIndex === -1) {
@@ -12278,8 +12580,61 @@ for (const checkbox of additionalCheckboxes) {
 // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
 // ★★★ نهاية الكود الجديد الذي ستلصقه ★★★
 // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+                 // دالة حساب الربح المتوقع للبيع السريع وعرضه مباشرة
+                 function calculateQuickSellProfit() {
+                     const mainProductName = sellProductNameInput ? sellProductNameInput.value.trim() : '';
+                     const quantitySold = sellQuantityInput ? (parseInputNumber(sellQuantityInput) || 0) : 0;
+                     const totalSellPrice = sellPriceInput ? (parseInputNumber(sellPriceInput) || 0) : 0;
+
+                     const mainProduct = products.find(p => p.id === mainProductName || p.name.trim().toLowerCase() === mainProductName.trim().toLowerCase());
+                     const profitDisplay = document.getElementById('quick-sell-profit-display');
+                     if (!profitDisplay) return;
+
+                     if (!mainProduct || quantitySold <= 0) {
+                         profitDisplay.textContent = formatCurrency(0);
+                         return;
+                     }
+
+                     let costOfGoodsSold = (Number(mainProduct.costPrice) || 0) * quantitySold;
+
+                     const additionalCheckboxes = additionalCostsContainer ? additionalCostsContainer.querySelectorAll('input[type="checkbox"]:checked') : [];
+                     additionalCheckboxes.forEach(checkbox => {
+                         const parentLabel = checkbox.closest('label');
+                         const quantityInput = parentLabel.querySelector('.additional-item-quantity');
+                         const qtyToDeduct = parseInt(quantityInput?.value) || 0;
+                         const additionalProductName = checkbox.value;
+                         const additionalProduct = products.find(p => p.name === additionalProductName);
+                         if (qtyToDeduct > 0 && additionalProduct) {
+                             costOfGoodsSold += (Number(additionalProduct.costPrice) || 0) * qtyToDeduct;
+                         }
+                     });
+
+                     const profit = totalSellPrice - costOfGoodsSold;
+                     profitDisplay.textContent = formatCurrency(profit);
+                     if (profit >= 0) {
+                         profitDisplay.style.color = '#166534';
+                     } else {
+                         profitDisplay.style.color = '#dc2626';
+                     }
+                 }
+                 window.calculateQuickSellProfit = calculateQuickSellProfit;
+
                  if(sellProductNameInput) { // Update checkboxes when main product changes
-                     sellProductNameInput.addEventListener('input', updateAdditionalCostsCheckboxes); sellProductNameInput.addEventListener('change', updateAdditionalCostsCheckboxes); }
+                     sellProductNameInput.addEventListener('input', updateAdditionalCostsCheckboxes); 
+                     sellProductNameInput.addEventListener('change', updateAdditionalCostsCheckboxes); 
+                     sellProductNameInput.addEventListener('input', calculateQuickSellProfit);
+                     sellProductNameInput.addEventListener('change', calculateQuickSellProfit);
+                 }
+                 if(sellQuantityInput) {
+                     sellQuantityInput.addEventListener('input', calculateQuickSellProfit);
+                 }
+                 if(sellPriceInput) {
+                     sellPriceInput.addEventListener('input', calculateQuickSellProfit);
+                 }
+                 if(additionalCostsContainer) {
+                     additionalCostsContainer.addEventListener('change', calculateQuickSellProfit);
+                     additionalCostsContainer.addEventListener('input', calculateQuickSellProfit);
+                 }
                  // <<< جديد: مستمع حدث لبحث المبيعات المؤقتة >>>
                  if(pendingSalesSearchInput) {
                     pendingSalesSearchInput.addEventListener('input', updatePendingSalesDisplay);
@@ -13020,6 +13375,10 @@ if (pendingReceiptList) {
                      const removedSerial = row.dataset.itemSerial; if (removedSerial) { const serialIndex = serialNumbersLog.findIndex(log => log.serial === removedSerial); if (serialIndex !== -1 && serialNumbersLog[serialIndex].status === 'in_invoice_temp') { // تأكد أنه كان محجوزاً لهذه الفاتورة
                          serialNumbersLog[serialIndex].status = 'in_stock'; console.log(`Serial ${removedSerial} status reverted to 'in_stock' on item removal.`); } } row.remove(); inv_calculateTotals(); inv_updateDeductibleCostsCheckboxes(); } } }); }
                  if(inv_shippingCostInput) { inv_shippingCostInput.addEventListener('input', inv_calculateTotals); }
+                 if (inv_deductibleCostsContainer) {
+                     inv_deductibleCostsContainer.addEventListener('change', () => { if(typeof inv_calculateTotals === 'function') inv_calculateTotals(); });
+                     inv_deductibleCostsContainer.addEventListener('input', () => { if(typeof inv_calculateTotals === 'function') inv_calculateTotals(); });
+                 }
                  if (inv_saveInvoiceBtn) { inv_saveInvoiceBtn.addEventListener('click', handleSaveInvoice); }
                  if (inv_printInvoiceBtn) { inv_printInvoiceBtn.addEventListener('click', () => inv_printInvoice()); } // Call without args for direct print
                  // **** جديد: مستمعات الأحداث للتعامل مع اختيار وبحث السيريال في الفاتورة ****
@@ -14931,7 +15290,398 @@ window.deleteDebtItem = function(debtId) {
 
 window.closeDeleteDebtRefundModal = function() {
     document.getElementById('deleteDebtRefundModal').style.display = 'none';
+   };
+    
+// متغير لحفظ واختيار الجهة التي فتحت المودل حالياً ('quick' للبيع السريع، أو 'invoice' لإنشاء فاتورة)
+window.usm_currentOrigin = 'quick'; 
+
+// دالة فتح الموديل وتجهيزه
+window.openUnifiedSellModal = function(originType = 'quick') {
+    window.usm_currentOrigin = originType;
+    document.getElementById('unifiedSellProductModal').style.display = 'flex';
+    
+    // تفريغ المدخلات الافتراضية للتكاليف الإضافية
+    document.getElementById('usm_extra_charges').value = 0;
+    document.getElementById('usm_shipping_cost').value = 0;
+    document.getElementById('usm_search_input').value = '';
+    
+    // تعبئة قائمة الأقسام ديناميكياً بناءً على المتاح بالمخزن
+    const filterSelect = document.getElementById('usm_category_filter');
+    if (filterSelect && window.products) {
+        const categories = [...new Set(window.products.map(p => p.category).filter(Boolean))];
+        filterSelect.innerHTML = '<option value="all">كل الأقسام والـ Categories</option>' + 
+            categories.map(cat => `<option value="${cat}">${cat}</option>`).join('');
+    }
+    
+    // رندر قائمة المنتجات وحساب الأرباح
+    window.usm_renderProductGrid();
+    window.usm_calculateLiveProfit();
 };
+
+window.closeUnifiedSellModal = function() {
+    document.getElementById('unifiedSellProductModal').style.display = 'none';
+};
+
+// دالة رندر المنتجات داخل الجدول مع حقول إدخال الكميات وسعر البيع
+window.usm_renderProductGrid = function() {
+    const body = document.getElementById('usm_product_grid_body');
+    if (!body || !window.products) return;
+    
+    const searchVal = document.getElementById('usm_search_input').value.trim().toLowerCase();
+    const catVal = document.getElementById('usm_category_filter').value;
+    
+    // تصفية المنتجات المتوفرة فقط (الكمية أكبر من صفر)
+    const filtered = window.products.filter(p => {
+        const matchesSearch = p.name.toLowerCase().includes(searchVal);
+        const matchesCat = (catVal === 'all' || p.category === catVal);
+        return matchesSearch && matchesCat && (Number(p.quantity) > 0);
+    });
+    
+    if (filtered.length === 0) {
+        body.innerHTML = `<tr><td colspan="5" class="text-center text-gray-500 py-4">لا توجد منتجات متوفرة تطابق التصفية.</td></tr>`;
+        return;
+    }
+    
+    body.innerHTML = filtered.map(p => {
+        // سعر البيع المقترح تلقائياً (نحسب هامش ربح تقديري 25% لو السعر مش مقيد لتسهيل العمل)
+        const suggestedSalePrice = p.costPrice * 1.25;
+        return `
+            <tr class="hover:bg-gray-50 border-b" data-product-id="${p.id}" data-cost="${p.costPrice}">
+                <td class="p-2 text-right">
+                    <span class="font-semibold text-gray-800">${p.name}</span>
+                    <block class="text-xs text-gray-400">القسم: ${p.category || 'عام'}</block>
+                </td>
+                <td class="p-2 text-center font-bold text-blue-600 font-mono">${p.quantity}</td>
+                <td class="p-2 text-center text-purple-600 font-mono">${Number(p.costPrice).toFixed(2)}</td>
+                <td class="p-2 text-center">
+                    <input type="number" class="usm-sale-price shadow-sm p-1 border rounded text-xs text-center font-mono w-24 bg-gray-50 focus:bg-white" 
+                           value="${suggestedSalePrice.toFixed(2)}" min="0" step="0.01" oninput="window.usm_calculateLiveProfit()">
+                </td>
+                <td class="p-2 text-center">
+                    <input type="number" class="usm-requested-qty shadow-sm p-1 border rounded text-xs text-center font-mono w-20 border-blue-300 bg-blue-50 focus:bg-white" 
+                           value="0" min="0" max="${p.quantity}" step="1" oninput="window.usm_calculateLiveProfit()">
+                </td>
+            </tr>
+        `;
+    }).join('');
+};
+
+// دالة حساب التحليل المالي والربح المتوقع المباشر (Live Profit Analyzer) قبل التأكيد
+window.usm_calculateLiveProfit = function() {
+    let totalCostOfSelected = 0;
+    let totalSalesOfSelected = 0;
+    
+    const rows = document.querySelectorAll('#usm_product_grid_body tr[data-product-id]');
+    rows.forEach(row => {
+        const costPrice = parseFloat(row.dataset.cost) || 0;
+        const salePriceInput = row.querySelector('.usm-sale-price');
+        const qtyInput = row.querySelector('.usm-requested-qty');
+        
+        if (salePriceInput && qtyInput) {
+            const qty = parseInt(qtyInput.value) || 0;
+            const salePrice = parseFloat(salePriceInput.value) || 0;
+            
+            if (qty > 0) {
+                totalCostOfSelected += (costPrice * qty);
+                totalSalesOfSelected += (salePrice * qty);
+            }
+        }
+    });
+    
+    // إضافة التكاليف الإضافية والشحن المدخلة في النموذج
+    const extraCharges = parseFloat(document.getElementById('usm_extra_charges').value) || 0;
+    const shippingCost = parseFloat(document.getElementById('usm_shipping_cost').value) || 0;
+    
+    // إجمالي المبيعات يشمل البضاعة + الخدمات الإضافية + الشحن
+    const finalGrandTotalSales = totalSalesOfSelected + extraCharges + shippingCost;
+    // صافي الربح = إجمالي المبيعات - إجمالي التكلفة الشاملة
+    const finalExpectedProfit = finalGrandTotalSales - totalCostOfSelected;
+    
+    // تحديث شاشات العرض المباشر في المودل
+    document.getElementById('usm_total_sales_display').textContent = typeof formatCurrency === 'function' ? formatCurrency(finalGrandTotalSales) : finalGrandTotalSales.toFixed(2) + " جنيه";
+    document.getElementById('usm_total_cost_display').textContent = typeof formatCurrency === 'function' ? formatCurrency(totalCostOfSelected) : totalCostOfSelected.toFixed(2) + " جنيه";
+    
+    const profitDisplay = document.getElementById('usm_expected_profit_display');
+    profitDisplay.textContent = typeof formatCurrency === 'function' ? formatCurrency(finalExpectedProfit) : finalExpectedProfit.toFixed(2) + " جنيه";
+    
+    // تلوين مؤشر الأرباح ديناميكياً لسلامة الحسابات
+    if (finalExpectedProfit >= 0) {
+        profitDisplay.className = "text-xl font-bold text-green-700 font-mono";
+    } else {
+        profitDisplay.className = "text-xl font-bold text-red-600 font-mono";
+    }
+};
+
+
+
+
+// ============================================================
+// START: Unified Sell Product Modal Logic (Instant Execution Engine)
+// ============================================================
+window.usm_currentOrigin = 'quick'; 
+window.usm_cart = {}; 
+
+window.openUnifiedSellModal = function(originType = 'quick') {
+    window.usm_currentOrigin = originType;
+    document.getElementById('unifiedSellProductModal').style.display = 'flex';
+    
+    // تفريغ المدخلات الافتراضية للنافذة
+    document.getElementById('usm_extra_charges').value = 0;
+    document.getElementById('usm_shipping_cost').value = 0;
+    document.getElementById('usm_search_input').value = '';
+    window.usm_cart = {};
+    
+    // سحب اسم العميل إذا كان مكتوباً مسبقاً في واجهات الخلفية تيسيراً للعمل
+    if (originType === 'quick') {
+        document.getElementById('usm_customer_name').value = document.getElementById('sell-customer-name').value || '';
+    } else if (originType === 'invoice') {
+        document.getElementById('usm_customer_name').value = document.getElementById('inv_customerName').value || '';
+    }
+    
+    // شحن الخزن المتوفرة بالسيستم داخل المودل ديناميكياً
+    const accountSelect = document.getElementById('usm_account_select');
+    const liveAccounts = (typeof accounts !== 'undefined') ? accounts : [];
+    if (accountSelect && liveAccounts.length > 0) {
+        accountSelect.innerHTML = liveAccounts.map(acc => `<option value="${acc.id}">${acc.name} (${acc.balance.toFixed(2)} جنيه)</option>`).join('');
+    }
+    
+    // شحن الأقسام
+    const liveProducts = (typeof products !== 'undefined') ? products : [];
+    const filterSelect = document.getElementById('usm_category_filter');
+    if (filterSelect && liveProducts.length > 0) {
+        const categories = [...new Set(liveProducts.map(p => p.category).filter(Boolean))];
+        filterSelect.innerHTML = '<option value="all">كل الأقسام والـ Categories</option>' + 
+            categories.map(cat => `<option value="${cat}">${cat}</option>`).join('');
+    }
+    
+    window.usm_renderProductGrid();
+    window.usm_calculateLiveProfit();
+};
+
+window.closeUnifiedSellModal = function() {
+    document.getElementById('unifiedSellProductModal').style.display = 'none';
+};
+
+window.usm_renderProductGrid = function() {
+    const body = document.getElementById('usm_product_grid_body');
+    const liveProducts = (typeof products !== 'undefined') ? products : [];
+    if (!body || !liveProducts) return;
+    
+    const searchVal = document.getElementById('usm_search_input').value.trim().toLowerCase();
+    const catVal = document.getElementById('usm_category_filter').value;
+    
+    const filtered = liveProducts.filter(p => {
+        const matchesSearch = p.name.toLowerCase().includes(searchVal);
+        const matchesCat = (catVal === 'all' || p.category === catVal);
+        return matchesSearch && matchesCat && (Number(p.quantity) > 0);
+    });
+    
+    if (filtered.length === 0) {
+        body.innerHTML = `<tr><td colspan="5" class="text-center text-gray-500 py-4">لا توجد منتجات متوفرة تطابق التصفية.</td></tr>`;
+        return;
+    }
+    
+    body.innerHTML = filtered.map(p => {
+        const suggestedSalePrice = p.costPrice * 1.25;
+        const cartItem = window.usm_cart[p.id || p.name];
+        const currentQty = cartItem ? cartItem.qty : 0;
+        const currentPrice = cartItem ? cartItem.salePrice : suggestedSalePrice;
+        
+        return `
+            <tr class="hover:bg-gray-50 border-b" data-product-id="${p.id || p.name}" data-cost="${p.costPrice}">
+                <td class="p-2 text-right">
+                    <span class="font-semibold text-gray-800">${p.name}</span>
+                    <span class="block text-xs text-gray-400">القسم: ${p.category || 'عام'}</span>
+                </td>
+                <td class="p-2 text-center font-bold text-blue-600 font-mono">${p.quantity}</td>
+                <td class="p-2 text-center text-purple-600 font-mono">${Number(p.costPrice).toFixed(2)}</td>
+                <td class="p-2 text-center">
+                    <input type="number" class="usm-sale-price shadow-sm p-1 border rounded text-xs text-center font-mono w-24 bg-gray-50 focus:bg-white" 
+                           value="${Number(currentPrice).toFixed(2)}" min="0" step="0.01" oninput="window.usm_saveToCart('${p.id || p.name}', this, 'price')">
+                </td>
+                <td class="p-2 text-center">
+                    <input type="number" class="usm-requested-qty shadow-sm p-1 border rounded text-xs text-center font-mono w-20 border-blue-300 bg-blue-50 focus:bg-white" 
+                           value="${currentQty}" min="0" max="${p.quantity}" step="1" oninput="window.usm_saveToCart('${p.id || p.name}', this, 'qty')">
+                </td>
+            </tr>
+        `;
+    }).join('');
+};
+
+window.usm_saveToCart = function(prodId, inputEl, type) {
+    if (!window.usm_cart[prodId]) {
+        const liveProducts = (typeof products !== 'undefined') ? products : [];
+        const p = liveProducts.find(prod => prod.id === prodId || prod.name === prodId);
+        window.usm_cart[prodId] = { qty: 0, salePrice: p ? p.costPrice * 1.25 : 0 };
+    }
+    if (type === 'qty') window.usm_cart[prodId].qty = parseInt(inputEl.value) || 0;
+    else if (type === 'price') window.usm_cart[prodId].salePrice = parseFloat(inputEl.value) || 0;
+    
+    window.usm_calculateLiveProfit();
+};
+
+window.usm_calculateLiveProfit = function() {
+    let totalCostOfSelected = 0;
+    let totalSalesOfSelected = 0;
+    const liveProducts = (typeof products !== 'undefined') ? products : [];
+    
+    for (const prodId in window.usm_cart) {
+        const item = window.usm_cart[prodId];
+        if (item.qty > 0) {
+            const p = liveProducts.find(prod => prod.id === prodId || prod.name === prodId);
+            if (p) {
+                totalCostOfSelected += ((Number(p.costPrice) || 0) * item.qty);
+                totalSalesOfSelected += (item.salePrice * item.qty);
+            }
+        }
+    }
+    
+    const extraCharges = parseFloat(document.getElementById('usm_extra_charges').value) || 0;
+    const shippingCost = parseFloat(document.getElementById('usm_shipping_cost').value) || 0;
+    
+    const finalGrandTotalSales = totalSalesOfSelected + extraCharges + shippingCost;
+    const finalExpectedProfit = finalGrandTotalSales - totalCostOfSelected;
+    
+    document.getElementById('usm_total_sales_display').textContent = finalGrandTotalSales.toFixed(2) + " جنيه";
+    document.getElementById('usm_total_cost_display').textContent = totalCostOfSelected.toFixed(2) + " جنيه";
+    
+    const profitDisplay = document.getElementById('usm_expected_profit_display');
+    profitDisplay.textContent = finalExpectedProfit.toFixed(2) + " جنيه";
+    profitDisplay.className = finalExpectedProfit >= 0 ? "text-xl font-bold text-green-700 font-mono" : "text-xl font-bold text-red-600 font-mono";
+};
+
+// 🚀 الدالة التنفيذية الكبرى: تضخ البيانات فورياً وتضغط على أزرار الحفظ الأصلية لسيستمك!
+window.usm_applySelectionToOrigin = function() {
+    let selectedItems = [];
+    let totalItemsPrice = 0;
+    const liveProducts = (typeof products !== 'undefined') ? products : [];
+    
+    for (const prodId in window.usm_cart) {
+        const item = window.usm_cart[prodId];
+        if (item.qty > 0) {
+            const p = liveProducts.find(prod => prod.id === prodId || prod.name === prodId);
+            if (p) {
+                selectedItems.push({
+                    id: p.id || p.name,
+                    name: p.name,
+                    quantity: item.qty,
+                    costPrice: Number(p.costPrice) || 0,
+                    unitPrice: item.salePrice,
+                    subtotal: item.salePrice * item.qty
+                });
+                totalItemsPrice += (item.salePrice * item.qty);
+            }
+        }
+    }
+    
+    if (selectedItems.length === 0) {
+        alert("يرجى اختيار كمية (1 على الأقل) لأحد المنتجات قبل التأكيد.");
+        return;
+    }
+    
+    const extraCharges = parseFloat(document.getElementById('usm_extra_charges').value) || 0;
+    const shippingCost = parseFloat(document.getElementById('usm_shipping_cost').value) || 0;
+    const customerName = document.getElementById('usm_customer_name').value.trim();
+    const targetAccountId = document.getElementById('usm_account_select').value;
+    const isPending = (document.getElementById('usm_sale_type').value === 'pending');
+    
+    // 🟩 [الوضع 1]: تحويل وتنفيذ فوري للبيع السريع
+    if (window.usm_currentOrigin === 'quick') {
+        const firstItem = selectedItems[0];
+        document.getElementById('sell-product-name').value = firstItem.name;
+        document.getElementById('sell-quantity').value = firstItem.quantity;
+        document.getElementById('sell-customer-name').value = customerName;
+        document.getElementById('sell-price').value = (totalItemsPrice + extraCharges + shippingCost).toFixed(2);
+        document.getElementById('sell-account-select').value = targetAccountId;
+        document.getElementById('sell-pending').checked = isPending;
+        
+        // ترحيل بقية العناصر كملحقات إضافية تلقائياً لحماية المخازن
+        const remainingAttachments = selectedItems.slice(1).map(item => ({
+            name: item.name, quantity: item.quantity, costPrice: item.costPrice
+        }));
+        if (typeof updateAdditionalCostsCheckboxes === 'function') {
+            updateAdditionalCostsCheckboxes(remainingAttachments);
+        }
+        
+        window.closeUnifiedSellModal();
+        
+        // 🚀 إطلاق قذيفة التنفيذ الفوري والحفظ لقاعدة البيانات وسيرفر Firebase!
+        if (typeof sellProduct === 'function') {
+            sellProduct(); 
+        } else {
+            const nativeBtn = document.getElementById('sell-button');
+            if (nativeBtn) nativeBtn.click();
+        }
+        
+    // 🟦 [الوضع 2]: تحويل وتنفيذ فوري للفاتورة التفصيلية
+    } else if (window.usm_currentOrigin === 'invoice') {
+        const itemsBody = document.getElementById('inv_invoiceItemsBody');
+        if (itemsBody) {
+            itemsBody.innerHTML = ''; 
+            selectedItems.forEach(item => {
+                const newRow = document.createElement('tr');
+                newRow.classList.add('invoice-item-row');
+                newRow.dataset.productId = item.id;
+                newRow.dataset.itemName = item.name;
+                newRow.dataset.itemQty = item.quantity;
+                newRow.dataset.itemPrice = item.unitPrice.toFixed(2);
+                newRow.dataset.itemSubtotal = item.subtotal.toFixed(2);
+                newRow.dataset.itemCost = item.costPrice.toFixed(2);
+                
+                newRow.innerHTML = `
+                    <td class="item-name">${item.name}</td>
+                    <td class="item-qty" style="text-align:center;">${item.quantity}</td>
+                    <td class="item-price" style="text-align:center;">${item.unitPrice.toFixed(2)}</td>
+                    <td class="item-subtotal" style="text-align:center; font-weight:bold;">${item.unitPrice * item.quantity}</td>
+                    <td class="no-print" style="text-align:center;"><button type="button" class="remove-item-btn" style="color:red; font-weight:bold; border:none; background:none; cursor:pointer;" onclick="this.closest('tr').remove(); if(typeof inv_calculateTotals==='function') inv_calculateTotals();">×</button></td>
+                `;
+                itemsBody.appendChild(newRow);
+            });
+            
+            // شحن حقول الفاتورة الخلفية صراحة لمنع الكراش
+            document.getElementById('inv_customerName').value = customerName || 'عميل كاش';
+            if (document.getElementById('inv_shippingCost')) document.getElementById('inv_shippingCost').value = shippingCost.toFixed(2);
+            if (document.getElementById('inv_payment_account')) document.getElementById('inv_payment_account').value = targetAccountId;
+            if (document.getElementById('inv_markAsPending')) document.getElementById('inv_markAsPending').checked = isPending;
+            if (document.getElementById('inv_notes') && extraCharges > 0) {
+                document.getElementById('inv_notes').value += `\n[خدمات وتكاليف إضافية مضافة: ${extraCharges.toFixed(2)} جنيه]`;
+            }
+            
+            if (typeof inv_calculateTotals === 'function') inv_calculateTotals();
+            
+            window.closeUnifiedSellModal();
+            
+            // 🚀 إطلاق قذيفة الحفظ النهائي للفاتورة والمزامنة السحابية مع الأرشيف!
+            if (typeof handleSaveInvoice === 'function') {
+                handleSaveInvoice();
+            } else {
+                const nativeInvBtn = document.getElementById('inv_saveInvoiceBtn');
+                if (nativeInvBtn) nativeInvBtn.click();
+            }
+        }
+    }
+};
+// ============================================================
+// END: Unified Sell Product Modal Logic
+// ============================================================
+window.openQuickSellModal = function() {
+    document.getElementById('quickSellModal').style.display = 'flex';
+    // لتصفير الحقول أو تجهيز الواجهة تلقائياً إذا كانت الدوال متوفرة في كودك الأساسي
+    if (typeof resetSellForm === 'function') resetSellForm();
+};
+
+window.closeQuickSellModal = function() {
+    document.getElementById('quickSellModal').style.display = 'none';
+    if (typeof resetSellForm === 'function') resetSellForm();
+};
+
+// فكرة ذكية لحماية زر تعديل المعلقات القديم: 
+// إذا قام المستخدم بالضغط على تعديل معاملة معلقة من الجدول، يفتح المودل تلقائياً ليعدل منه
+document.addEventListener('click', function(e) {
+    if (e.target && e.target.classList.contains('edit-pending-btn')) {
+        setTimeout(() => { window.openQuickSellModal(); }, 50);
+    }
+});
 }); // End DOMContentLoaded
 
 </script>
@@ -15119,6 +15869,9 @@ window.closeDeleteDebtRefundModal = function() {
         </div>
     </div>
 </div>
+<!-- ======================================================= -->
+<!-- 1. مودل تنبيه تكرار الاسم (تمت إزالة التكرار) -->
+<!-- ======================================================= -->
 <div id="productDuplicateNameModal" class="modal" style="display: none; z-index: 2600; align-items: center; justify-content: center; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5);">
     <div class="modal-content" style="max-width: 500px; border-top: 5px solid #3b82f6; background: white; padding: 20px; border-radius: 8px; width: 90%; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
         <div class="modal-header flex justify-between items-center pb-3 border-b">
@@ -15155,41 +15908,501 @@ window.closeDeleteDebtRefundModal = function() {
         </div>
     </div>
 </div>
-<div id="productDuplicateNameModal" class="modal" style="display: none; z-index: 2600; align-items: center; justify-content: center; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5);">
-    <div class="modal-content" style="max-width: 500px; border-top: 5px solid #3b82f6; background: white; padding: 20px; border-radius: 8px; width: 90%; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-        <div class="modal-header flex justify-between items-center pb-3 border-b">
-            <h2 class="text-lg font-bold text-blue-600">⚠️ تنبيه: اسم المنتج مكرر بالفعل</h2>
-            <span class="modal-close-btn cursor-pointer text-2xl font-bold" id="closeDuplicateModalBtn">&times;</span>
+
+<!-- ======================================================= -->
+<!-- 2. مركز المبيعات الموحد المطور (النسخة الذكية ذاتية التنفيذ) -->
+<!-- ======================================================= -->
+<div id="unifiedSellProductModal" class="modal" style="display: none; align-items: center; justify-content: center; position: fixed; z-index: 3000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5);">
+    <div class="modal-content" style="max-width: 850px; width: 95%; border-top: 5px solid #4f46e5; background: white; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); display: flex; flex-direction: column;">
+        
+        <div class="modal-header" style="padding: 1rem 1.5rem; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; background-color: #f8fafc;">
+            <h2 class="text-lg font-bold text-gray-800 flex items-center gap-2">
+                <i class="fas fa-cash-register text-indigo-600"></i> مركز المبيعات الموحد وإتمام العمليات فوراً
+            </h2>
+            <span class="modal-close-btn" onclick="window.closeUnifiedSellModal()" style="cursor: pointer; font-size: 28px; font-weight: bold; color: #9ca3af; transition: color 0.2s;" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#9ca3af'">&times;</span>
         </div>
-        <div class="modal-body py-4">
-            <p id="duplicateModalText" class="text-sm text-gray-700 bg-blue-50 p-3 rounded mb-4 leading-relaxed border border-blue-200"></p>
+
+        <div class="modal-body" style="padding: 1.5rem; max-height: 70vh; overflow-y: auto; background-color: #ffffff;">
             
-            <div class="mb-4">
-                <label class="block text-sm font-bold mb-2 text-gray-800">اختر كيف ترغب في معالجة هذا المنتج:</label>
-                <div class="space-y-2">
-                    <label class="inline-flex items-center cursor-pointer bg-gray-50 p-2 rounded w-full border border-gray-200 hover:bg-gray-100 transition">
-                        <input type="radio" name="duplicateAction" value="merge" checked class="ml-2">
-                        <span class="text-xs font-semibold text-gray-700">📥 دمج الكمية مع المنتج القديم (سيتم تحديث الكمية ومتوسط التكلفة)</span>
-                    </label>
-                    <label class="inline-flex items-center cursor-pointer bg-gray-50 p-2 rounded w-full border border-gray-200 hover:bg-gray-100 transition">
-                        <input type="radio" name="duplicateAction" value="rename" class="ml-2">
-                        <span class="text-xs font-semibold text-gray-700">✏️ إعادة تسمية المنتج الجديد لتفادي التكرار تماماً</span>
-                    </label>
-                    <div id="renameInputContainer" class="mt-2 pr-6 hidden">
-                        <input type="text" id="newProductNameInput" placeholder="اكتب الاسم الجديد هنا..." class="shadow-sm w-full p-2 border rounded text-sm bg-gray-50">
+            <!-- أدوات التصفية والبحث السريع -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                <div class="form-group">
+                    <label class="block text-xs font-bold mb-1 text-gray-700">🔍 بحث سريع في المنتجات والمقاسات:</label>
+                    <input type="text" id="usm_search_input" oninput="window.usm_renderProductGrid()" placeholder="اكتب اسم المنتج أو الموديل للبحث الفوري..." class="shadow-sm p-2 border rounded text-sm bg-white w-full focus:ring focus:ring-indigo-200 focus:border-indigo-500 outline-none">
+                </div>
+                <div class="form-group">
+                    <label class="block text-xs font-bold mb-1 text-gray-700">📁 تصفية حسب القسم الطبي / التصنيف:</label>
+                    <select id="usm_category_filter" onchange="window.usm_renderProductGrid()" class="shadow-sm p-2 border rounded text-sm bg-white w-full focus:ring focus:ring-indigo-200 focus:border-indigo-500 outline-none">
+                        <option value="all">كل الأقسام والـ Categories</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- جدول عرض المنتجات المتوفرة بالمخزن -->
+            <div style="max-height: 220px; overflow-y: auto; border: 1px solid #e5e7eb;" class="rounded-lg p-1 mb-4 bg-gray-50">
+                <table class="modern-table w-full bg-white">
+                    <thead class="bg-gray-100 sticky top-0 z-10 shadow-sm">
+                        <tr>
+                            <th class="p-2.5 text-right text-xs text-gray-700 font-bold">المنتج / القسم</th>
+                            <th class="p-2.5 text-center text-xs text-gray-700 font-bold w-24">المتاح بالخزن</th>
+                            <th class="p-2.5 text-center text-xs text-gray-700 font-bold w-24">تكلفة الوحدة</th>
+                            <th class="p-2.5 text-center text-xs text-gray-700 font-bold w-28">سعر البيع المقترح</th>
+                            <th class="p-2.5 text-center text-xs text-gray-700 font-bold w-24">الكمية المطلوبة</th>
+                        </tr>
+                    </thead>
+                    <tbody id="usm_product_grid_body" class="divide-y divide-gray-100">
+                        <!-- تظهر المنتجات هنا ديناميكياً من السكربت -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- تكاليف إضافية ومصاريف الشحن -->
+            <fieldset class="mb-4 bg-gray-50 border border-gray-200 p-3 rounded-lg">
+                <legend class="text-xs font-bold text-gray-600 px-2 bg-white border rounded">💰 خدمات ومصاريف إضافية للفاتورة</legend>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="form-group">
+                        <label for="usm_extra_charges" class="block text-xs font-semibold text-gray-700 mb-1">تكاليف إضافية / خدمات مخصصة:</label>
+                        <input type="number" id="usm_extra_charges" value="0" min="0" step="0.01" oninput="window.usm_calculateLiveProfit()" class="shadow-sm p-2 border rounded text-sm bg-white w-full outline-none">
                     </div>
-                    <label class="inline-flex items-center cursor-pointer bg-gray-50 p-2 rounded w-full border border-gray-200 hover:bg-gray-100 transition">
-                        <input type="radio" name="duplicateAction" value="separate" class="ml-2">
-                        <span class="text-xs font-semibold text-gray-700">🆔 استمرار بنفس الاسم ولكن كمنتج مستقل (بكود فريد وقسم خاص به)</span>
-                    </label>
+                    <div class="form-group">
+                        <label for="usm_shipping_cost" class="block text-xs font-semibold text-gray-700 mb-1">مصاريف الشحن والتوصيل (إن وجدت):</label>
+                        <input type="number" id="usm_shipping_cost" value="0" min="0" step="0.01" oninput="window.usm_calculateLiveProfit()" class="shadow-sm p-2 border rounded text-sm bg-white w-full outline-none">
+                    </div>
+                </div>
+            </fieldset>
+
+            <!-- قسم الحساب الذكي للعميل والخزنة ونوع البيع لتشغيل السيستم فوراً -->
+            <fieldset class="mb-4 bg-indigo-50/50 border border-indigo-200 p-3 rounded-lg">
+                <legend class="text-xs font-bold text-indigo-700 px-2 bg-white border border-indigo-200 rounded">👤 بيانات العميل والخزنة لإتمام البيع الفوري</legend>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="form-group">
+                        <label for="usm_customer_name" class="block text-xs font-semibold text-indigo-900 mb-1">اسم العميل:</label>
+                        <input type="text" id="usm_customer_name" placeholder="اسم العميل (اختياري)" class="shadow-sm p-2 border border-indigo-200 rounded text-sm bg-white w-full outline-none">
+                    </div>
+                    <div class="form-group">
+                        <label for="usm_account_select" class="block text-xs font-semibold text-indigo-900 mb-1">إيداع في حساب / خزنة:</label>
+                        <select id="usm_account_select" class="shadow-sm p-2 border border-indigo-200 rounded text-sm bg-white w-full outline-none">
+                            <!-- تشحن تلقائياً من خزن السيستم -->
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="usm_sale_type" class="block text-xs font-semibold text-indigo-900 mb-1">الحالة المحاسبية للعملية:</label>
+                        <select id="usm_sale_type" class="shadow-sm p-2 border border-indigo-200 rounded text-sm bg-white w-full outline-none">
+                            <option value="final">عملية بيع نهائية (كاش فوري) 🟢</option>
+                            <option value="pending">بيع مؤقت تحت التسوية (معلق) 🟡</option>
+                        </select>
+                    </div>
+                </div>
+            </fieldset>
+
+            <!-- لوحة المحاكاة والتحليل المالي المباشر للمكاسب -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-center mb-2">
+                <div class="p-3 rounded-lg border border-blue-200 bg-blue-50/60">
+                    <span class="block text-xs font-medium text-blue-700">إجمالي قيمة Mبيعات</span>
+                    <strong id="usm_total_sales_display" class="text-xl font-bold text-blue-800 font-mono">0.00 جنيه</strong>
+                </div>
+                <div class="p-3 rounded-lg border border-amber-200 bg-amber-50/60">
+                    <span class="block text-xs font-medium text-amber-700">إجمالي تكلفة البضاعة</span>
+                    <strong id="usm_total_cost_display" class="text-xl font-bold text-amber-800 font-mono">0.00 جنيه</strong>
+                </div>
+                <div class="p-3 rounded-lg border border-green-200 bg-green-50/60">
+                    <span class="block text-xs font-medium text-green-700">الربح الصافي المتوقع</span>
+                    <strong id="usm_expected_profit_display" class="text-xl font-bold text-green-800 font-mono">0.00 جنيه</strong>
                 </div>
             </div>
         </div>
-        <div class="modal-footer pt-3 border-t flex gap-2">
-            <button id="confirmDuplicateBtn" class="bg-blue-500 text-white flex-1 py-2 rounded font-bold hover:bg-blue-600 transition">تأكيد الإجراء المحاسبي</button>
-            <button id="cancelDuplicateModalBtn" class="bg-gray-300 text-gray-700 px-4 py-2 rounded font-bold hover:bg-gray-400 transition">إلغاء</button>
+
+        <div class="modal-footer pt-3 border-t bg-gray-50" style="padding: 1rem 1.5rem; display: flex; gap: 12px; justify-content: flex-start; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px;">
+            <button id="usm_submit_btn" onclick="window.usm_applySelectionToOrigin()" style="flex: 1; background-color: #16a34a !important; color: #ffffff !important; font-weight: bold; padding: 12px; border: none; border-radius: 6px; cursor: pointer; text-align: center; font-size: 0.95rem; box-shadow: 0 2px 4px rgba(22,163,74,0.2); transition: background 0.2s;" onmouseover="this.style.backgroundColor='#15803d'" onmouseout="this.style.backgroundColor='#16a34a'">
+                🚀 تأكيد وإتمام عملية البيع فوراً
+            </button>
+            <button onclick="window.closeUnifiedSellModal()" style="background-color: #dc2626 !important; color: #ffffff !important; font-weight: bold; padding: 12px 24px; border: none; border-radius: 6px; cursor: pointer; text-align: center; font-size: 0.95rem; transition: background 0.2s;" onmouseover="this.style.backgroundColor='#b91c1c'" onmouseout="this.style.backgroundColor='#dc2626'">
+                إلغاء وتراجع
+            </button>
+        </div>
+
+    </div>
+</div>
+<!-- ======================================================= -->
+<!-- START: Standalone Quick Sell Pop-up Modal                -->
+<!-- ======================================================= -->
+<div id="quickSellModal" class="modal" style="display: none; align-items: center; justify-content: center; position: fixed; z-index: 3000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5);">
+    <div class="modal-content" style="max-width: 750px; width: 95%; border-top: 5px solid #2563eb; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); display: flex; flex-direction: column;">
+        
+        <!-- الهيدر الخاص بالنافذة -->
+        <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e5e7eb; padding-bottom: 12px; margin-bottom: 15px;">
+            <h2 style="margin: 0; font-size: 1.25rem; color: #1e3a8a;" class="font-bold flex items-center gap-2">
+                <i class="fas fa-bolt text-blue-500"></i> بيع بضاعة (سريع / مؤقت)
+            </h2>
+            <span class="modal-close-btn" onclick="window.closeQuickSellModal()" style="cursor: pointer; font-size: 28px; font-weight: bold; color: #9ca3af; transition: color 0.2s;" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#9ca3af'">&times;</span>
+        </div>
+
+        <!-- محتوى الفورم (نفس حقولك القديمة بالملي) -->
+        <div class="modal-body" style="max-height: 80vh; overflow-y: auto; padding-left: 5px; padding-right: 5px;">
+            
+            <!-- شبكة المنتجات POS (جديد) -->
+            <div class="mb-4 p-3 bg-gray-50 border rounded-xl">
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="font-bold text-gray-700 text-sm">البحث السريع (POS)</h3>
+                    <button type="button" onclick="window.togglePOSGrid('quick')" class="text-xs bg-gray-200 hover:bg-gray-300 px-3 py-1 rounded text-gray-700 font-bold transition"><i class="fas fa-eye"></i> إخفاء / إظهار</button>
+                </div>
+                <div id="pos_container_quick">
+                    <div class="flex gap-2 mb-3">
+                        <input type="text" id="pos_search_quick" placeholder="بحث باسم المنتج..." class="w-full p-2 border rounded-lg shadow-sm text-sm" oninput="window.renderPOSQuickGrid()">
+                    </div>
+                    <div id="pos_categories_quick" class="flex gap-2 overflow-x-auto pb-2 mb-2" style="-ms-overflow-style: none; scrollbar-width: none; display: flex;">
+                        <!-- يتم الحقن بالجافاسكريبت -->
+                    </div>
+                    <div id="pos_grid_quick" class="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-60 overflow-y-auto pr-2">
+                        <!-- يتم الحقن بالجافاسكريبت -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-blue-50 border-r-4 border-blue-500 p-3 mb-4 rounded shadow-sm" id="pos_selected_alert_quick">
+                <p class="text-xs text-gray-500">المنتج المحدد:</p>
+                <p class="font-bold text-blue-800" id="pos_selected_name_quick">لم يتم التحديد بعد</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="mb-4 hidden" id="sell-product-name-container">
+                    <label for="sell-product-name" class="block text-gray-700 text-sm font-bold mb-2">اسم البضاعة المباعة:<span class="required">*</span></label>
+                    <input type="text" id="sell-product-name" placeholder="اسم المنتج الرئيسي" list="product-names-list" class="shadow-sm w-full p-2 border rounded">
+                    <div id="quick-sell-cost-display" class="text-sm font-bold mt-1 text-green-700 hidden">تكلفة المنتج: <span>0</span> جنيه</div>
+                </div>
+                <div class="mb-4">
+                    <label for="sell-customer-name" class="block text-gray-700 text-sm font-bold mb-2">اسم العميل:</label>
+                    <input type="text" id="sell-customer-name" placeholder="اسم العميل (اختياري)" class="shadow-sm w-full p-2 border rounded">
+                </div>
+                <div class="mb-4">
+                    <label for="sell-quantity" class="block text-gray-700 text-sm font-bold mb-2">الكمية المباعة:<span class="required">*</span></label>
+                    <div class="flex shadow-sm rounded border">
+                        <button type="button" onclick="window.changePOSQtyQuick(1)" class="bg-gray-200 px-3 font-bold hover:bg-gray-300">+</button>
+                        <input type="number" id="sell-quantity" value="1" min="1" class="w-full p-2 border-x text-center focus:outline-none">
+                        <button type="button" onclick="window.changePOSQtyQuick(-1)" class="bg-gray-200 px-3 font-bold hover:bg-gray-300">-</button>
+                    </div>
+                </div>
+                
+                <!-- حاوية السيريال للموبايلات والتابلت -->
+                <div id="sell-serial-container" class="mb-4 hidden col-span-full bg-blue-50 p-3 rounded border border-blue-200">
+                    <label for="sell-serial-input" class="block text-gray-700 text-sm font-bold mb-2">الرقم التسلسلي (للمنتج المحدد):</label>
+                    <input type="text" id="sell-serial-input" list="sell-serials-datalist" placeholder="اختر او اكتب السيريال" class="shadow-sm w-full p-2 border rounded">
+                    <datalist id="sell-serials-datalist"></datalist>
+                    <p class="text-xs text-blue-500 mt-1">هذا المنتج يتطلب تحديد سيريال.</p>
+                </div>
+
+                <div class="mb-4">
+                    <label for="sell-price" class="block text-gray-700 text-sm font-bold mb-2">إجمالي سعر البيع:<span class="required">*</span></label>
+                    <input type="number" id="sell-price" value="0" min="0" step="0.01" placeholder="السعر الإجمالي للكمية" class="shadow-sm w-full p-2 border rounded text-blue-700 font-bold">
+                </div>
+
+                <div class="form-group mb-4">
+                    <label for="sell-account-select" class="block text-gray-700 text-sm font-bold mb-1">إيداع في حساب:</label>
+                    <select id="sell-account-select" class="shadow-sm w-full p-2 border rounded" style="height: 40px;"></select>
+                </div>
+            </div>
+
+            <!-- حاوية المرفقات والتكاليف الإضافية (تُشحن ديناميكياً من السيستم القديم) -->
+            <div class="mt-4">
+                <label class="block text-gray-700 text-sm font-bold mb-2">خصم تكاليف إضافية (للحزم أو المرفقات):</label>
+                <div id="additional-costs-container" class="p-3 bg-gray-50 rounded border" style="max-height: 120px; overflow-y: auto;">
+                    <p class="text-center text-gray-500 text-sm">أدخل اسم المنتج الرئيسي لعرض المرفقات المتاحة.</p>
+                </div>
+            </div>
+
+            <!-- خيار البيع المعلق الحركي -->
+            <div class="mt-4 p-3 bg-amber-50/60 rounded-lg border border-amber-200">
+                <label for="sell-pending" class="inline-flex items-center cursor-pointer">
+                    <input type="checkbox" id="sell-pending" class="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-offset-0 focus:ring-blue-200 focus:ring-opacity-50 ml-2">
+                    <span class="text-sm text-gray-800 font-semibold">تسجيل كـ (بيع مؤقت تحت التسوية)</span>
+                </label>
+            </div>
+
+            <!-- صندوق الربح المتوقع للبيعة (جديد) -->
+            <div id="quick-sell-profit-box" style="margin-top: 15px; padding: 12px; border-radius: 8px; border: 1px solid #bbf7d0; background-color: rgba(240, 253, 244, 0.6); text-align: center;">
+                <span style="display: block; font-size: 12px; font-weight: 600; color: #15803d; margin-bottom: 4px;">الربح المتوقع من هذه البيعة</span>
+                <strong id="quick-sell-profit-display" style="font-size: 24px; font-weight: bold; color: #166534; font-family: monospace;">0.00 ج.م</strong>
+            </div>
+
+            <!-- رسائل نجاح أو خطأ العملية -->
+            <div id="sell-message" class="section-message mt-3"></div>
+        </div>
+
+        <!-- أزرار التحكم السفلية داخل المودل -->
+        <div class="modal-footer pt-3 border-t flex gap-2 justify-end" style="margin-top: 15px;">
+            <button id="sell-button" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-5 rounded transition">بيع البضاعة (سريع/مؤقت)</button>
+            <button id="cancel-edit-pending-button" class="bg-gray-400 hover:bg-gray-500 text-white font-bold py-2 px-5 rounded transition hidden">إلغاء التعديل</button>
+            <button type="button" onclick="window.closeQuickSellModal()" class="bg-gray-300 hover:bg-gray-400 text-gray-700 font-semibold py-2 px-5 rounded transition">تراجع</button>
         </div>
     </div>
 </div>
-            </body>
+<!-- ======================================================= -->
+<!-- END: Standalone Quick Sell Pop-up Modal                  -->
+<!-- ======================================================= -->
+<script>
+// --- POS Grid Logic ---
+window.pos_currentCategoryQuick = 'الكل';
+window.pos_currentCategoryInv = 'الكل';
+window.pos_selectedProductQuick = null;
+window.pos_selectedProductInv = null;
+
+function pos_getCategories() {
+    if (typeof categories !== 'undefined') return ['الكل', ...categories.map(c => typeof c === 'string' ? c : c.name)];
+    if (typeof products !== 'undefined') {
+        const cats = new Set(products.map(p => p.category).filter(c => c));
+        return ['الكل', ...Array.from(cats)];
+    }
+    return ['الكل'];
+}
+
+window.togglePOSGrid = function(type) {
+    const container = document.getElementById('pos_container_' + type);
+    if (container) {
+        if (container.style.display === 'none') {
+            container.style.display = 'block';
+        } else {
+            container.style.display = 'none';
+        }
+    }
+};
+
+function pos_createCategoryButtons(containerId, currentCat, clickHandlerName) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    const cats = pos_getCategories();
+    container.innerHTML = cats.map(c => 
+        `<button type="button" onclick="${clickHandlerName}('${c}')" class="px-4 py-2 border rounded-full text-xs font-bold whitespace-nowrap" style="${currentCat === c ? 'background-color: #2563eb !important; color: white !important; border-color: #2563eb !important;' : 'background-color: white !important; color: #374151 !important; border-color: #e5e7eb !important;'}">${c}</button>`
+    ).join('');
+}
+
+window.filterPOSCategoryQuick = function(cat) {
+    window.pos_currentCategoryQuick = cat;
+    window.renderPOSQuickGrid();
+};
+
+window.filterPOSCategoryInv = function(cat) {
+    window.pos_currentCategoryInv = cat;
+    window.renderPOSInvGrid();
+};
+
+window.renderPOSQuickGrid = function() {
+    pos_createCategoryButtons('pos_categories_quick', window.pos_currentCategoryQuick, 'window.filterPOSCategoryQuick');
+    const grid = document.getElementById('pos_grid_quick');
+    const searchInput = document.getElementById('pos_search_quick');
+    if (!grid || typeof products === 'undefined') return;
+
+    const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
+    const filtered = products.filter(p => {
+        const matchCat = window.pos_currentCategoryQuick === 'الكل' || p.category === window.pos_currentCategoryQuick;
+        const matchSearch = p.name.toLowerCase().includes(query) || (p.barcode && p.barcode.includes(query));
+        return matchCat && matchSearch && p.type !== 'service';
+    });
+
+    if (filtered.length === 0) {
+        grid.innerHTML = '<div class="col-span-full text-center text-gray-500 py-4">لا توجد منتجات مطابقة</div>';
+        grid.className = "block";
+        return;
+    } else {
+        grid.className = "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-h-60 overflow-y-auto pr-2";
+    }
+
+    grid.innerHTML = filtered.map(p => {
+        const isSelected = window.pos_selectedProductQuick && window.pos_selectedProductQuick.name === p.name;
+        let cost = parseFloat(p.costPrice) || 0;
+        cost = Number.isInteger(cost) ? cost : parseFloat(cost.toFixed(2));
+
+        return `
+            <div onclick='window.selectPOSProductQuick(${JSON.stringify(p).replace(/'/g, "&#39;")})' class="bg-white border rounded-xl p-2 flex flex-col justify-between cursor-pointer transition ${isSelected ? 'border-blue-500 ring-2 ring-blue-300 shadow-md' : 'border-gray-200 hover:border-blue-300'}">
+                <div class="mb-2">
+                    <span class="text-[10px] font-bold px-2 py-0.5 bg-gray-100 text-gray-600 rounded mb-1 inline-block">${p.category || 'عام'}</span>
+                    <h4 class="font-bold text-gray-800 text-xs leading-snug">${p.name}</h4>
+                </div>
+                <div class="mt-auto border-t border-gray-100 pt-1 flex justify-between items-center bg-gray-50 -mx-2 -mb-2 p-1 rounded-b-lg">
+                    <div><p class="text-[9px] text-gray-500 font-bold">التكلفة</p><p class="font-bold text-red-600 text-xs">${cost}</p></div>
+                    <div class="text-left"><p class="text-[9px] text-gray-500 font-bold">المتاح</p><p class="font-bold text-green-700 text-xs px-1 bg-green-100 rounded">${p.quantity || 0}</p></div>
+                </div>
+            </div>
+        `;
+    }).join('');
+};
+
+window.renderPOSInvGrid = function() {
+    pos_createCategoryButtons('pos_categories_inv', window.pos_currentCategoryInv, 'window.filterPOSCategoryInv');
+    const grid = document.getElementById('pos_grid_inv');
+    const searchInput = document.getElementById('pos_search_inv');
+    if (!grid || typeof products === 'undefined') return;
+
+    const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
+    const filtered = products.filter(p => {
+        const matchCat = window.pos_currentCategoryInv === 'الكل' || p.category === window.pos_currentCategoryInv;
+        const matchSearch = p.name.toLowerCase().includes(query) || (p.barcode && p.barcode.includes(query));
+        return matchCat && matchSearch;
+    });
+
+    if (filtered.length === 0) {
+        grid.innerHTML = '<div class="col-span-full text-center text-gray-500 py-4">لا توجد منتجات مطابقة</div>';
+        grid.className = "block";
+        return;
+    } else {
+        grid.className = "grid grid-cols-2 md:grid-cols-3 gap-3 max-h-60 overflow-y-auto pr-2";
+    }
+
+    grid.innerHTML = filtered.map(p => {
+        const isSelected = window.pos_selectedProductInv && window.pos_selectedProductInv.name === p.name;
+        let cost = parseFloat(p.costPrice) || 0;
+        cost = Number.isInteger(cost) ? cost : parseFloat(cost.toFixed(2));
+
+        return `
+            <div onclick='window.selectPOSProductInv(${JSON.stringify(p).replace(/'/g, "&#39;")})' class="bg-white border rounded-xl p-2 flex flex-col justify-between cursor-pointer transition ${isSelected ? 'border-blue-500 ring-2 ring-blue-300 shadow-md' : 'border-gray-200 hover:border-blue-300'}">
+                <div class="mb-2">
+                    <span class="text-[10px] font-bold px-2 py-0.5 bg-gray-100 text-gray-600 rounded mb-1 inline-block">${p.category || 'عام'}</span>
+                    <h4 class="font-bold text-gray-800 text-xs leading-snug">${p.name}</h4>
+                </div>
+                <div class="mt-auto border-t border-gray-100 pt-1 flex justify-between items-center bg-gray-50 -mx-2 -mb-2 p-1 rounded-b-lg">
+                    <div><p class="text-[9px] text-gray-500 font-bold">التكلفة</p><p class="font-bold text-red-600 text-xs">${cost}</p></div>
+                    <div class="text-left"><p class="text-[9px] text-gray-500 font-bold">المتاح</p><p class="font-bold text-green-700 text-xs px-1 bg-green-100 rounded">${p.quantity || 0}</p></div>
+                </div>
+            </div>
+        `;
+    }).join('');
+};
+
+window.selectPOSProductQuick = function(p) {
+    window.pos_selectedProductQuick = p;
+    document.getElementById('pos_selected_name_quick').innerText = p.name;
+    const alertBox = document.getElementById('pos_selected_alert_quick');
+    alertBox.classList.replace('bg-blue-50', 'bg-green-50');
+    alertBox.classList.replace('border-blue-500', 'border-green-500');
+    
+    const oldInput = document.getElementById('sell-product-name');
+    if (oldInput) {
+        oldInput.value = p.name;
+        oldInput.dispatchEvent(new Event('input', { bubbles: true }));
+        oldInput.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    
+    document.getElementById('sell-quantity').value = 1;
+    document.getElementById('sell-quantity').dispatchEvent(new Event('input', { bubbles: true }));
+    if(document.getElementById('sell-price')) {
+        document.getElementById('sell-price').value = p.sellPrice || 0;
+        document.getElementById('sell-price').dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    window.renderPOSQuickGrid();
+};
+
+window.selectPOSProductInv = function(p) {
+    window.pos_selectedProductInv = p;
+    document.getElementById('pos_selected_name_inv').innerText = p.name;
+    const alertBox = document.getElementById('pos_selected_alert_inv');
+    alertBox.classList.replace('bg-blue-50', 'bg-green-50');
+    alertBox.classList.replace('border-blue-500', 'border-green-500');
+    
+    const oldInput = document.getElementById('inv_itemName');
+    if (oldInput) {
+        oldInput.value = p.name;
+        oldInput.dispatchEvent(new Event('input', { bubbles: true }));
+        oldInput.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    
+    document.getElementById('inv_itemQty').value = 1;
+    document.getElementById('inv_itemQty').dispatchEvent(new Event('input', { bubbles: true }));
+    if(document.getElementById('inv_itemPrice')) {
+        document.getElementById('inv_itemPrice').value = p.sellPrice || 0;
+        document.getElementById('inv_itemPrice').dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    window.renderPOSInvGrid();
+};
+
+window.changePOSQtyQuick = function(delta) {
+    const input = document.getElementById('sell-quantity');
+    let val = parseInt(input.value) + delta;
+    if (val < 1) val = 1;
+    if (window.pos_selectedProductQuick && window.pos_selectedProductQuick.quantity && val > window.pos_selectedProductQuick.quantity) {
+        val = window.pos_selectedProductQuick.quantity;
+    }
+    input.value = val;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    
+    if (window.pos_selectedProductQuick && document.getElementById('sell-price')) {
+        document.getElementById('sell-price').value = (window.pos_selectedProductQuick.sellPrice * val) || 0;
+        document.getElementById('sell-price').dispatchEvent(new Event('input', { bubbles: true }));
+    }
+};
+
+window.changePOSQtyInv = function(delta) {
+    const input = document.getElementById('inv_itemQty');
+    let val = parseInt(input.value) + delta;
+    if (val < 1) val = 1;
+    if (window.pos_selectedProductInv && window.pos_selectedProductInv.quantity && val > window.pos_selectedProductInv.quantity) {
+        val = window.pos_selectedProductInv.quantity;
+    }
+    input.value = val;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+};
+
+const originalOpenQuickSellModal = window.openQuickSellModal;
+window.openQuickSellModal = function() {
+    if (originalOpenQuickSellModal) originalOpenQuickSellModal();
+    window.pos_currentCategoryQuick = 'الكل';
+    window.pos_selectedProductQuick = null;
+    if(document.getElementById('pos_search_quick')) document.getElementById('pos_search_quick').value = '';
+    if(document.getElementById('pos_selected_name_quick')) document.getElementById('pos_selected_name_quick').innerText = 'لم يتم التحديد بعد';
+    const alertBox = document.getElementById('pos_selected_alert_quick');
+    if (alertBox) alertBox.className = "bg-blue-50 border-r-4 border-blue-500 p-3 mb-4 rounded shadow-sm";
+    window.renderPOSQuickGrid();
+};
+
+const invoiceModalEl = document.getElementById('invoiceModal');
+if (invoiceModalEl) {
+    const observer = new MutationObserver((mutations) => {
+        mutations.forEach((m) => {
+            if (m.type === 'attributes' && m.attributeName === 'style') {
+                if (invoiceModalEl.style.display === 'flex' || invoiceModalEl.style.display === 'block') {
+                    window.pos_currentCategoryInv = 'الكل';
+                    window.pos_selectedProductInv = null;
+                    if(document.getElementById('pos_search_inv')) document.getElementById('pos_search_inv').value = '';
+                    if(document.getElementById('pos_selected_name_inv')) document.getElementById('pos_selected_name_inv').innerText = 'لم يتم التحديد بعد';
+                    const alertBox = document.getElementById('pos_selected_alert_inv');
+                    if (alertBox) alertBox.className = "bg-blue-50 border-r-4 border-blue-500 p-3 mb-4 rounded shadow-sm w-full";
+                    window.renderPOSInvGrid();
+                }
+            }
+        });
+    });
+    observer.observe(invoiceModalEl, { attributes: true });
+}
+</script>
+
+<!-- ======================================================= -->
+<!-- START: Profit Confirmation Modal                         -->
+<!-- ======================================================= -->
+<div id="confirmSaleModal" class="modal" style="display: none; align-items: center; justify-content: center; position: fixed; z-index: 4000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5);">
+    <div class="modal-content" style="max-width: 400px; width: 90%; background: white; padding: 20px; border-radius: 12px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
+        <h3 class="text-xl font-bold text-gray-800 mb-2">تأكيد العملية</h3>
+        <p class="text-gray-600 mb-4">الربح المتوقع من هذه البيعة هو:</p>
+        <p id="confirmSaleProfitAmount" class="text-3xl font-bold text-green-600 mb-6 bg-green-50 p-3 rounded-lg border border-green-200">0 ج.م</p>
+        <div class="flex justify-center gap-3">
+            <button id="confirmSaleBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded transition">تأكيد البيع</button>
+            <button onclick="window.closeConfirmSaleModal()" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-6 rounded transition">إلغاء</button>
+        </div>
+    </div>
+</div>
+
+<!-- ======================================================= -->
+<!-- START: Post Sale Success Modal                           -->
+<!-- ======================================================= -->
+<div id="postSaleModal" class="modal" style="display: none; align-items: center; justify-content: center; position: fixed; z-index: 5000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5);">
+    <div class="modal-content" style="max-width: 400px; width: 90%; background: white; padding: 20px; border-radius: 12px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.3); border-top: 5px solid #10b981;">
+        <div class="text-green-500 mb-3"><i class="fas fa-check-circle text-5xl"></i></div>
+        <h3 class="text-xl font-bold text-gray-800 mb-2">تمت العملية بنجاح!</h3>
+        <p class="text-gray-600 mb-6 text-sm">تم الحفظ بنجاح. ماذا تود أن تفعل الآن؟</p>
+        <div class="flex flex-col gap-3">
+            <button id="postSaleNewBtn" class="font-bold py-2 px-4 rounded transition shadow-sm" style="background-color: #10b981; color: white; border: 1px solid #059669;">تسجيل بيعة أخرى (إبقاء النافذة)</button>
+            <button id="postSaleCloseBtn" class="font-bold py-2 px-4 rounded transition shadow-sm" style="background-color: #e5e7eb; color: #1f2937; border: 1px solid #d1d5db;">إغلاق نافذة البيع</button>
+        </div>
+    </div>
+</div>
+
+</body>
     </html>
+    
