@@ -2398,8 +2398,8 @@ input:checked:active + .slider:before {
                                   
                                     <div id="inv_itemAddError" class="error-message"></div>
                                 </div>
-                                <hr class="no-print my-4">
-                              <button type="button" onclick="window.openUnifiedSellModal('invoice')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded mb-3 w-full shadow transition block text-center">
+                                <hr id="inv_addItemDivider" class="no-print my-4">
+                              <button type="button" id="inv_unifiedSellModalBtn" onclick="window.openUnifiedSellModal('invoice')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded mb-3 w-full shadow transition block text-center">
     <i class="fas fa-stream ml-1"></i> فتح المودل الذكي للاختيار المجمع وحساب الأرباح المتوقعة
 </button>
                               
@@ -2424,7 +2424,7 @@ input:checked:active + .slider:before {
                                 </div>
                             </fieldset>
 
-                            <fieldset class="no-print">
+                            <fieldset id="inv_deductibleCostsFieldset" class="no-print">
                                 <legend>خصم تكاليف إضافية (ملحقات/هدايا من المخزون)</legend>
                                 <label class="block text-sm font-medium mb-2" style="color:#555;">اختر المنتجات التي سيتم خصم تكلفتها (بكمية 1 لكل عنصر - لن تظهر في الفاتورة المطبوعة):</label>
                                 <div id="inv_deductibleCostsContainer">
@@ -2930,6 +2930,7 @@ let debtCollectionNotes = []; // Array of {id, customerId, debtId, note, created
         let editingProductName = null; // Name of the product being edited
         let editingSupplierId = null; // ID of the supplier being edited
         let isInvoiceFromPending = false; // Flag if invoice modal is opened from a pending sale confirmation
+        let isEditingPendingInvoice = false; // Flag if invoice modal is opened for EDITING a pending invoice
         let pendingSaleOriginData = null; // Stores the original pending sale data when confirming with invoice
         let inv_phoneCounter = 1; // Counter for dynamic phone fields in invoice
         let currentManagingSerialsProduct = null; // **** لتخزين اسم المنتج الذي يتم إدارة سيريالاته ****
@@ -3503,8 +3504,19 @@ function createStateSnapshot() {
         }
     });
 }
+function assignMissingProductIds() {
+    if (typeof products !== 'undefined' && Array.isArray(products)) {
+        products.forEach(p => {
+            if (!p.id) {
+                p.id = "P-" + Date.now() + "-" + Math.floor(Math.random() * 1000000);
+            }
+        });
+    }
+}
+
 function loadStateFromSnapshot(snapshot) {
     products = snapshot.products || [];
+    assignMissingProductIds();
     suppliers = snapshot.suppliers || [];
     accounts = snapshot.accounts || [];
     expenses = snapshot.expenses || 0;
@@ -3722,6 +3734,7 @@ function loadState(data, dateString) {
     resetState(); // ابدأ دائمًا بحالة نظيفة
 
     products = data.products || [];
+    assignMissingProductIds();
     suppliers = data.suppliers || [];
     
     // هذا الجزء يعالج السيولة القديمة والجديدة
@@ -3802,14 +3815,13 @@ function resetState() {
         function calculateTotalLiabilities(){ return liabilities.reduce((sum, liability) => sum + (Number(liability.amount) || 0), 0) }
       
 
-
-
 function calculateTotals() {
     // 1. قيمة المخزون (بسعر التكلفة)
     const totalInventoryValue = products.reduce((sum, p) => sum + ((Number(p.quantity) || 0) * (Number(p.costPrice) || 0)), 0);
     
     // 2. قيمة البضاعة المؤقتة (أصل)
-    let goodsOnConsignmentValue = 0;
+    // goodsOnConsignmentValue يقوم بحساب إجمالي تكلفة الفواتير المؤقتة بشكل صحيح
+    goodsOnConsignmentValue = 0;
     if (typeof calculateConsignmentValue === 'function') {
         goodsOnConsignmentValue = calculateConsignmentValue();
     }
@@ -3822,13 +3834,13 @@ function calculateTotals() {
     const totalLiquidity = accounts.reduce((sum, acc) => sum + (acc.balance || 0), 0);
 
     const pendingPurchasesAssetValue = pendingPurchases.reduce((sum, p) => sum + (p.grandTotal || 0), 0);
-    // 🔥 التصحيح: حساب قيمة المرتجعات مباشرة من المصفوفة لضمان الدقة حتى لو تفرغ المتغير
     const pendingReturnsAssetValue = pendingReturns.reduce((sum, r) => sum + (Number(r.returnedAmount) || 0), 0);
 
     // 6. العربونات المستلمة (التزام مؤقت)
     const totalPendingDeposits = pendingSales.reduce((sum, sale) => sum + (Number(sale.depositPaid) || 0), 0);
 
-    // المعادلة المحاسبية الشاملة لرأس المال
+    // 🌟 المعادلة المحاسبية الشاملة لرأس المال
+    // تم تصحيح المعادلة وحذف totalPendingSalesCostValue لتجنب الجمع المزدوج، حيث أن goodsOnConsignmentValue يفي بالغرض.
     const totalCapital = (totalInventoryValue + goodsOnConsignmentValue + totalLiquidity + totalDebtsValue + pendingPurchasesAssetValue + pendingReturnsAssetValue) - (totalLiabilitiesValue + totalPendingDeposits);
 
     return {
@@ -3837,10 +3849,11 @@ function calculateTotals() {
         totalDebtsValue,
         totalLiabilitiesValue,
         totalPendingDeposits,
-        calculatedPendingReturnsValue: pendingReturnsAssetValue, // نمرر القيمة للملخص
-        calculatedPendingPurchasesValue: pendingPurchasesAssetValue // نمرر القيمة للملخص
+        calculatedPendingReturnsValue: pendingReturnsAssetValue,
+        calculatedPendingPurchasesValue: pendingPurchasesAssetValue
     };
 }
+
 function calculateTotalPurchasesToday() {
     if (!purchaseInvoices || purchaseInvoices.length === 0) {
         return 0;
@@ -6148,6 +6161,8 @@ function processMonthlyLiabilities() {
         // --- إعادة تعيين النماذج ---
         function resetProductForm() {
              editingProductName = null;
+             window.currentEditingProductID = null;
+             window.bypassDuplicateCheck = false;
              if(productNameInput) productNameInput.value = "";
              if(productQuantityInput) productQuantityInput.value = "0";
              if(productCostPriceInput) productCostPriceInput.value = "0";
@@ -6269,12 +6284,43 @@ function processMonthlyLiabilities() {
 
             function inv_openModal() {
                 console.log("inv_openModal called");
-                if (!isInvoiceFromPending) {
+                if (!isInvoiceFromPending && !isEditingPendingInvoice) {
                     pendingSaleOriginData = null;
                 }
                 if (inv_modal) {
                     inv_modal.style.display = 'block';
                     resetInvoiceForm();
+                    
+                    // --- تخصيص واجهة الفاتورة بناءً على نوع العملية ---
+                    const titleEl = inv_modal.querySelector('.invoice-modal-header h2');
+                    const saveBtn = document.getElementById('inv_saveInvoiceBtn');
+                    const addItemSection = inv_modal.querySelector('.add-item-section');
+                    const addItemDivider = document.getElementById('inv_addItemDivider');
+                    const unifiedBtn = document.getElementById('inv_unifiedSellModalBtn');
+                    const deductibleFieldset = document.getElementById('inv_deductibleCostsFieldset');
+                    
+                    if (isInvoiceFromPending) {
+                        if (titleEl) titleEl.innerText = 'تأكيد بيعة مؤقتة' + (pendingSaleOriginData ? ' رقم ' + pendingSaleOriginData.id : '');
+                        if (saveBtn) saveBtn.innerHTML = '<i class="fas fa-check-circle"></i> تأكيد الفاتورة وتسجيلها';
+                        if (addItemSection) addItemSection.style.display = 'none';
+                        if (addItemDivider) addItemDivider.style.display = 'none';
+                        if (unifiedBtn) unifiedBtn.style.display = 'none';
+                        if (deductibleFieldset) deductibleFieldset.style.display = 'none';
+                    } else if (isEditingPendingInvoice) {
+                        if (titleEl) titleEl.innerText = 'تعديل فاتورة مؤقتة' + (pendingSaleOriginData ? ' رقم ' + pendingSaleOriginData.id : '');
+                        if (saveBtn) saveBtn.innerHTML = '<i class="fas fa-edit"></i> حفظ التعديلات كبيعة مؤقتة';
+                        if (addItemSection) addItemSection.style.display = 'block';
+                        if (addItemDivider) addItemDivider.style.display = 'block';
+                        if (unifiedBtn) unifiedBtn.style.display = 'block';
+                        if (deductibleFieldset) deductibleFieldset.style.display = 'block';
+                    } else {
+                        if (titleEl) titleEl.innerText = 'إنشاء فاتورة جديدة';
+                        if (saveBtn) saveBtn.innerHTML = 'حفظ الفاتورة';
+                        if (addItemSection) addItemSection.style.display = 'block';
+                        if (addItemDivider) addItemDivider.style.display = 'block';
+                        if (unifiedBtn) unifiedBtn.style.display = 'block';
+                        if (deductibleFieldset) deductibleFieldset.style.display = 'block';
+                    }
                 } else {
                     console.error("Modal element not found");
                 }
@@ -6284,6 +6330,7 @@ function processMonthlyLiabilities() {
                  if (inv_modal) {
                      inv_modal.style.display = 'none';
                      isInvoiceFromPending = false; // Reset flag when closing manually
+                     isEditingPendingInvoice = false;
                      pendingSaleOriginData = null; // Clear origin data
                      // **** إرجاع حالة السيريالات المحجوزة مؤقتاً في الفاتورة إلى متوفر ****
                      serialNumbersLog.forEach(log => {
@@ -6741,7 +6788,7 @@ async function handleSaveInvoice(skipConfirmation = true) {
     invoiceItems.forEach(item => {
         totalInvoiceCost += (item.costPrice * item.quantity);
         if (!isInvoiceFromPending) {
-            quantitiesToDeduct[item.name] = (quantitiesToDeduct[item.name] || 0) + item.quantity;
+            quantitiesToDeduct[item.id || item.name] = (quantitiesToDeduct[item.id || item.name] || 0) + item.quantity;
         }
     });
 
@@ -6755,6 +6802,9 @@ async function handleSaveInvoice(skipConfirmation = true) {
             const qty = Number(item.quantity || 1);
             totalInvoiceCost += (cost * qty);
             deductedItemsData.push(item);
+            
+            // Add to quantitiesToDeduct so stock is correctly deducted during confirmation
+            quantitiesToDeduct[item.id || item.name] = (quantitiesToDeduct[item.id || item.name] || 0) + qty;
         });
     } else if (inv_deductibleCostsContainer) {
         const checkedBoxes = inv_deductibleCostsContainer.querySelectorAll('input[type="checkbox"]:checked');
@@ -6766,9 +6816,16 @@ async function handleSaveInvoice(skipConfirmation = true) {
             const qtyToDeduct = parseInt(quantityInput?.value || '0');
             
             if (qtyToDeduct > 0) {
-                deductedItemsData.push({ name, quantity: qtyToDeduct, costPrice: cost });
+                const itemId = checkbox.dataset.id || name;
+                const displayName = checkbox.dataset.name || name;
+                deductedItemsData.push({ 
+                    id: itemId, 
+                    name: displayName, 
+                    quantity: qtyToDeduct, 
+                    costPrice: cost 
+                });
                 totalInvoiceCost += (cost * qtyToDeduct);
-                quantitiesToDeduct[name] = (quantitiesToDeduct[name] || 0) + qtyToDeduct;
+                quantitiesToDeduct[itemId] = (quantitiesToDeduct[itemId] || 0) + qtyToDeduct;
             }
         });
     }
@@ -6784,24 +6841,53 @@ async function handleSaveInvoice(skipConfirmation = true) {
 
     saveStateToHistory(); 
 
-    if (!isInvoiceFromPending) {
-        invoiceItems.forEach(item => {
-            let productIndex = -1;
-            if (item.id) {
-                productIndex = products.findIndex(p => p.id === item.id);
-            }
+    // إذا كانت الفاتورة من بيعة مؤقتة سابقة (سواء للتأكيد أو التعديل)، نقوم أولاً بإرجاع منتجاتها القديمة للمخزون
+    // إرجاع المخزون في حالة تعديل أو تأكيد فاتورة مؤقتة سابقة
+    if ((isInvoiceFromPending || isEditingPendingInvoice) && pendingSaleOriginData) {
+        let oldItemsToReturn = [];
+        
+        // 🌟 1. إرجاع الأصناف الأساسية للبيعة المؤقتة القديمة للمخزن أولاً
+        const oldMainItems = pendingSaleOriginData.items || (pendingSaleOriginData.invoiceData && pendingSaleOriginData.invoiceData.items) || [];
+        if (Array.isArray(oldMainItems)) {
+            oldItemsToReturn.push(...oldMainItems);
+        }
+
+        // 🌟 2. إرجاع الأصناف والتكاليف الإضافية المستقطعة القديمة
+        const oldExtraDeducted = (pendingSaleOriginData.invoiceData && pendingSaleOriginData.invoiceData.deductedItems) 
+                                 ? pendingSaleOriginData.invoiceData.deductedItems 
+                                 : (pendingSaleOriginData.deductedItems || []);
+        if (Array.isArray(oldExtraDeducted)) {
+            oldItemsToReturn.push(...oldExtraDeducted);
+        }
+        
+        oldItemsToReturn = oldItemsToReturn.filter(Boolean);
+        oldItemsToReturn.forEach(item => {
+            if(!item || !item.name) return;
+            const cleanName = String(item.name).split(' (S/N:')[0].trim().toLowerCase();
+            let productIndex = item.id ? products.findIndex(p => String(p.id) === String(item.id)) : -1;
             if (productIndex === -1) {
-                productIndex = products.findIndex(p => p.name.toLowerCase() === item.name.toLowerCase());
+                productIndex = products.findIndex(p => String(p.name).trim().toLowerCase() === cleanName);
             }
             if (productIndex !== -1) {
-                products[productIndex].quantity -= item.quantity;
+                products[productIndex].quantity += Number(item.quantity) || 1;
             }
         });
     }
+    // ثم نقوم بخصم جميع الكميات الجديدة (المنتجات الأساسية + التكاليف الإضافية/الملحقات) من المخزون
+    Object.entries(quantitiesToDeduct).forEach(([name, qty]) => {
+        const cleanName = String(name).split(' (S/N:')[0].trim().toLowerCase();
+        let productIndex = products.findIndex(p => String(p.id) === String(name));
+        if (productIndex === -1) {
+            productIndex = products.findIndex(p => String(p.name).trim().toLowerCase() === cleanName);
+        }
+        if (productIndex !== -1) {
+            products[productIndex].quantity -= Number(qty) || 0;
+        }
+    });
 
     if (isPending) {
         const pendingInvoiceData = {
-            id: isInvoiceFromPending && pendingSaleOriginData ? pendingSaleOriginData.id : `pending-inv-${Date.now()}`,
+            id: (isInvoiceFromPending || isEditingPendingInvoice) && pendingSaleOriginData ? pendingSaleOriginData.id : `pending-inv-${Date.now()}`,
             createdAt: pendingSaleOriginData?.createdAt || new Date().toISOString(),
             timestamp: new Date().toISOString(),
             saleDate: pendingSaleOriginData?.saleDate || currentLoadedDate || new Date().toISOString().split('T')[0],
@@ -6827,7 +6913,7 @@ async function handleSaveInvoice(skipConfirmation = true) {
             }
         };
 
-        if (isInvoiceFromPending && pendingSaleOriginData && pendingSaleOriginData.id) {
+        if ((isInvoiceFromPending || isEditingPendingInvoice) && pendingSaleOriginData && pendingSaleOriginData.id) {
             const idx = pendingSales.findIndex(s => String(s.id).trim() === String(pendingSaleOriginData.id).trim());
             if (idx !== -1) pendingSales.splice(idx, 1);
         }
@@ -6865,7 +6951,7 @@ async function handleSaveInvoice(skipConfirmation = true) {
 
         totalProfit += finalInvoiceProfit;
 
-        if (isInvoiceFromPending && pendingSaleOriginData && pendingSaleOriginData.id) {
+        if ((isInvoiceFromPending || isEditingPendingInvoice) && pendingSaleOriginData && pendingSaleOriginData.id) {
             const idx = pendingSales.findIndex(s => String(s.id).trim() === String(pendingSaleOriginData.id).trim());
             if (idx !== -1) pendingSales.splice(idx, 1);
         }
@@ -6923,11 +7009,13 @@ async function handleSaveInvoice(skipConfirmation = true) {
         showMessage(globalMessage, successMsg, false);
     }
 
+    const wasPending = isInvoiceFromPending || isEditingPendingInvoice;
     isInvoiceFromPending = false;
+    isEditingPendingInvoice = false;
     pendingSaleOriginData = null;
     updateUI();
     inv_closeModal();
-    window.showPostSaleModal('invoice');
+    window.showPostSaleModal('invoice', wasPending);
 }
             // (استكمالاً للجزء 8أ)
 function printPendingSaleAsInvoice(pendingId) {
@@ -7393,33 +7481,73 @@ function printPendingSaleAsInvoice(pendingId) {
         });
     }
     
-    // 2. تجهيز قائمة المنتجات وحساب المتبقي الحقيقي بالـ ID الفريد
-    const availableForDeduction = products.map(p => {
+    // 2. الحصول على الملحقات المختارة سابقاً إن وجدنا في وضع التعديل/التأكيد
+    const prevDeducted = (pendingSaleOriginData && (pendingSaleOriginData.invoiceData && pendingSaleOriginData.invoiceData.deductedItems || pendingSaleOriginData.deductedItems)) || [];
+    
+    const prevDeductedMap = new Map();
+    prevDeducted.forEach(item => {
+        if (!item) return;
+        const idKey = item.id ? String(item.id).trim().toLowerCase() : "";
+        const nameKey = item.name ? String(item.name).trim().toLowerCase() : "";
+        const key = idKey || nameKey;
+        if (key) {
+            prevDeductedMap.set(key, item);
+        }
+    });
+    
+    // 3. تجهيز قائمة المنتجات وحساب المتبقي الحقيقي بالـ ID الفريد
+    const mergedProductsMap = new Map();
+    
+    products.forEach(p => {
         const qtyInStock = Number(p.quantity) || 0;
-        const idKey = p.id || "";
-        const nameKey = p.name.toLowerCase().trim();
+        const idKey = p.id ? String(p.id).trim().toLowerCase() : "";
+        const nameKey = p.name ? String(p.name).toLowerCase().trim() : "";
         
         // فحص الكمية المحجوزة في الجدول بناءً على الـ ID أولاً ثم الاسم كبديل أمان
         const qtyInTable = (idKey && itemsInTable[idKey]) ? itemsInTable[idKey] : (itemsInTable[nameKey] || 0);
-        const realAvailable = qtyInStock - qtyInTable; // المتبقي الحقيقي للحساب
         
-        return {
+        // الحصول على الكمية المستخدمة سابقاً في هذا الصنف
+        const prevItem = (idKey && prevDeductedMap.get(idKey)) || prevDeductedMap.get(nameKey);
+        const prevQty = prevItem ? (Number(prevItem.quantity) || 0) : 0;
+        
+        const realAvailable = qtyInStock - qtyInTable + prevQty; // المتبقي الحقيقي للحساب (نستعيد الكمية المحجوزة سابقاً في هذه الفاتورة)
+        
+        mergedProductsMap.set(idKey || nameKey, {
             ...p,
-            realAvailable: realAvailable
-        };
-    }).filter(p => p.realAvailable > 0); // إظهار الأصناف ذات الرصيد الفعلي فقط
+            realAvailable: realAvailable,
+            prevQty: prevQty,
+            isPrevSelected: !!prevItem
+        });
+    });
+    
+    // أضف أيضاً الملحقات المختارة سابقاً التي ربما حُذفت تماماً من المخزون أو لم تعد مسجلة
+    prevDeductedMap.forEach((prevItem, key) => {
+        if (!mergedProductsMap.has(key)) {
+            mergedProductsMap.set(key, {
+                id: prevItem.id || "",
+                name: prevItem.name,
+                quantity: 0,
+                costPrice: Number(prevItem.costPrice || prevItem.cost || 0) || 0,
+                category: "عام",
+                realAvailable: Number(prevItem.quantity) || 1,
+                prevQty: Number(prevItem.quantity) || 1,
+                isPrevSelected: true
+            });
+        }
+    });
 
-    // 3. التحقق من وجود منتجات للعرض
+    const availableForDeduction = Array.from(mergedProductsMap.values()).filter(p => p.realAvailable > 0);
+
+    // 4. التحقق من وجود منتجات للعرض
     if (availableForDeduction.length === 0) {
         inv_deductibleCostsContainer.innerHTML = '<p class="text-center text-sm" style="color:grey; padding:10px;">لا توجد منتجات متبقية متاحة لخصم تكلفتها.</p>';
         return;
     }
 
-    // 4. ترتيب المنتجات أبجدياً وبناء الواجهة مع حفر الـ ID في الـ Checkbox
+    // 5. ترتيب المنتجات أبجدياً وبناء الواجهة مع حفر الـ ID في الـ Checkbox وتحديد الحالة المختارة سابقاً
     availableForDeduction.sort((a, b) => a.name.localeCompare(b.name, 'ar')).forEach(product => {
         const cost = Number(product.costPrice) || 0;
         const uniqueId = `inv_deductcost_${generateId(product.id || product.name)}`;
-        
         const label = document.createElement('label');
         label.style.display = 'flex';
         label.style.alignItems = 'center';
@@ -7428,7 +7556,9 @@ function printPendingSaleAsInvoice(pendingId) {
         label.style.cursor = 'pointer';
         label.htmlFor = uniqueId;
         
-        // 🆔 التعديل هنا: تمرير كود المنتج الفريد في الـ value والـ datasets
+        const isChecked = product.isPrevSelected ? 'checked' : '';
+        const qtyValue = product.isPrevSelected ? product.prevQty : 1;
+        
         label.innerHTML = `
           <input type="checkbox" 
        id="${uniqueId}" 
@@ -7436,7 +7566,8 @@ function printPendingSaleAsInvoice(pendingId) {
        data-id="${product.id || ''}"
        data-name="${product.name}"
        data-cost="${cost}" 
-       data-available="${product.realAvailable}">
+       data-available="${product.realAvailable}"
+       ${isChecked}>
             <span style="flex-grow: 1; font-size: 0.9em;">
                  ${product.name} <span class="text-xs text-blue-500">(${product.category || 'عام'})</span>
                  <span class="text-gray-500 text-xs" style="display:block;">
@@ -7448,7 +7579,7 @@ function printPendingSaleAsInvoice(pendingId) {
                    class="inv-deducted-item-quantity" 
                    min="1" 
                    max="${product.realAvailable}" 
-                   value="1" 
+                   value="${qtyValue}" 
                    style="width: 50px; text-align: center; flex-shrink: 0; border: 1px solid #ccc; border-radius: 4px; padding: 2px; font-size: 0.9em;" 
                    onclick="event.stopPropagation()">
         `;
@@ -7814,8 +7945,125 @@ function displaySalesReport(salesToDisplay) {
 window.deleteSaleRecord = async function(saleId) {
     if(!confirm("⚠️ هل أنت متأكد من حذف هذه الفاتورة نهائياً من النظام؟ لا يمكن التراجع عن هذا الإجراء.")) return;
 
+    // 1. أخذ لقطة للتراجع
+    if (typeof saveStateToHistory === 'function') {
+        saveStateToHistory();
+    }
+
     try {
-        // 1. الحذف من قاعدة البيانات السحابية (Firebase)
+        // 2. البحث عن الفاتورة في السجلات المحلية لتعديل الأرصدة والمخزون
+        let sale = null;
+        
+        if (typeof salesToday !== 'undefined') {
+            sale = salesToday.find(s => String(s.id) === String(saleId));
+        }
+        if (!sale && typeof invoices !== 'undefined') {
+            sale = invoices.find(s => String(s.id) === String(saleId));
+        }
+        if (!sale && typeof allSales !== 'undefined') {
+            sale = allSales.find(s => String(s.id) === String(saleId));
+        }
+        if (!sale && typeof salesHistory !== 'undefined') {
+            sale = salesHistory.find(s => String(s.id) === String(saleId));
+        }
+
+        if (!sale) {
+            alert("خطأ: لم يتم العثور على سجل الفاتورة لتعديل الأرصدة.");
+            return;
+        }
+
+        // أ. إرجاع البضائع للمخزن
+        let itemsToReturn = [];
+        if (sale.mainProduct) {
+            itemsToReturn.push(sale.mainProduct);
+            if (sale.additionalItems && Array.isArray(sale.additionalItems)) {
+                itemsToReturn.push(...sale.additionalItems);
+            }
+        } else {
+            if (sale.items && Array.isArray(sale.items)) {
+                itemsToReturn.push(...sale.items);
+            } else if (sale.invoiceData && sale.invoiceData.items && Array.isArray(sale.invoiceData.items)) {
+                itemsToReturn.push(...sale.invoiceData.items);
+            }
+        }
+        if (sale.deductedItems && Array.isArray(sale.deductedItems)) {
+            itemsToReturn.push(...sale.deductedItems);
+        } else if (sale.invoiceData && sale.invoiceData.deductedItems && Array.isArray(sale.invoiceData.deductedItems)) {
+            itemsToReturn.push(...sale.invoiceData.deductedItems);
+        }
+        
+        itemsToReturn = itemsToReturn.filter(Boolean);
+        
+        itemsToReturn.forEach(item => {
+            if (!item || !item.name) return;
+            const cleanName = String(item.name).split(' (S/N:')[0].trim().toLowerCase();
+            let productIndex = item.id ? products.findIndex(p => String(p.id) === String(item.id)) : -1;
+            if (productIndex === -1) {
+                productIndex = products.findIndex(p => String(p.name).trim().toLowerCase() === cleanName);
+            }
+            const returnedQty = Number(item.quantity) || 1;
+            
+            if (productIndex !== -1) {
+                products[productIndex].quantity = Number(products[productIndex].quantity || 0) + returnedQty;
+                // إذا كان للمنتج رقم تسلسلي، نعيده لمتوفر
+                if (item.serial) {
+                    const sLog = serialNumbersLog.find(l => l.serial === item.serial);
+                    if (sLog) sLog.status = 'in_stock';
+                }
+            } else {
+                // إعادة إنشاء المنتج
+                products.push({
+                    id: item.id || "P-" + Date.now() + Math.floor(Math.random() * 100),
+                    name: String(item.name).split(' (S/N:')[0].trim(),
+                    quantity: returnedQty,
+                    costPrice: Number(item.costPrice || item.cost || 0) || 0,
+                    supplierId: item.supplierId || "",
+                    category: item.category || "عام"
+                });
+                
+                if (item.serial) {
+                    const sLog = serialNumbersLog.find(l => l.serial === item.serial);
+                    if (sLog) sLog.status = 'in_stock';
+                }
+            }
+        });
+
+        // ب. عكس الأثر المالي على الخزينة (السيولة)
+        const refundAmount = Number(sale.paidAmount || sale.grandTotal || sale.totalSellPrice || 0);
+        if (refundAmount > 0) {
+            const accId = sale.accountId || (accounts.length > 0 ? accounts[0].id : 'main');
+            const acc = accounts.find(a => String(a.id) === String(accId));
+            if (acc) {
+                acc.balance = Number(acc.balance) - refundAmount;
+                const newTotalLiquidity = accounts.reduce((sum, a) => sum + Number(a.balance), 0);
+                
+                liquidityLog.push({
+                    id: `liq-delete-${Date.now()}`,
+                    timestamp: new Date().toISOString(),
+                    type: "remove",
+                    amount: refundAmount,
+                    description: `استبعاد وحذف عملية بيع نهائية - عميل: ${sale.customerName || '-'} - فاتورة رقم: ${sale.invoiceNumber || ''}`,
+                    accountId: acc.id,
+                    currentBalance: newTotalLiquidity
+                });
+            }
+        }
+
+        // ج. عكس الربح المحقق
+        const saleProfit = Number(sale.profit !== undefined ? sale.profit : (sale.totalSellPrice - (sale.totalCost || 0)));
+        if (typeof totalProfit !== 'undefined') {
+            totalProfit -= saleProfit;
+        }
+
+        // د. معالجة الحالات الجانبية (مثل المرتجعات المعلقة)
+        if (sale.invoiceNumber && typeof pendingReturns !== 'undefined') {
+            const retIdx = pendingReturns.findIndex(r => r.fromInvoice === sale.invoiceNumber);
+            if (retIdx > -1) {
+                pendingReturns.splice(retIdx, 1);
+            }
+        }
+
+        // 3. الحذف من قاعدة البيانات السحابية (Firebase)
         if (window.db && window.currentUser) {
             const uid = window.currentUser.uid;
             
@@ -7826,26 +8074,46 @@ window.deleteSaleRecord = async function(saleId) {
             try { await window.deleteDoc(window.doc(window.db, "users", uid, "invoices", saleId)); } catch(e) {}
         }
 
-        // 2. الحذف من الذاكرة المحلية لتختفي فوراً
+        // 4. الحذف من الذاكرة المحلية بكل القوائم لتختفي فوراً
         if (typeof salesToday !== 'undefined') {
-            const idx = salesToday.findIndex(s => s.id === saleId);
+            const idx = salesToday.findIndex(s => String(s.id) === String(saleId));
             if (idx > -1) salesToday.splice(idx, 1);
         }
+        if (typeof invoices !== 'undefined') {
+            const idx = invoices.findIndex(s => String(s.id) === String(saleId));
+            if (idx > -1) invoices.splice(idx, 1);
+        }
+        if (typeof allSales !== 'undefined') {
+            const idx = allSales.findIndex(s => String(s.id) === String(saleId));
+            if (idx > -1) allSales.splice(idx, 1);
+        }
+        if (typeof salesHistory !== 'undefined') {
+            const idx = salesHistory.findIndex(s => String(s.id) === String(saleId));
+            if (idx > -1) salesHistory.splice(idx, 1);
+        }
 
-        // 3. إعادة تحميل التقرير ليعرض البيانات النظيفة الجديدة
+        // 5. حفظ البيانات
+        if (typeof saveData === 'function') {
+            await saveData();
+        }
+
+        // 6. تحديث التقرير والواجهات
+        if (typeof updateUI === 'function') {
+            updateUI();
+        }
         if (typeof generateMonthlySalesReport === 'function') {
             await generateMonthlySalesReport();
         }
 
         if (typeof showGlobalMessage === 'function') {
-            showGlobalMessage("تم حذف الفاتورة نهائياً بنجاح.");
+            showGlobalMessage("تم حذف الفاتورة وتصحيح الحسابات والمخازن بنجاح.");
         } else {
-            alert("تم حذف الفاتورة نهائياً بنجاح.");
+            alert("تم حذف الفاتورة وتصحيح الحسابات والمخازن بنجاح.");
         }
 
     } catch (error) {
-        console.error("خطأ أثناء الحذف:", error);
-        alert("❌ حدث خطأ أثناء الحذف، يرجى المحاولة مرة أخرى.");
+        console.error("خطأ أثناء الحذف والتصحيح المحاسبي:", error);
+        alert("❌ حدث خطأ أثناء الحذف والتسوية المحاسبية، يرجى المحاولة مرة أخرى.");
     }
 };
 
@@ -8379,39 +8647,84 @@ if (button.classList.contains('convert-pending-to-debt')) {
                                     ${item.name}
                                     ${item.serial ? `<span class="serial-display no-print">(S/N: ${item.serial})</span><span class="serial-display-print">(S/N: ${item.serial})</span>` : ''}
                                 </td>
-                                <td class="item-qty">${item.quantity}</td>
-                                <td class="item-price">${formatCurrency(item.unitPrice)}</td>
-                                <td class="item-subtotal">${formatCurrency(subtotal)}</td>
-                                <td class="no-print"><button type="button" class="remove-item-btn" title="حذف البند">×</button></td>
+                                <td class="item-qty" style="text-align:center;">
+                                    <input type="number" class="row-qty-input" value="${item.quantity}" min="1" style="width: 60px; text-align: center; border: 1px solid #ddd; border-radius: 4px; padding: 2px;" ${item.serial && item.quantity === 1 ? 'readonly title="لا يمكن تغيير الكمية لمنتج مسيرل"' : ''}>
+                                </td>
+                                <td class="item-price" style="text-align:center;">
+                                    <input type="number" class="row-price-input" value="${item.unitPrice || 0}" min="0" step="any" style="width: 80px; text-align: center; border: 1px solid #ddd; border-radius: 4px; padding: 2px;">
+                                </td>
+                                <td class="item-subtotal" style="text-align:center; font-weight:bold;">${formatCurrency(subtotal)}</td>
+                                <td class="no-print" style="text-align:center;"><button type="button" class="remove-item-btn" style="color:red; font-weight:bold; border:none; background:none; cursor:pointer;">×</button></td>
                             `;
                             inv_invoiceItemsBody.appendChild(newRow);
                         }
                     });
                 } else if (sale.mainProduct) {
-                    // الحالة 2: بيع سريع (ادمجه في بند واحد)
-                    let description = `${sale.mainProduct.quantity}x ${sale.mainProduct.name}`;
-                    if (sale.additionalItems && sale.additionalItems.length > 0) {
-                        const additionalDesc = sale.additionalItems.map(item => `${item.quantity}x ${item.name}`).join('، ');
-                        description += ` (مع: ${additionalDesc})`;
-                    }
-                    const mainCost = (sale.mainProduct.costPrice || 0) * sale.mainProduct.quantity;
-                    const addCost = (sale.additionalItems || []).reduce((sum, i) => sum + (i.costPrice || 0) * i.quantity, 0);
-                    const subtotal = sale.totalSellPrice;
-                    const newRow = document.createElement('tr');
-                    newRow.classList.add('invoice-item-row');
-                    newRow.dataset.itemName = description;
-                    newRow.dataset.itemQty = 1;
-                    newRow.dataset.itemPrice = sale.totalSellPrice.toFixed(2);
-                    newRow.dataset.itemSubtotal = subtotal.toFixed(2);
-                    newRow.dataset.itemCost = (mainCost + addCost).toFixed(2);
-                    newRow.innerHTML = `
-                        <td class="item-name">${description}</td>
-                        <td class="item-qty">1</td>
-                        <td class="item-price">${formatCurrency(sale.totalSellPrice)}</td>
-                        <td class="item-subtotal">${formatCurrency(subtotal)}</td>
-                        <td class="no-print"><button type="button" class="remove-item-btn" title="حذف البند">×</button></td>
+                    // الحالة 2: بيع سريع (إنشاء صفوف منفصلة لكل صنف لتجنب تضارب المخزون)
+                    const mainProduct = sale.mainProduct;
+                    const mainQty = Number(mainProduct.quantity) || 1;
+                    const mainCost = Number(mainProduct.costPrice || mainProduct.cost || 0);
+                    const mainSellPrice = Number(sale.totalSellPrice || 0);
+                    
+                    // 1. صف المنتج الرئيسي
+                    const mainRow = document.createElement('tr');
+                    mainRow.classList.add('invoice-item-row');
+                    if (mainProduct.id) mainRow.dataset.productId = mainProduct.id;
+                    mainRow.dataset.itemName = mainProduct.name;
+                    mainRow.dataset.itemQty = mainQty;
+                    mainRow.dataset.itemPrice = (mainSellPrice / mainQty).toFixed(2);
+                    mainRow.dataset.itemSubtotal = mainSellPrice.toFixed(2);
+                    mainRow.dataset.itemCost = mainCost.toFixed(2);
+                    
+                    const serialMatch = mainProduct.name.match(/\(S\/N: (.*?)\)/);
+                    const mainSerial = serialMatch ? serialMatch[1] : null;
+                    if (mainSerial) mainRow.dataset.itemSerial = mainSerial;
+                    
+                    mainRow.innerHTML = `
+                        <td class="item-name">
+                            ${mainProduct.name}
+                        </td>
+                        <td class="item-qty" style="text-align:center;">
+                            <input type="number" class="row-qty-input" value="${mainQty}" min="1" style="width: 60px; text-align: center; border: 1px solid #ddd; border-radius: 4px; padding: 2px;" ${mainSerial ? 'readonly title="لا يمكن تغيير الكمية لمنتج مسيرل"' : ''}>
+                        </td>
+                        <td class="item-price" style="text-align:center;">
+                            <input type="number" class="row-price-input" value="${(mainSellPrice / mainQty).toFixed(2)}" min="0" step="any" style="width: 80px; text-align: center; border: 1px solid #ddd; border-radius: 4px; padding: 2px;">
+                        </td>
+                        <td class="item-subtotal" style="text-align:center; font-weight:bold;">${formatCurrency(mainSellPrice)}</td>
+                        <td class="no-print" style="text-align:center;"><button type="button" class="remove-item-btn" style="color:red; font-weight:bold; border:none; background:none; cursor:pointer;">×</button></td>
                     `;
-                    inv_invoiceItemsBody.appendChild(newRow);
+                    inv_invoiceItemsBody.appendChild(mainRow);
+
+                    // 2. صفوف المرفقات الإضافية
+                    if (sale.additionalItems && sale.additionalItems.length > 0) {
+                        sale.additionalItems.forEach(item => {
+                            if (!item) return;
+                            const itemQty = Number(item.quantity) || 1;
+                            const itemCost = Number(item.costPrice || item.cost || 0);
+                            
+                            const addRow = document.createElement('tr');
+                            addRow.classList.add('invoice-item-row');
+                            if (item.id) addRow.dataset.productId = item.id;
+                            addRow.dataset.itemName = item.name;
+                            addRow.dataset.itemQty = itemQty;
+                            addRow.dataset.itemPrice = "0.00";
+                            addRow.dataset.itemSubtotal = "0.00";
+                            addRow.dataset.itemCost = itemCost.toFixed(2);
+                            
+                            addRow.innerHTML = `
+                                <td class="item-name">${item.name} <span style="font-size:0.8em; color:grey;">(مرفق/حزمة)</span></td>
+                                <td class="item-qty" style="text-align:center;">
+                                    <input type="number" class="row-qty-input" value="${itemQty}" min="1" style="width: 60px; text-align: center; border: 1px solid #ddd; border-radius: 4px; padding: 2px;">
+                                </td>
+                                <td class="item-price" style="text-align:center;">
+                                    <input type="number" class="row-price-input" value="0.00" min="0" step="any" style="width: 80px; text-align: center; border: 1px solid #ddd; border-radius: 4px; padding: 2px;">
+                                </td>
+                                <td class="item-subtotal" style="text-align:center; font-weight:bold;">${formatCurrency(0)}</td>
+                                <td class="no-print" style="text-align:center;"><button type="button" class="remove-item-btn" style="color:red; font-weight:bold; border:none; background:none; cursor:pointer;">×</button></td>
+                            `;
+                            inv_invoiceItemsBody.appendChild(addRow);
+                        });
+                    }
                 }
             }
             
@@ -8457,11 +8770,67 @@ if (button.classList.contains('convert-pending-to-debt')) {
 
     // --- زر تعديل البيع المؤقت ---
     } else if (button.classList.contains('edit-pending')) {
-        // (هذا المنطق خاص بالبيع السريع فقط، قد يحتاج لتعديل ليدعم الفواتير المفصلة)
+        // (فتح البيعة السريعة أو الفاتورة المفصلة للتعديل)
         if (sale.mainProduct) {
             openPendingSaleForEdit(pendingId); 
         } else {
-            alert("لا يمكن تعديل فاتورة مفصلة مؤقتة حاليًا. يرجى إلغاؤها وإنشاء واحدة جديدة أو تأكيدها.");
+            isEditingPendingInvoice = true;
+            pendingSaleOriginData = sale; 
+            inv_openModal(); 
+            
+            // تفعيل خيار (حفظ كبيعة مؤقتة)
+            const markAsPendingCheckbox = document.getElementById('inv_markAsPending');
+            if(markAsPendingCheckbox) {
+                markAsPendingCheckbox.checked = true;
+                markAsPendingCheckbox.dispatchEvent(new Event('change'));
+            }
+
+            // ملء بيانات العميل والتفاصيل الأخرى
+            if(inv_customerNameInput) inv_customerNameInput.value = sale.customerName || '';
+            if (sale.invoiceData) {
+                if(inv_customerAddressInput) inv_customerAddressInput.value = sale.invoiceData.customerAddress || '';
+                if(inv_warrantyInput && sale.invoiceData.warranty) inv_warrantyInput.value = sale.invoiceData.warranty;
+                if(inv_notesTextarea && sale.invoiceData.notes) inv_notesTextarea.value = sale.invoiceData.notes;
+                if(inv_shippingCostInput) inv_shippingCostInput.value = sale.invoiceData.shippingCost || 0;
+            }
+            
+            // ملء الأصناف
+            if (inv_invoiceItemsBody) {
+                inv_invoiceItemsBody.innerHTML = '';
+                if (sale.items) {
+                    sale.items.forEach(item => {
+                        if (item) {
+                            const subtotal = item.quantity * item.unitPrice;
+                            const newRow = document.createElement('tr');
+                            newRow.classList.add('invoice-item-row');
+                            newRow.dataset.itemName = item.name;
+                            newRow.dataset.itemQty = item.quantity;
+                            newRow.dataset.itemPrice = (item.unitPrice || 0).toFixed(2);
+                            newRow.dataset.itemSubtotal = (subtotal || 0).toFixed(2);
+                            newRow.dataset.itemCost = (item.costPrice || 0).toFixed(2);
+                            if(item.id) newRow.dataset.productId = item.id;
+                            if(item.serial) newRow.dataset.itemSerial = item.serial;
+                            newRow.innerHTML = `
+                                <td class="item-name">
+                                    ${item.name}
+                                    ${item.serial ? `<span class="serial-display no-print">(S/N: ${item.serial})</span><span class="serial-display-print">(S/N: ${item.serial})</span>` : ''}
+                                </td>
+                                <td class="item-qty" style="text-align:center;">
+                                    <input type="number" class="row-qty-input" value="${item.quantity}" min="1" style="width: 60px; text-align: center; border: 1px solid #ddd; border-radius: 4px; padding: 2px;" ${item.serial && item.quantity === 1 ? 'readonly title="لا يمكن تغيير الكمية لمنتج مسيرل"' : ''}>
+                                </td>
+                                <td class="item-price" style="text-align:center;">
+                                    <input type="number" class="row-price-input" value="${item.unitPrice || 0}" min="0" step="any" style="width: 80px; text-align: center; border: 1px solid #ddd; border-radius: 4px; padding: 2px;">
+                                </td>
+                                <td class="item-subtotal" style="text-align:center; font-weight:bold;">${typeof formatCurrency === 'function' ? formatCurrency(subtotal) : subtotal}</td>
+                                <td class="no-print" style="text-align:center;"><button type="button" class="remove-item-btn" style="color:red; font-weight:bold; border:none; background:none; cursor:pointer;">×</button></td>
+                            `;
+                            inv_invoiceItemsBody.appendChild(newRow);
+                        }
+                    });
+                }
+            }
+            if(typeof inv_calculateTotals === 'function') inv_calculateTotals();
+            if(typeof inv_updateDeductibleCostsCheckboxes === 'function') inv_updateDeductibleCostsCheckboxes();
         }
     }
 }
@@ -8523,6 +8892,11 @@ if (button.classList.contains('convert-pending-to-debt')) {
     sellButton.classList.add('bg-orange-500', 'hover:bg-orange-600');
     
     d('cancel-edit-pending-button').classList.remove('hidden');
+    
+    // حساب وإظهار الربح المتوقع فوراً
+    if (typeof calculateQuickSellProfit === 'function') {
+        calculateQuickSellProfit();
+    }
 }
             // --- Invoice Search Functions ---
             function searchInvoiceByNumber() {
@@ -11412,9 +11786,16 @@ if (addProductButton) {
         }
 
         // 🌟 [تنفيذ فكرة د. ضياء]: اعتراض تكرار الاسم وفتح مودال التوجيه الذكي بالـ ID
-        // نتحقق من وجود منتج بنفس الاسم بشرط ألا يكون هو نفس المنتج الذي نعدله حالياً (باستخدام الـ ID الفريد)
-        const duplicateProduct = products.find(p => p.name.toLowerCase() === name.toLowerCase() && 
-            (!window.currentEditingProductID || p.id !== window.currentEditingProductID));
+        // نتحقق من وجود منتج بنفس الاسم، مع استثناء المنتج الحالي الذي نعدله (سواء بالـ ID أو بالاسم القديم)
+        const duplicateProduct = products.find(p => {
+            if (p.name.toLowerCase() !== name.toLowerCase()) return false;
+            if (!window.currentEditingProductID && !editingProductName) return true; // إضافة منتج جديد
+            
+            if (window.currentEditingProductID && p.id) {
+                return String(p.id) !== String(window.currentEditingProductID);
+            }
+            return p.name.toLowerCase() !== (editingProductName || "").toLowerCase();
+        });
 
         if (duplicateProduct && !window.bypassDuplicateCheck) {
             window.currentDuplicateProductID = duplicateProduct.id || null;
@@ -12122,6 +12503,13 @@ function resetSellForm() {
     const costDisplay = document.getElementById('quick-sell-cost-display');
     if (costDisplay) costDisplay.classList.add('hidden');
     
+    // تصفير الربح المتوقع
+    const profitDisplay = document.getElementById('quick-sell-profit-display');
+    if (profitDisplay) {
+        profitDisplay.textContent = '0.00 ج.م';
+        profitDisplay.style.color = '#166534';
+    }
+    
     showMessage(sellMessage, ""); 
 }
 // 1. الدالة الرئيسية الجديدة للإضافة أو التحديث
@@ -12212,10 +12600,25 @@ window.showConfirmSaleModal = function(profit, onConfirmCallback) {
     modal.style.display = 'flex';
 };
 
-window.showPostSaleModal = function(type) {
+window.showPostSaleModal = function(type, isFromPending = false) {
     const modal = document.getElementById('postSaleModal');
     const newBtn = document.getElementById('postSaleNewBtn');
     const closeBtn = document.getElementById('postSaleCloseBtn');
+    
+    // --- تخصيص نافذة النجاح إذا كانت العملية تأكيد بيعة مؤقتة ---
+    const titleEl = modal.querySelector('h2');
+    const msgEl = modal.querySelector('p');
+    if (isFromPending) {
+        newBtn.style.display = 'none';
+        closeBtn.innerText = 'إغلاق النافذة';
+        if (titleEl) titleEl.innerText = 'تم تأكيد وتسجيل الفاتورة بنجاح!';
+        if (msgEl) msgEl.style.display = 'none';
+    } else {
+        newBtn.style.display = 'block';
+        closeBtn.innerText = 'إغلاق نافذة البيع';
+        if (titleEl) titleEl.innerText = 'تمت العملية بنجاح!';
+        if (msgEl) msgEl.style.display = 'block';
+    }
     
     const newBtnClone = newBtn.cloneNode(true);
     newBtn.parentNode.replaceChild(newBtnClone, newBtn);
@@ -12235,9 +12638,14 @@ window.showPostSaleModal = function(type) {
     closeBtnClone.addEventListener('click', () => {
         modal.style.display = 'none';
         if(type === 'quick') {
-            window.closeQuickSellModal();
+            if (typeof window.closeQuickSellModal === 'function') window.closeQuickSellModal();
         } else if(type === 'invoice') {
-            window.closeInvoiceModal();
+            if (typeof inv_closeModal === 'function') {
+                inv_closeModal();
+            } else {
+                const invModal = document.getElementById('invoiceModal');
+                if (invModal) invModal.style.display = 'none';
+            }
         }
     });
     
@@ -12410,7 +12818,8 @@ function sellProduct(skipConfirmation = true) {
         const saleRecord = { 
             id: generateId('sale'), type: 'quick', timestamp: new Date().toISOString(), customerName, 
             items: allItems, 
-            totalSellPrice, totalCost: costOfGoodsSold, profit 
+            totalSellPrice, totalCost: costOfGoodsSold, profit,
+            accountId: selectedAccountId
         };
         salesToday.push(saleRecord);
         saveInvoiceToFirestore(saleRecord);
@@ -13398,9 +13807,9 @@ if (pendingReceiptList) {
                                   showMessage(inv_itemAddErrorDiv, ""); // Clear message if serials found
                              }
                          } else {
-                             inv_serialSelectContainer.classList.add('hidden');
-                             inv_itemSerialSelect.value = '';
-                             inv_serialSearchInput.value = '';
+                             if(inv_serialSelectContainer) inv_serialSelectContainer.classList.add('hidden');
+                             if(inv_itemSerialSelect) inv_itemSerialSelect.value = '';
+                             if(inv_serialSearchInput) inv_serialSearchInput.value = '';
                              showMessage(inv_itemAddErrorDiv, "");
                          }
                      });
@@ -14672,7 +15081,7 @@ async function saveSystemToCloud() {
     if (!window.currentUser) return;
 
     const canWrite = await window.SessionGuard.assertCanWrite();
-    if (!canWrite) retur
+    if (!canWrite) return;
     const userId = window.currentUser.uid;
     
     // تحديد تاريخ اليوم للعمليات
@@ -15026,18 +15435,23 @@ window.executeCancellation = async function(saleId, accountId, amount) {
         // ب. إرجاع البضاعة للمخزن (تجميع الأصناف بحذر لتجنب التكرار)
         let itemsToReturn = [];
         
-        // الأفضل الاعتماد على مصفوفة رئيسية واحدة لتجنب تكرار إرجاع نفس الصنف
-        if (sale.items && sale.items.length > 0) {
-            itemsToReturn.push(...sale.items);
-        } else if (sale.invoiceData && sale.invoiceData.items) {
-            itemsToReturn.push(...sale.invoiceData.items);
+        if (sale.mainProduct) {
+            // هذا لبيعات السريع المؤقتة (تحتوي على mainProduct و additionalItems منفصلة)
+            itemsToReturn.push(sale.mainProduct);
+            if (sale.additionalItems && Array.isArray(sale.additionalItems)) {
+                itemsToReturn.push(...sale.additionalItems);
+            }
+        } else {
+            // للفواتير التفصيلية المؤقتة
+            if (sale.items && sale.items.length > 0) {
+                itemsToReturn.push(...sale.items);
+            } else if (sale.invoiceData && sale.invoiceData.items) {
+                itemsToReturn.push(...sale.invoiceData.items);
+            }
         }
         
         const extraDeducted = sale.deductedItems || (sale.invoiceData ? sale.invoiceData.deductedItems : []) || [];
         itemsToReturn.push(...extraDeducted);
-
-        if (sale.mainProduct) itemsToReturn.push(sale.mainProduct);
-        if (sale.additionalItems) itemsToReturn.push(...sale.additionalItems);
 
         // إزالة أي قيم فارغة (null/undefined)
         itemsToReturn = itemsToReturn.filter(Boolean);
@@ -16195,7 +16609,8 @@ window.renderPOSQuickGrid = function() {
     const filtered = products.filter(p => {
         const matchCat = window.pos_currentCategoryQuick === 'الكل' || p.category === window.pos_currentCategoryQuick;
         const matchSearch = p.name.toLowerCase().includes(query) || (p.barcode && p.barcode.includes(query));
-        return matchCat && matchSearch && p.type !== 'service';
+        const inStock = (Number(p.quantity) || 0) > 0;
+        return matchCat && matchSearch && p.type !== 'service' && inStock;
     });
 
     if (filtered.length === 0) {
@@ -16236,7 +16651,8 @@ window.renderPOSInvGrid = function() {
     const filtered = products.filter(p => {
         const matchCat = window.pos_currentCategoryInv === 'الكل' || p.category === window.pos_currentCategoryInv;
         const matchSearch = p.name.toLowerCase().includes(query) || (p.barcode && p.barcode.includes(query));
-        return matchCat && matchSearch;
+        const inStock = (Number(p.quantity) || 0) > 0;
+        return matchCat && matchSearch && inStock;
     });
 
     if (filtered.length === 0) {
