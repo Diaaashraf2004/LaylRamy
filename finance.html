@@ -10226,8 +10226,8 @@ async function pi_confirmPurchaseInvoice() {
             
             if (!item.duplicateResolution) {
                 const duplicate = products.find(p => p.name.toLowerCase() === item.name.toLowerCase());
-                window.lastPurchaseDuplicateID = duplicate.id || null; // 🆔 حفظ كود صنف المشتريات المكرر في الذاكرة
                 if (duplicate) {
+                    window.lastPurchaseDuplicateID = duplicate.id || null; // 🆔 حفظ كود صنف المشتريات المكرر في الذاكرة
                     hasDuplicateInInvoice = true;
                     
                     window.pendingPurchaseInvoiceItem = {
