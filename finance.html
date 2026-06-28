@@ -12637,9 +12637,12 @@ window.showPostSaleModal = function(type, isFromPending = false) {
     
     closeBtnClone.addEventListener('click', () => {
         modal.style.display = 'none';
+        // تنظيف البيانات القديمة دائماً عند الإغلاق لمنع ظهورها في البيعة التالية
         if(type === 'quick') {
+            resetSellForm();
             if (typeof window.closeQuickSellModal === 'function') window.closeQuickSellModal();
         } else if(type === 'invoice') {
+            resetInvoiceForm();
             if (typeof inv_closeModal === 'function') {
                 inv_closeModal();
             } else {
@@ -12828,6 +12831,7 @@ function sellProduct(skipConfirmation = true) {
     }
 
     updateUI();
+    resetSellForm(); // تنظيف النموذج فوراً بعد البيع لمنع ظهور البيانات القديمة
     window.showPostSaleModal('quick');
 }
 function updatePendingSale(pendingId) {
