@@ -2007,7 +2007,12 @@ input:checked:active + .slider:before {
 
                 <div id="debts-message" class="section-message mt-3"></div>
               <div id="debtors-list-container">
-    <h3 class="text-lg font-medium text-gray-700 mb-3">قائمة الديون الحالية (مجمعة حسب الشخص)</h3>
+    <div class="flex justify-between items-center mb-3">
+        <h3 class="text-lg font-medium text-gray-700">قائمة الديون الحالية (مجمعة حسب الشخص)</h3>
+        <button onclick="openBulkDebtModal()" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg text-sm flex items-center gap-2 transition-all shadow-md hover:shadow-lg" style="background: linear-gradient(135deg, #8b5cf6, #6d28d9);">
+            <i class="fas fa-wallet"></i> سداد جماعي
+        </button>
+    </div>
 
     <div id="debts-controls" class="grid grid-cols-1 md:grid-cols-3 gap-4 my-4 p-4 bg-gray-50 rounded-lg border">
         <div class="form-group">
@@ -2038,6 +2043,36 @@ input:checked:active + .slider:before {
         <p class="text-center text-gray-500 py-4">لا توجد ديون مسجلة حاليًا.</p>
     </div>
 </div>
+
+<!-- مودال السداد الجماعي للديون -->
+<div id="bulkDebtPaymentModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:2500; align-items:center; justify-content:center;">
+    <div style="background:white; border-radius:12px; max-width:600px; width:95%; max-height:90vh; display:flex; flex-direction:column; box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+        <div style="padding:16px 20px; border-bottom:2px solid #8b5cf6; display:flex; justify-content:space-between; align-items:center; background:linear-gradient(135deg, #8b5cf6, #6d28d9); border-radius:12px 12px 0 0;">
+            <h2 style="margin:0; color:white; font-size:1.1em;"><i class="fas fa-wallet"></i> سداد جماعي للديون</h2>
+            <span onclick="closeBulkDebtModal()" style="color:white; font-size:24px; cursor:pointer; font-weight:bold;">&times;</span>
+        </div>
+        <div style="padding:16px 20px; border-bottom:1px solid #e5e7eb;">
+            <input type="text" id="bulkDebtSearchInput" placeholder="🔍 ابحث عن عميل بالاسم أو الهاتف..." style="width:100%; padding:10px 14px; border:1px solid #d1d5db; border-radius:8px; font-size:14px; outline:none;" oninput="renderBulkDebtList()">
+        </div>
+        <div id="bulkDebtListContainer" style="padding:12px 20px; overflow-y:auto; flex:1; min-height:200px; max-height:50vh;"></div>
+        <div id="bulkDebtSummaryBar" style="padding:14px 20px; border-top:2px solid #e5e7eb; background:#f9fafb; display:none;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <span style="font-weight:bold; color:#374151;">إجمالي المحدد للسداد:</span>
+                <span id="bulkDebtTotalAmount" style="font-size:1.3em; font-weight:bold; color:#8b5cf6;">0.00 ج.م</span>
+            </div>
+            <div style="margin-bottom:10px;">
+                <label style="font-size:13px; font-weight:bold; color:#374151; display:block; margin-bottom:4px;">إيداع المبلغ في:</label>
+                <select id="bulkDebtAccountSelect" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:6px;"></select>
+            </div>
+            <div style="margin-bottom:10px;">
+                <label style="font-size:13px; font-weight:bold; color:#374151; display:block; margin-bottom:4px;">ملاحظة (اختياري):</label>
+                <input type="text" id="bulkDebtNote" placeholder="مثال: تم السداد نقدي" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:6px; font-size:13px;">
+            </div>
+            <button onclick="confirmBulkDebtPayment()" style="width:100%; padding:12px; background:linear-gradient(135deg, #10b981, #059669); color:white; border:none; border-radius:8px; font-size:15px; font-weight:bold; cursor:pointer;"><i class="fas fa-check-circle"></i> تأكيد السداد</button>
+        </div>
+    </div>
+</div>
+
             </section><section id="liabilities-section" class="widget-card content-section hidden">
                 <h2>الديون المستحقة على الشركة (للاخرين)</h2>
                 <div id="total-liabilities-display" class="text-2xl font-bold text-pink-700 mb-4">إجمالي الالتزامات: 0.00 جنيه</div>
@@ -4430,13 +4465,18 @@ function updateDebtorsListDisplay() {
         const displayPhone = profile.phone || 'بدون هاتف';
 
         const detailsElement = document.createElement('details');
-        detailsElement.className = 'mb-2 border border-gray-200 rounded overflow-hidden shadow-sm';
+        detailsElement.className = 'mb-2 border border-gray-200 rounded-xl overflow-hidden shadow-sm';
+        detailsElement.dataset.customerId = group.customerId;
 
         const summaryElement = document.createElement('summary');
         summaryElement.className = 'p-3 bg-gray-50 hover:bg-gray-100 cursor-pointer flex justify-between items-center font-medium text-gray-800';
         summaryElement.innerHTML = `
             <div>
-                <div><strong>${displayName}</strong></div>
+                <div class="flex items-center gap-2">
+                    <i class="fas fa-user-circle text-purple-400"></i>
+                    <strong>${displayName}</strong>
+                    <span class="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">${group.debts.length} بند</span>
+                </div>
                 <div class="text-sm text-gray-500">${displayPhone}</div>
             </div>
             <span class="text-purple-700 font-semibold">${formatCurrency(group.total)}</span>
@@ -4445,6 +4485,7 @@ function updateDebtorsListDisplay() {
         const ulElement = document.createElement('ul');
         ulElement.className = 'p-3 pt-2 border-t border-gray-200 bg-white';
 
+        // --- أزرار البروفايل والملاحظات ---
         const topInfoLi = document.createElement('li');
         topInfoLi.style.listStyle = 'none';
         topInfoLi.style.marginBottom = '10px';
@@ -4462,6 +4503,32 @@ function updateDebtorsListDisplay() {
         `;
         ulElement.appendChild(topInfoLi);
 
+        // --- شريط تحديد الكل وسداد المحدد ---
+        const selectBarLi = document.createElement('li');
+        selectBarLi.style.listStyle = 'none';
+        selectBarLi.className = 'mb-2 p-2 bg-purple-50 rounded-lg border border-purple-200';
+        selectBarLi.innerHTML = `
+            <div class="flex justify-between items-center flex-wrap gap-2">
+                <label class="flex items-center gap-2 cursor-pointer text-sm font-bold text-purple-700">
+                    <input type="checkbox" class="debt-select-all-cb rounded border-purple-300 text-purple-600" data-customer-id="${group.customerId}" onchange="toggleSelectAllDebts('${group.customerId}')">
+                    <i class="fas fa-check-double"></i> تحديد الكل
+                </label>
+                <span class="text-xs text-purple-600 font-bold debt-selected-total" data-customer-id="${group.customerId}" style="display:none;">المحدد: 0.00 ج.م</span>
+            </div>
+            <div class="debt-pay-selected-bar mt-2" data-customer-id="${group.customerId}" style="display:none;">
+                <div class="flex gap-2 items-center flex-wrap">
+                    <select class="debt-pay-account-select text-xs py-1 px-2 border rounded flex-grow" data-customer-id="${group.customerId}" style="min-width:120px;">
+                        ${accounts.map(acc => `<option value="${acc.id}">${acc.name} (${formatCurrency(acc.balance)})</option>`).join('')}
+                    </select>
+                    <button onclick="paySelectedDebtsForCustomer('${group.customerId}')" class="bg-green-500 hover:bg-green-600 text-white text-xs font-bold py-1.5 px-3 rounded-lg flex items-center gap-1 transition-colors">
+                        <i class="fas fa-hand-holding-usd"></i> سداد المحدد
+                    </button>
+                </div>
+            </div>
+        `;
+        ulElement.appendChild(selectBarLi);
+
+        // --- عرض بنود الديون مع Checkboxes ---
         group.debts
             .sort((a, b) => (a.reason || "").localeCompare((b.reason || ""), 'ar'))
           group.debts.forEach(item => {
@@ -4471,12 +4538,15 @@ function updateDebtorsListDisplay() {
     const dateStr = item.createdAt ? new Date(item.createdAt).toLocaleString('ar-EG') : '';
 
     liElement.innerHTML = `
-        <div class="flex-grow">
-            <div class="flex items-center gap-2">
-                <strong class="text-gray-900">${item.reason || 'سبب غير محدد'}</strong>
-                <span class="text-[10px] text-gray-400 font-normal">${dateStr}</span>
+        <div class="flex items-center gap-2 flex-grow">
+            <input type="checkbox" class="debt-item-cb rounded border-purple-300 text-purple-600" data-debt-id="${item.id}" data-amount="${item.amount}" data-customer-id="${group.customerId}" onchange="updateDebtSelectionTotal('${group.customerId}')">
+            <div class="flex-grow">
+                <div class="flex items-center gap-2">
+                    <strong class="text-gray-900">${item.reason || 'سبب غير محدد'}</strong>
+                    <span class="text-[10px] text-gray-400 font-normal">${dateStr}</span>
+                </div>
+                <div class="font-bold text-purple-700">${formatCurrency(Number(item.amount || 0))}</div>
             </div>
-            <div class="font-bold text-purple-700">${formatCurrency(Number(item.amount || 0))}</div>
         </div>
         <div class="actions flex-shrink-0 flex gap-1.5">
             <button class="bg-orange-500 hover:bg-orange-600 text-white px-2 py-1 rounded text-[11px] flex items-center gap-1" 
@@ -15681,6 +15751,265 @@ function processTransfer(sourceDebtId) {
 }
 
 // --- 2. دوال الحذف والاسترداد ---
+// =====================================================================
+// 🌟 نظام السداد المرن للديون (تحديد عدة بنود والسداد الجماعي)
+// =====================================================================
+
+// --- 1. السداد الانتقائي داخل بطاقة العميل ---
+
+window.toggleSelectAllDebts = function(customerId) {
+    const isChecked = document.querySelector(`.debt-select-all-cb[data-customer-id="${customerId}"]`).checked;
+    const checkboxes = document.querySelectorAll(`.debt-item-cb[data-customer-id="${customerId}"]`);
+    checkboxes.forEach(cb => cb.checked = isChecked);
+    updateDebtSelectionTotal(customerId);
+};
+
+window.updateDebtSelectionTotal = function(customerId) {
+    const checkboxes = document.querySelectorAll(`.debt-item-cb[data-customer-id="${customerId}"]:checked`);
+    let total = 0;
+    checkboxes.forEach(cb => total += parseFloat(cb.dataset.amount || 0));
+    
+    const totalSpan = document.querySelector(`.debt-selected-total[data-customer-id="${customerId}"]`);
+    const payBar = document.querySelector(`.debt-pay-selected-bar[data-customer-id="${customerId}"]`);
+    
+    if (total > 0) {
+        totalSpan.textContent = `المحدد: ${formatCurrency(total)}`;
+        totalSpan.style.display = 'inline';
+        payBar.style.display = 'block';
+    } else {
+        totalSpan.style.display = 'none';
+        payBar.style.display = 'none';
+    }
+};
+
+window.paySelectedDebtsForCustomer = function(customerId) {
+    const checkboxes = document.querySelectorAll(`.debt-item-cb[data-customer-id="${customerId}"]:checked`);
+    if (checkboxes.length === 0) return;
+    
+    const accountSelect = document.querySelector(`.debt-pay-account-select[data-customer-id="${customerId}"]`);
+    const accountId = accountSelect.value;
+    const account = accounts.find(a => a.id === accountId);
+    
+    if (!account) {
+        showGlobalMessage('يرجى اختيار حساب مالي صحيح', true);
+        return;
+    }
+
+    let totalAmount = 0;
+    let paidDebtIds = [];
+    
+    checkboxes.forEach(cb => {
+        totalAmount += parseFloat(cb.dataset.amount || 0);
+        paidDebtIds.push(cb.dataset.debtId);
+    });
+
+    if (confirm(`هل أنت متأكد من سداد ديون بقيمة ${formatCurrency(totalAmount)} وإيداعها في "${account.name}"؟`)) {
+        // حفظ الحالة للتراجع
+        if (typeof saveStateToHistory === 'function') saveStateToHistory();
+        
+        // تحديث الحساب
+        account.balance += totalAmount;
+        
+        const customerProfile = debtorProfiles.find(p => p.id === customerId);
+        const customerName = customerProfile ? customerProfile.name : "عميل";
+        
+        // إزالة الديون من النظام
+        window.debtors = window.debtors.filter(d => !paidDebtIds.includes(d.id));
+        
+        // تسجيل العملية
+        logOperation("سداد ديون محددة", `تم سداد ${paidDebtIds.length} بنود ديون للعميل "${customerName}" بقيمة ${formatCurrency(totalAmount)} وإيداعها في "${account.name}"`);
+        
+        saveSystemToCloud().then(() => {
+            showGlobalMessage(`تم سداد الديون بنجاح وإيداع ${formatCurrency(totalAmount)}`, false);
+            updateUI();
+        });
+    }
+};
+
+// --- 2. مودال السداد الجماعي للعملاء ---
+
+window.openBulkDebtModal = function() {
+    const modal = document.getElementById('bulkDebtPaymentModal');
+    if (!modal) return;
+    
+    // تعبئة الخزن
+    const accSelect = document.getElementById('bulkDebtAccountSelect');
+    accSelect.innerHTML = accounts.map(acc => `<option value="${acc.id}">${acc.name} (${formatCurrency(acc.balance)})</option>`).join('');
+    
+    document.getElementById('bulkDebtSearchInput').value = '';
+    renderBulkDebtList();
+    
+    modal.style.display = 'flex';
+};
+
+window.closeBulkDebtModal = function() {
+    document.getElementById('bulkDebtPaymentModal').style.display = 'none';
+};
+
+window.renderBulkDebtList = function() {
+    const container = document.getElementById('bulkDebtListContainer');
+    const searchInput = document.getElementById('bulkDebtSearchInput').value.trim();
+    const normalizedSearch = normalizeArabicText(searchInput);
+    
+    container.innerHTML = '';
+    
+    // تجميع الديون حسب العميل
+    const grouped = {};
+    window.debtors.forEach(debt => {
+        const amount = Number(debt.amount) || 0;
+        if (amount <= 0.001) return;
+        
+        const customerId = debt.customerId;
+        if (!grouped[customerId]) {
+            const profile = debtorProfiles.find(p => p.id === customerId) || {name: debt.name || 'غير معروف'};
+            grouped[customerId] = {
+                customerId,
+                profile,
+                total: 0,
+                debts: []
+            };
+        }
+        grouped[customerId].debts.push(debt);
+        grouped[customerId].total += amount;
+    });
+
+    let customers = Object.values(grouped);
+    
+    // الفلترة بالبحث
+    if (normalizedSearch) {
+        customers = customers.filter(group => {
+            const name = normalizeArabicText(group.profile.name || "");
+            const phone = normalizeArabicText(group.profile.phone || "");
+            return name.includes(normalizedSearch) || phone.includes(normalizedSearch);
+        });
+    }
+    
+    if (customers.length === 0) {
+        container.innerHTML = '<p style="text-align:center; color:#6b7280; padding:20px;">لا توجد ديون تطابق بحثك.</p>';
+        updateBulkSelectionTotal();
+        return;
+    }
+
+    customers.forEach(group => {
+        const div = document.createElement('div');
+        div.style.cssText = 'border:1px solid #e5e7eb; border-radius:8px; margin-bottom:12px; overflow:hidden;';
+        
+        const header = document.createElement('div');
+        header.style.cssText = 'background:#f9fafb; padding:10px 14px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e5e7eb;';
+        
+        header.innerHTML = `
+            <div style="display:flex; align-items:center; gap:8px;">
+                <label style="cursor:pointer; display:flex; align-items:center; gap:6px; font-weight:bold; color:#1f2937;">
+                    <input type="checkbox" class="bulk-customer-select-all" data-customer-id="${group.customerId}" onchange="toggleBulkSelectAll('${group.customerId}')" style="accent-color:#8b5cf6;">
+                    ${group.profile.name} <span style="font-size:12px; color:#6b7280; background:#e5e7eb; padding:2px 6px; border-radius:10px;">${formatCurrency(group.total)}</span>
+                </label>
+            </div>
+        `;
+        
+        const itemsContainer = document.createElement('div');
+        itemsContainer.style.cssText = 'padding:10px 14px; background:white;';
+        
+        group.debts.forEach(debt => {
+            const itemDiv = document.createElement('div');
+            itemDiv.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid #f3f4f6; font-size:14px;';
+            if(debt === group.debts[group.debts.length-1]) itemDiv.style.borderBottom = 'none';
+            
+            const dateStr = debt.createdAt ? new Date(debt.createdAt).toLocaleDateString('ar-EG') : '';
+            
+            itemDiv.innerHTML = `
+                <label style="cursor:pointer; display:flex; align-items:center; gap:8px; color:#4b5563; flex:1;">
+                    <input type="checkbox" class="bulk-debt-item-cb" data-customer-id="${group.customerId}" data-debt-id="${debt.id}" data-amount="${debt.amount}" onchange="updateBulkSelectionTotal()" style="accent-color:#8b5cf6;">
+                    ${debt.reason || 'دين بدون تفاصيل'} <span style="font-size:11px; color:#9ca3af;">${dateStr}</span>
+                </label>
+                <span style="font-weight:bold; color:#4c1d95;">${formatCurrency(debt.amount)}</span>
+            `;
+            itemsContainer.appendChild(itemDiv);
+        });
+        
+        div.appendChild(header);
+        div.appendChild(itemsContainer);
+        container.appendChild(div);
+    });
+    
+    updateBulkSelectionTotal();
+};
+
+window.toggleBulkSelectAll = function(customerId) {
+    const isChecked = document.querySelector(`.bulk-customer-select-all[data-customer-id="${customerId}"]`).checked;
+    const checkboxes = document.querySelectorAll(`.bulk-debt-item-cb[data-customer-id="${customerId}"]`);
+    checkboxes.forEach(cb => cb.checked = isChecked);
+    updateBulkSelectionTotal();
+};
+
+window.updateBulkSelectionTotal = function() {
+    const checkboxes = document.querySelectorAll('.bulk-debt-item-cb:checked');
+    let total = 0;
+    checkboxes.forEach(cb => total += parseFloat(cb.dataset.amount || 0));
+    
+    const summaryBar = document.getElementById('bulkDebtSummaryBar');
+    const totalEl = document.getElementById('bulkDebtTotalAmount');
+    
+    if (total > 0) {
+        totalEl.textContent = formatCurrency(total);
+        summaryBar.style.display = 'block';
+    } else {
+        summaryBar.style.display = 'none';
+    }
+};
+
+window.confirmBulkDebtPayment = function() {
+    const checkboxes = document.querySelectorAll('.bulk-debt-item-cb:checked');
+    if (checkboxes.length === 0) return;
+    
+    const accountId = document.getElementById('bulkDebtAccountSelect').value;
+    const note = document.getElementById('bulkDebtNote').value.trim();
+    const account = accounts.find(a => a.id === accountId);
+    
+    if (!account) {
+        alert('يرجى اختيار حساب مالي صحيح');
+        return;
+    }
+
+    let totalAmount = 0;
+    let paidDebtIds = [];
+    let involvedCustomers = new Set();
+    
+    checkboxes.forEach(cb => {
+        totalAmount += parseFloat(cb.dataset.amount || 0);
+        paidDebtIds.push(cb.dataset.debtId);
+        
+        const customerProfile = debtorProfiles.find(p => p.id === cb.dataset.customerId);
+        if (customerProfile) {
+            involvedCustomers.add(customerProfile.name);
+        }
+    });
+
+    const customerNamesStr = Array.from(involvedCustomers).join('، ');
+
+    if (confirm(`تأكيد سداد ديون بقيمة ${formatCurrency(totalAmount)} لعدد ${involvedCustomers.size} عملاء وإيداعها في "${account.name}"؟`)) {
+        // حفظ الحالة للتراجع
+        if (typeof saveStateToHistory === 'function') saveStateToHistory();
+        
+        // تحديث الخزنة
+        account.balance += totalAmount;
+        
+        // إزالة الديون المسددة
+        window.debtors = window.debtors.filter(d => !paidDebtIds.includes(d.id));
+        
+        // تسجيل اللوج
+        let logDesc = `سداد جماعي لعدد ${paidDebtIds.length} بند دين بإجمالي ${formatCurrency(totalAmount)} من العملاء: (${customerNamesStr}) وإيداعها في "${account.name}"`;
+        if (note) logDesc += ` - ملاحظة: ${note}`;
+        
+        logOperation("سداد ديون جماعي", logDesc);
+        
+        saveSystemToCloud().then(() => {
+            showGlobalMessage(`تم إيداع ${formatCurrency(totalAmount)} في الخزنة بنجاح`, false);
+            closeBulkDebtModal();
+            updateUI();
+        });
+    }
+};
+
 window.deleteDebtItem = function(debtId) {
     const debt = window.debtors.find(d => d.id === debtId);
     if (!debt) return;
