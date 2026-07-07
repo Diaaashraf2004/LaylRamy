@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
@@ -1886,18 +1886,7 @@ input:checked:active + .slider:before {
                     </div>
                     <button id="transfer-btn" style="background-color: #f97316;">تنفيذ التحويل</button>
                 </div>
-                <div class="action-column" style="border-top: 4px solid #8b5cf6;">
-                    <h3><i class="fas fa-arrow-trend-down" style="color: #8b5cf6;"></i> تسجيل خسارة</h3>
-                    <div class="form-group">
-                        <label for="loss-reason-input">سبب الخسارة / التفاصيل:</label>
-                        <input type="text" id="loss-reason-input" placeholder="مثال: تلف بضاعة، مصاريف معدومة...">
-                    </div>
-                    <div class="form-group">
-                        <label for="loss-amount-input">قيمة الخسارة:</label>
-                        <input type="number" id="loss-amount-input" placeholder="0.00">
-                    </div>
-                    <button id="add-loss-btn" style="background-color: #8b5cf6; margin-top: auto;">تسجيل الخسارة</button>
-                </div>
+                
             </div>
         </div>
 
@@ -2997,6 +2986,7 @@ let redoHistory = [];  // لتخزين الحالات التي تم التراج
         let suppliers = [];
        window.accounts = [];
         let expenses = 0;
+        let recordedLosses = 0;
     window.debtors = []; // Array of {id, customerId, name, reason, amount, createdAt}
 let debtorProfiles = []; // Array of {id, name, phone, address, generalNotes, createdAt}
 let debtCollectionNotes = []; // Array of {id, customerId, debtId, note, createdAt, nextFollowUpDate}
@@ -3434,7 +3424,7 @@ async function findLatestValidDayBeforeDate(userId, targetDate) {
                  return null;
              }
           }
-        function generateId(prefix = 'id') { return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`; }
+        // Removed duplicated generateId
         function getMonthStartDateEndDate(yearMonth) { //YYYY-MM format
              try {
                  const [year, month] = yearMonth.split('-').map(Number);
@@ -3552,6 +3542,7 @@ function createStateSnapshot() {
         suppliers: JSON.parse(JSON.stringify(suppliers)),
         accounts: JSON.parse(JSON.stringify(accounts)),
         expenses: expenses,
+        recordedLosses: recordedLosses,
         debtors: JSON.parse(JSON.stringify(debtors)),
         debtorProfiles: JSON.parse(JSON.stringify(debtorProfiles)),
         debtCollectionNotes: JSON.parse(JSON.stringify(debtCollectionNotes)),
@@ -3650,6 +3641,7 @@ function loadStateFromSnapshot(snapshot) {
     suppliers = snapshot.suppliers || [];
     accounts = snapshot.accounts || [];
     expenses = snapshot.expenses || 0;
+    recordedLosses = snapshot.recordedLosses || 0;
     debtors = snapshot.debtors || [];
     debtorProfiles = snapshot.debtorProfiles || [];
     debtCollectionNotes = snapshot.debtCollectionNotes || [];
@@ -3658,6 +3650,16 @@ function loadStateFromSnapshot(snapshot) {
     mergeDuplicateDebtorProfiles();
     
     liabilities = snapshot.liabilities || [];
+    
+    // Migration: extract hidden liabilities to recordedLosses
+    liabilities = liabilities.filter(l => {
+        if (l.id === 'hidden-recorded-losses' || l.isHidden) {
+            recordedLosses += (Number(l.amount) || 0);
+            return false;
+        }
+        return true;
+    });
+
     monthlyLiabilities = snapshot.monthlyLiabilities || [];
     totalProfit = snapshot.totalProfit || 0;
 
@@ -3876,12 +3878,23 @@ function loadState(data, dateString) {
     }
 
     expenses = parseFloat(data.expenses) || 0;
+    recordedLosses = parseFloat(data.recordedLosses) || 0;
     debtors = data.debtors || [];
     debtorProfiles = data.debtorProfiles || [];
     debtCollectionNotes = data.debtCollectionNotes || [];
     migrateDebtorsToProfiles();
     mergeDuplicateDebtorProfiles();
     liabilities = data.liabilities || [];
+    
+    // Migration: extract hidden liabilities to recordedLosses
+    liabilities = liabilities.filter(l => {
+        if (l.id === 'hidden-recorded-losses' || l.isHidden) {
+            recordedLosses += (Number(l.amount) || 0);
+            return false;
+        }
+        return true;
+    });
+
     migrateLiabilitiesToAdvancedStructure();
     monthlyLiabilities = data.monthlyLiabilities || [];
     totalProfit = parseFloat(data.profit) || 0;
@@ -3913,6 +3926,7 @@ function resetState() {
 
     // تصفير بيانات العمليات اليومية فقط
     expenses = 0;
+    recordedLosses = 0;
     totalProfit = 0;
     operationLog = [];
     liquidityLog = [];
@@ -3970,7 +3984,6 @@ function calculateTotals() {
     // 6. العربونات المستلمة (التزام مؤقت)
     const totalPendingDeposits = pendingSales.reduce((sum, sale) => sum + (Number(sale.depositPaid) || 0), 0);
 
-    // 🌟 المعادلة المحاسبية الشاملة لرأس المال
     // تم تصحيح المعادلة وحذف totalPendingSalesCostValue لتجنب الجمع المزدوج، حيث أن goodsOnConsignmentValue يفي بالغرض.
     const totalCapital = (totalInventoryValue + goodsOnConsignmentValue + totalLiquidity + totalDebtsValue + pendingPurchasesAssetValue + pendingReturnsAssetValue) - (totalLiabilitiesValue + totalPendingDeposits);
 
@@ -4349,15 +4362,7 @@ function saveCollectionNote() {
 
 
 
-function getCustomerNotes(customerId) {
-    return debtCollectionNotes
-        .filter(note => note.customerId === customerId)
-        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-}
 
-function getLatestCustomerNote(customerId) {
-    return getCustomerNotes(customerId)[0] || null;
-}
 
 
 function openCustomerStatement(customerId) {
@@ -5751,42 +5756,7 @@ function resetReturnForm() {
     returnSourceData = null; 
 }
 
-// =======================================================
-// START: Returns Section Event Listeners
-// =======================================================
 
-// دالة مساعدة لتنظيف نموذج المرتجعات
-function resetReturnForm() {
-    if(d('return-product-select')) d('return-product-select').value = '';
-    if(d('return-manual-product-name')) d('return-manual-product-name').value = '';
-    if(d('return-quantity')) d('return-quantity').value = '1';
-    if(d('return-customer-name')) d('return-customer-name').value = '';
-    if(d('return-sale-price-input')) d('return-sale-price-input').value = 0;
-    if(d('return-at-sale-price')) d('return-at-sale-price').checked = false;
-    returnSourceData = null; 
-}
-
-// دالة مساعدة لتنظيف نموذج المرتجعات
-function resetReturnForm() {
-    d('return-product-select').value = '';
-    d('return-manual-product-name').value = '';
-    d('return-quantity').value = '1';
-    d('return-customer-name').value = '';
-    d('return-sale-price-input').value = 0;
-    d('return-at-sale-price').checked = false;
-    returnSourceData = null; 
-}
-
-// دالة مساعدة لتنظيف نموذج المرتجعات
-function resetReturnForm() {
-    d('return-product-select').value = '';
-    d('return-manual-product-name').value = '';
-    d('return-quantity').value = '1';
-    d('return-customer-name').value = '';
-    d('return-sale-price-input').value = 0;
-    d('return-at-sale-price').checked = false;
-    returnSourceData = null; 
-}
 async function saveCurrentStateByDate(dateString) {
     const canWrite = await window.SessionGuard.assertCanWrite();
     if (!canWrite) return;
@@ -5810,6 +5780,7 @@ async function saveCurrentStateByDate(dateString) {
         suppliers: suppliers || [],
         accounts: accounts || [],
         expenses: expenses || 0,
+        recordedLosses: recordedLosses || 0,
         debtors: debtors || [],
         liabilities: liabilities || [],
         monthlyLiabilities: monthlyLiabilities || [],
@@ -6273,6 +6244,7 @@ async function loadDataForDate(dateString) {
 
         // 7. السجلات والتقارير
         expenses: expenses || 0,
+        recordedLosses: recordedLosses || 0,
         totalProfit: totalProfit || 0,
         operationLog: operationLog || [],
         liquidityLog: liquidityLog || [], // سجل الخزينة التفصيلي
@@ -11068,41 +11040,6 @@ function handleExpenseAddition() {
 }
 
 /**
- * Handles the logic for recording a loss without deducting liquidity.
- * @returns {boolean} True on success, false on failure.
- */
-function handleLossAddition() {
-    const reason = d('loss-reason-input').value.trim() || 'خسارة غير محددة';
-    const amount = parseInputNumber(d('loss-amount-input'));
-
-    // 1. التحقق من المدخلات
-    if (isNaN(amount) || amount <= 0) {
-        alert("يرجى إدخال مبلغ صحيح للخسارة.");
-        return false;
-    }
-
-    saveStateToHistory();
-    
-    // 2. التنفيذ
-    
-    // أ) زيادة إجمالي المصروفات العام للتأثير على صافي الربح
-    expenses += amount;
-
-    // ب) إنشاء التزام مخفي (Hidden Liability) لخصم المبلغ من رأس المال الإجمالي
-    // رأس المال = الأصول - الخصوم، لذلك زيادة الخصوم تقلل رأس المال
-    let hiddenLossLiability = liabilities.find(l => l.id === 'hidden-recorded-losses');
-    if (!hiddenLossLiability) {
-        hiddenLossLiability = { id: 'hidden-recorded-losses', name: 'خسائر مسجلة (لا تُعرض)', amount: 0, isHidden: true, status: 'unpaid' };
-        liabilities.push(hiddenLossLiability);
-    }
-    hiddenLossLiability.amount += amount;
-
-    // ج) تسجيل العملية في السجل العام
-    logOperation("تسجيل مصروف", `بقيمة ${formatCurrency(amount)} - خسارة غير مخصومة من السيولة (السبب: ${reason}).`);
-    
-    return true;
-}
-/**
  * Handles the logic for transferring money between two accounts.
  * @returns {boolean} True on success, false on failure.
  */
@@ -14477,7 +14414,6 @@ if (accountsList) {
 }
 const addIncomeBtn = d('add-income-btn');
 const addExpenseBtn = d('add-expense-btn');
-const addLossBtn = d('add-loss-btn');
 const transferBtn = d('transfer-btn');
 const adjustBalanceBtn = d('adjust-balance-btn');
 
@@ -14494,15 +14430,6 @@ if (addExpenseBtn) {
         if (handleExpenseAddition()) {
             updateUI();
             d('expense-amount-input').value = '';
-        }
-    });
-}
-if (addLossBtn) {
-    addLossBtn.addEventListener('click', () => {
-        if (handleLossAddition()) {
-            updateUI();
-            d('loss-amount-input').value = '';
-            d('loss-reason-input').value = '';
         }
     });
 }
@@ -15566,6 +15493,7 @@ async function saveSystemToCloud() {
         suppliers: suppliers || [],
         accounts: accounts || [],
         expenses: expenses || 0,
+        recordedLosses: recordedLosses || 0,
         debtors: debtors || [],
         liabilities: liabilities || [],
         monthlyLiabilities: monthlyLiabilities || [],
@@ -17546,3 +17474,4 @@ if (invoiceModalEl) {
 </body>
     </html>
     
+
