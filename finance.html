@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
@@ -3842,7 +3842,6 @@ async function redo() {
     showGlobalMessage("تمت الإعادة ومزامنة السحابة.", false);
 }
 
-        // --- دوال المنطق الأساسي ---
 function calculateConsignmentValue() {
     return pendingSales.reduce((sum, sale) => {
         let saleCost = 0;
@@ -4077,33 +4076,42 @@ function calculateTotalPurchasesToday() {
         // --- دوال تحديث الواجهة (UI Updates) ---
     // === 3. استبدل الدالة القديمة بالكامل بهذه الدالة ===
 function updateProductListDisplay() {
+    // --- 1. تحديث قائمة الأقسام (للفلترة وللإكمال التلقائي) ---
+    // استخراج كل الأقسام الفريدة من قائمة المنتجات التي كميتها أكبر من الصفر
+    const allCategories = [...new Set(products.filter(p => (Number(p.quantity) || 0) > 0).map(p => p.category || '').filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ar'));
+    
+    // تحديث قائمة الفلترة <select>
+    if (inventoryCategoryFilter) {
+        const currentCategoryFilter = inventoryCategoryFilter.value; // حفظ الاختيار الحالي
+        inventoryCategoryFilter.innerHTML = '<option value="all">كل الأقسام</option>'; // إعادة تعيين القائمة
+        allCategories.forEach(cat => {
+            const option = document.createElement('option');
+            option.value = cat;
+            option.textContent = cat;
+            inventoryCategoryFilter.appendChild(option);
+        });
+        
+        if (currentCategoryFilter && allCategories.includes(currentCategoryFilter)) {
+            inventoryCategoryFilter.value = currentCategoryFilter; // إعادة الاختيار الحالي إن كان لا يزال موجوداً
+        } else {
+            inventoryCategoryFilter.value = 'all'; // تفريغ التحديد لو القسم اتحذف
+        }
+    }
+
+    // تحديث قائمة الإكمال التلقائي <datalist> في نموذج الإضافة
+    if (categoryDatalist) {
+        categoryDatalist.innerHTML = allCategories.map(cat => `<option value="${cat}"></option>`).join('');
+    }
+
     // التأكد من تحميل كل العناصر قبل المتابعة
-    if (!productList || !productNamesDatalist || !inventorySearchInput || !inventoryCategoryFilter || !categoryDatalist) {
+    if (!productList || !inventorySearchInput) {
         // console.warn("Product list UI elements not fully loaded yet.");
         return;
     }
 
-    // --- 1. تحديث قائمة الأقسام (للفلترة وللإكمال التلقائي) ---
-    // استخراج كل الأقسام الفريدة من قائمة المنتجات الكاملة
-    const allCategories = [...new Set(products.map(p => p.category || '').filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ar'));
-    
-    // تحديث قائمة الفلترة <select>
-    const currentCategoryFilter = inventoryCategoryFilter.value; // حفظ الاختيار الحالي
-    inventoryCategoryFilter.innerHTML = '<option value="all">كل الأقسام</option>'; // إعادة تعيين القائمة
-    allCategories.forEach(cat => {
-        const option = document.createElement('option');
-        option.value = cat;
-        option.textContent = cat;
-        inventoryCategoryFilter.appendChild(option);
-    });
-    inventoryCategoryFilter.value = currentCategoryFilter; // إعادة الاختيار الحالي إن كان لا يزال موجوداً
-
-    // تحديث قائمة الإكمال التلقائي <datalist> في نموذج الإضافة
-    categoryDatalist.innerHTML = allCategories.map(cat => `<option value="${cat}"></option>`).join('');
-
     // --- 2. الحصول على قيم التصفية الحالية ---
     const searchTerm = inventorySearchInput.value.trim().toLowerCase();
-    const selectedCategory = inventoryCategoryFilter.value;
+    const selectedCategory = inventoryCategoryFilter ? inventoryCategoryFilter.value : 'all';
 
    // --- 3. تصفية المنتجات بناءً على البحث والقسم والكمية أكبر من صفر ---
 const filteredProducts = products.filter(product => {
@@ -4160,7 +4168,9 @@ const filteredProducts = products.filter(product => {
     
     // --- 5. تحديث قائمة الإكمال التلقائي لاسم المنتج (يجب أن تستخدم القائمة الكاملة دائمًا) ---
   // الداتاليست لازم تفضل تبعت الاسم فقط (هي للعرض/الإكمال النصي، مش بحث بالـ ID)
-productNamesDatalist.innerHTML = products.map(p => `<option value="${p.name}">${p.name} (القسم: ${p.category || 'عام'}) - المتاح: ${p.quantity}</option>`).join('');
+    if (productNamesDatalist) {
+        productNamesDatalist.innerHTML = products.map(p => `<option value="${p.name}">${p.name} (القسم: ${p.category || 'عام'}) - المتاح: ${p.quantity}</option>`).join('');
+    }
 }
  function updateLogDisplay(){if(!operationLogList){return;} if(operationLog.length === 0){operationLogList.innerHTML = '<li class="text-center text-gray-500 list-none">لا توجد عمليات مسجلة بعد.</li>';} else {operationLogList.innerHTML = [...operationLog].reverse().map(log => `<li class=""><span class="font-semibold text-gray-700">${log.type}:</span> <span class="text-gray-600">${log.details}</span><span class="block text-xs text-gray-400">${formatDateTime(log.timestamp)}</span></li>`).join('');} }
      function updateAdditionalCostsCheckboxes(selectedAttachments = []) {
@@ -4905,9 +4915,9 @@ function handleConfirmInlineDebtPayment(debtorName, formElement) {
     if (!liabilitiesListContainer) return;
     liabilitiesListContainer.innerHTML = ''; // مسح المحتوى السابق
 
-    // فرز الالتزامات: إخفاء القديمة التي ليس لها تاريخ والتي قيمتها صفر (لأنها محذوفة فعلياً قديماً)
-    // نعرض فقط الالتزامات النشطة أو الالتزامات التي حالتها paid
-    const visibleLiabilities = liabilities.filter(l => (Number(l.amount) || 0) > 0.001 || l.status === 'paid');
+    // فرز الالتزامات: إخفاء القديمة التي ليس لها تاريخ والتي قيمتها صفر
+    // نعرض فقط الالتزامات النشطة (أكبر من 0 ولم يتم سدادها)
+    const visibleLiabilities = liabilities.filter(l => (Number(l.amount) || 0) > 0.001);
 
     if (visibleLiabilities.length === 0) {
         liabilitiesListContainer.innerHTML = '<li class="text-center text-gray-500 py-4">لا توجد التزامات مسجلة حاليًا.</li>';
@@ -4924,7 +4934,7 @@ function handleConfirmInlineDebtPayment(debtorName, formElement) {
 
     sortedLiabilities.forEach(liability => {
         const li = document.createElement('li');
-        const isPaid = liability.status === 'paid';
+        const isPaid = liability.status === 'paid' && (Number(liability.amount) || 0) <= 0.001;
         li.className = `flex justify-between items-center py-2 border-b border-gray-100 ${isPaid ? 'opacity-70 bg-gray-50' : ''}`; 
         
         // التحقق من وجود معرف فاتورة شراء مرتبطة
@@ -16358,129 +16368,6 @@ window.closeDeleteDebtRefundModal = function() {
     document.getElementById('deleteDebtRefundModal').style.display = 'none';
    };
     
-// متغير لحفظ واختيار الجهة التي فتحت المودل حالياً ('quick' للبيع السريع، أو 'invoice' لإنشاء فاتورة)
-window.usm_currentOrigin = 'quick'; 
-
-// دالة فتح الموديل وتجهيزه
-window.openUnifiedSellModal = function(originType = 'quick') {
-    window.usm_currentOrigin = originType;
-    document.getElementById('unifiedSellProductModal').style.display = 'flex';
-    
-    // تفريغ المدخلات الافتراضية للتكاليف الإضافية
-    document.getElementById('usm_extra_charges').value = 0;
-    document.getElementById('usm_shipping_cost').value = 0;
-    document.getElementById('usm_search_input').value = '';
-    
-    // تعبئة قائمة الأقسام ديناميكياً بناءً على المتاح بالمخزن
-    const filterSelect = document.getElementById('usm_category_filter');
-    if (filterSelect && window.products) {
-        const categories = [...new Set(window.products.map(p => p.category).filter(Boolean))];
-        filterSelect.innerHTML = '<option value="all">كل الأقسام والـ Categories</option>' + 
-            categories.map(cat => `<option value="${cat}">${cat}</option>`).join('');
-    }
-    
-    // رندر قائمة المنتجات وحساب الأرباح
-    window.usm_renderProductGrid();
-    window.usm_calculateLiveProfit();
-};
-
-window.closeUnifiedSellModal = function() {
-    document.getElementById('unifiedSellProductModal').style.display = 'none';
-};
-
-// دالة رندر المنتجات داخل الجدول مع حقول إدخال الكميات وسعر البيع
-window.usm_renderProductGrid = function() {
-    const body = document.getElementById('usm_product_grid_body');
-    if (!body || !window.products) return;
-    
-    const searchVal = document.getElementById('usm_search_input').value.trim().toLowerCase();
-    const catVal = document.getElementById('usm_category_filter').value;
-    
-    // تصفية المنتجات المتوفرة فقط (الكمية أكبر من صفر)
-    const filtered = window.products.filter(p => {
-        const matchesSearch = p.name.toLowerCase().includes(searchVal);
-        const matchesCat = (catVal === 'all' || p.category === catVal);
-        return matchesSearch && matchesCat && (Number(p.quantity) > 0);
-    });
-    
-    if (filtered.length === 0) {
-        body.innerHTML = `<tr><td colspan="5" class="text-center text-gray-500 py-4">لا توجد منتجات متوفرة تطابق التصفية.</td></tr>`;
-        return;
-    }
-    
-    body.innerHTML = filtered.map(p => {
-        // سعر البيع المقترح تلقائياً (نحسب هامش ربح تقديري 25% لو السعر مش مقيد لتسهيل العمل)
-        const suggestedSalePrice = p.costPrice * 1.25;
-        return `
-            <tr class="hover:bg-gray-50 border-b" data-product-id="${p.id}" data-cost="${p.costPrice}">
-                <td class="p-2 text-right">
-                    <span class="font-semibold text-gray-800">${p.name}</span>
-                    <block class="text-xs text-gray-400">القسم: ${p.category || 'عام'}</block>
-                </td>
-                <td class="p-2 text-center font-bold text-blue-600 font-mono">${p.quantity}</td>
-                <td class="p-2 text-center text-purple-600 font-mono">${Number(p.costPrice).toFixed(2)}</td>
-                <td class="p-2 text-center">
-                    <input type="number" class="usm-sale-price shadow-sm p-1 border rounded text-xs text-center font-mono w-24 bg-gray-50 focus:bg-white" 
-                           value="${suggestedSalePrice.toFixed(2)}" min="0" step="0.01" oninput="window.usm_calculateLiveProfit()">
-                </td>
-                <td class="p-2 text-center">
-                    <input type="number" class="usm-requested-qty shadow-sm p-1 border rounded text-xs text-center font-mono w-20 border-blue-300 bg-blue-50 focus:bg-white" 
-                           value="0" min="0" max="${p.quantity}" step="1" oninput="window.usm_calculateLiveProfit()">
-                </td>
-            </tr>
-        `;
-    }).join('');
-};
-
-// دالة حساب التحليل المالي والربح المتوقع المباشر (Live Profit Analyzer) قبل التأكيد
-window.usm_calculateLiveProfit = function() {
-    let totalCostOfSelected = 0;
-    let totalSalesOfSelected = 0;
-    
-    const rows = document.querySelectorAll('#usm_product_grid_body tr[data-product-id]');
-    rows.forEach(row => {
-        const costPrice = parseFloat(row.dataset.cost) || 0;
-        const salePriceInput = row.querySelector('.usm-sale-price');
-        const qtyInput = row.querySelector('.usm-requested-qty');
-        
-        if (salePriceInput && qtyInput) {
-            const qty = parseInt(qtyInput.value) || 0;
-            const salePrice = parseFloat(salePriceInput.value) || 0;
-            
-            if (qty > 0) {
-                totalCostOfSelected += (costPrice * qty);
-                totalSalesOfSelected += (salePrice * qty);
-            }
-        }
-    });
-    
-    // إضافة التكاليف الإضافية والشحن المدخلة في النموذج
-    const extraCharges = parseFloat(document.getElementById('usm_extra_charges').value) || 0;
-    const shippingCost = parseFloat(document.getElementById('usm_shipping_cost').value) || 0;
-    
-    // إجمالي المبيعات يشمل البضاعة + الخدمات الإضافية + الشحن
-    const finalGrandTotalSales = totalSalesOfSelected + extraCharges + shippingCost;
-    // صافي الربح = إجمالي المبيعات - إجمالي التكلفة الشاملة
-    const finalExpectedProfit = finalGrandTotalSales - totalCostOfSelected;
-    
-    // تحديث شاشات العرض المباشر في المودل
-    document.getElementById('usm_total_sales_display').textContent = typeof formatCurrency === 'function' ? formatCurrency(finalGrandTotalSales) : finalGrandTotalSales.toFixed(2) + " جنيه";
-    document.getElementById('usm_total_cost_display').textContent = typeof formatCurrency === 'function' ? formatCurrency(totalCostOfSelected) : totalCostOfSelected.toFixed(2) + " جنيه";
-    
-    const profitDisplay = document.getElementById('usm_expected_profit_display');
-    profitDisplay.textContent = typeof formatCurrency === 'function' ? formatCurrency(finalExpectedProfit) : finalExpectedProfit.toFixed(2) + " جنيه";
-    
-    // تلوين مؤشر الأرباح ديناميكياً لسلامة الحسابات
-    if (finalExpectedProfit >= 0) {
-        profitDisplay.className = "text-xl font-bold text-green-700 font-mono";
-    } else {
-        profitDisplay.className = "text-xl font-bold text-red-600 font-mono";
-    }
-};
-
-
-
-
 // ============================================================
 // START: Unified Sell Product Modal Logic (Instant Execution Engine)
 // ============================================================
