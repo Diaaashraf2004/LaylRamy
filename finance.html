@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
@@ -7100,9 +7100,7 @@ async function handleSaveInvoice(skipConfirmation = true) {
 
     invoiceItems.forEach(item => {
         totalInvoiceCost += (item.costPrice * item.quantity);
-        if (!isInvoiceFromPending) {
-            quantitiesToDeduct[item.id || item.name] = (quantitiesToDeduct[item.id || item.name] || 0) + item.quantity;
-        }
+        quantitiesToDeduct[item.id || item.name] = (quantitiesToDeduct[item.id || item.name] || 0) + item.quantity;
     });
 
     if (isInvoiceFromPending && pendingSaleOriginData) {
@@ -14165,6 +14163,28 @@ if (pendingReceiptList) {
                  if (inv_phoneNumbersContainer) { inv_phoneNumbersContainer.addEventListener('click', function(event) { const button = event.target.closest('.remove-phone-btn'); if (button) { button.closest('.inv-phone-entry')?.remove(); } }); }
                  if (inv_addItemBtn) { inv_addItemBtn.addEventListener('click', inv_addInvoiceItem); }
                  if (inv_invoiceItemsBody) { inv_invoiceItemsBody.addEventListener('click', function(event) { const button = event.target.closest('.remove-item-btn'); if (button) { const row = button.closest('.invoice-item-row'); if(row) { // **** إعادة السيريال للحالة المتاحة عند حذف البند من الفاتورة ****
+    if (inv_invoiceItemsBody) {
+        inv_invoiceItemsBody.addEventListener('input', function(event) {
+            const input = event.target;
+            if (!input.classList.contains('row-qty-input') && !input.classList.contains('row-price-input')) return;
+            const row = input.closest('.invoice-item-row');
+            if (!row) return;
+            let qty = parseInt(row.querySelector('.row-qty-input')?.value) || 0;
+            let price = parseFloat(row.querySelector('.row-price-input')?.value) || 0;
+            if (qty < 1) qty = 1;
+            if (price < 0) price = 0;
+            const subtotal = qty * price;
+            row.dataset.itemQty = qty;
+            row.dataset.itemPrice = price.toFixed(2);
+            row.dataset.itemSubtotal = subtotal.toFixed(2);
+            const subtotalCell = row.querySelector('.item-subtotal');
+            if (subtotalCell) {
+                subtotalCell.textContent = (typeof formatCurrency === 'function') ? formatCurrency(subtotal) : subtotal.toFixed(2);
+            }
+            if (typeof inv_calculateTotals === 'function') inv_calculateTotals();
+            if (typeof inv_updateDeductibleCostsCheckboxes === 'function') inv_updateDeductibleCostsCheckboxes();
+        });
+    }
                      const removedSerial = row.dataset.itemSerial; if (removedSerial) { const serialIndex = serialNumbersLog.findIndex(log => log.serial === removedSerial); if (serialIndex !== -1 && serialNumbersLog[serialIndex].status === 'in_invoice_temp') { // تأكد أنه كان محجوزاً لهذه الفاتورة
                          serialNumbersLog[serialIndex].status = 'in_stock'; console.log(`Serial ${removedSerial} status reverted to 'in_stock' on item removal.`); } } row.remove(); inv_calculateTotals(); inv_updateDeductibleCostsCheckboxes(); } } }); }
                  if(inv_shippingCostInput) { inv_shippingCostInput.addEventListener('input', inv_calculateTotals); }
@@ -16593,7 +16613,7 @@ window.usm_applySelectionToOrigin = function() {
             
             // شحن حقول الفاتورة الخلفية صراحة لمنع الكراش
             document.getElementById('inv_customerName').value = customerName || 'عميل كاش';
-            if (document.getElementById('inv_shippingCost')) document.getElementById('inv_shippingCost').value = shippingCost.toFixed(2);
+            if (document.getElementById('inv_shippingCost')) document.getElementById('inv_shippingCost').value = (shippingCost + extraCharges).toFixed(2);
             if (document.getElementById('inv_payment_account')) document.getElementById('inv_payment_account').value = targetAccountId;
             if (document.getElementById('inv_markAsPending')) document.getElementById('inv_markAsPending').checked = isPending;
             if (document.getElementById('inv_notes') && extraCharges > 0) {
