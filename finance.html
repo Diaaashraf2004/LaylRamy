@@ -7055,7 +7055,21 @@ function updateGlobalState(account, amountToCollect, customerName, grandTotal, d
 }
 
 async function handleSaveInvoice(skipConfirmation = true) {
-    if (!inv_validateForm()) { return; }
+    const saveBtn = document.getElementById('inv_saveInvoiceBtn');
+    if (saveBtn && saveBtn.disabled) return;
+    if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.dataset.originalText = saveBtn.innerHTML;
+        saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الحفظ...';
+    }
+    const restoreSaveBtn = () => {
+        if (saveBtn) {
+            saveBtn.disabled = false;
+            if (saveBtn.dataset.originalText) saveBtn.innerHTML = saveBtn.dataset.originalText;
+        }
+    };
+
+    if (!inv_validateForm()) { restoreSaveBtn(); return; }
 
     const isPending = d('inv_markAsPending').checked; 
     const selectedAccountId = d('inv_payment_account').value;
@@ -7063,6 +7077,7 @@ async function handleSaveInvoice(skipConfirmation = true) {
 
     if (!isPending && !account) {
         showMessage(d('inv_validationError'), "يرجى اختيار حساب الإيداع.", true);
+        restoreSaveBtn();
         return;
     }
 
@@ -7147,6 +7162,7 @@ async function handleSaveInvoice(skipConfirmation = true) {
         window.showConfirmSaleModal(finalInvoiceProfit, () => {
             handleSaveInvoice(true);
         });
+        restoreSaveBtn();
         return;
     }
 
@@ -7162,6 +7178,10 @@ async function handleSaveInvoice(skipConfirmation = true) {
         if (Array.isArray(oldMainItems)) {
             oldItemsToReturn.push(...oldMainItems);
         }
+        // دعم لبيعات البيع السريع المعلقة التي تستخدم mainProduct
+        if (pendingSaleOriginData.mainProduct) {
+            oldItemsToReturn.push({ ...pendingSaleOriginData.mainProduct });
+        }
 
         // 🌟 2. إرجاع الأصناف والتكاليف الإضافية المستقطعة القديمة
         const oldExtraDeducted = (pendingSaleOriginData.invoiceData && pendingSaleOriginData.invoiceData.deductedItems) 
@@ -7169,6 +7189,10 @@ async function handleSaveInvoice(skipConfirmation = true) {
                                  : (pendingSaleOriginData.deductedItems || []);
         if (Array.isArray(oldExtraDeducted)) {
             oldItemsToReturn.push(...oldExtraDeducted);
+        }
+        // دعم لملحقات البيع السريع المعلقة
+        if (Array.isArray(pendingSaleOriginData.additionalItems)) {
+            oldItemsToReturn.push(...pendingSaleOriginData.additionalItems);
         }
         
         oldItemsToReturn = oldItemsToReturn.filter(Boolean);
@@ -7326,6 +7350,7 @@ async function handleSaveInvoice(skipConfirmation = true) {
     pendingSaleOriginData = null;
     updateUI();
     inv_closeModal();
+    restoreSaveBtn();
     window.showPostSaleModal('invoice', wasPending);
 }
             // (استكمالاً للجزء 8أ)
@@ -8226,8 +8251,13 @@ function displaySalesReport(salesToDisplay) {
                     <td class="text-center" style="font-family:monospace; color:#64748b;">${formatCurrency(costAmount)}</td>
                     <td class="text-center" style="font-family:monospace; font-weight:bold; color:${profitColor};">${formatCurrency(profitAmount)}</td>
                     <td class="text-center" style="display:flex; justify-content:center; align-items:center; gap:8px; height:100%; border:none;">
-                        <span class="badge ${badgeClass}">${typeName}</span>
-                        <button onclick="deleteSaleRecord('${sale.id}')" title="حذف الفاتورة نهائياً" style="background:none; border:none; color:#dc2626; cursor:pointer; padding:4px; border-radius:4px; transition: background 0.2s;" onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='none'">
+                        <button onclick="removeSaleFromReportOnly('${sale.id}')" title="حذف من العرض فقط (بدون التأثير على المخزون أو الحسابات)" style="background:none; border:none; color:#eab308; cursor:pointer; padding:4px; border-radius:4px; transition: background 0.2s;" onmouseover="this.style.background='#fef08a'" onmouseout="this.style.background='none'">
+                            <svg width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+                              <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
+                              <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+                            </svg>
+                        </button>
+                        <button onclick="deleteSaleRecord('${sale.id}')" title="حذف الفاتورة نهائياً وإرجاع البضاعة" style="background:none; border:none; color:#dc2626; cursor:pointer; padding:4px; border-radius:4px; transition: background 0.2s;" onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='none'">
                             <svg width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
                               <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
                               <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
@@ -8251,6 +8281,46 @@ function displaySalesReport(salesToDisplay) {
     if(profitCardValue) profitCardValue.style.color = totalMonthProfit >= 0 ? '#047857' : '#dc2626';
 }
 // =======================================================
+// 🗑️ دالة حذف الفاتورة من التقرير فقط (بدون التأثير على الأرصدة)
+window.removeSaleFromReportOnly = async function(saleId) {
+    if(!confirm("⚠️ سيتم حذف هذا السجل من العرض (السحابة والتقرير) ولن يتم تعديل المخزون أو الأرصدة.\nهل أنت متأكد؟")) return;
+
+    try {
+        if (window.db && window.currentUser) {
+            const uid = window.currentUser.uid;
+            try { await window.deleteDoc(window.doc(window.db, "users", uid, "salesToday", saleId)); } catch(e) {}
+            try { await window.deleteDoc(window.doc(window.db, "users", uid, "sales", saleId)); } catch(e) {}
+            try { await window.deleteDoc(window.doc(window.db, "users", uid, "invoices", saleId)); } catch(e) {}
+        }
+
+        if (typeof salesToday !== 'undefined') {
+            const idx = salesToday.findIndex(s => String(s.id) === String(saleId));
+            if (idx > -1) salesToday.splice(idx, 1);
+        }
+        if (typeof invoices !== 'undefined') {
+            const idx = invoices.findIndex(s => String(s.id) === String(saleId));
+            if (idx > -1) invoices.splice(idx, 1);
+        }
+        if (typeof allSales !== 'undefined') {
+            const idx = allSales.findIndex(s => String(s.id) === String(saleId));
+            if (idx > -1) allSales.splice(idx, 1);
+        }
+        if (typeof salesHistory !== 'undefined') {
+            const idx = salesHistory.findIndex(s => String(s.id) === String(saleId));
+            if (idx > -1) salesHistory.splice(idx, 1);
+        }
+        if (typeof currentMonthlySalesData !== 'undefined') {
+            const idx = currentMonthlySalesData.findIndex(s => String(s.id) === String(saleId));
+            if (idx > -1) currentMonthlySalesData.splice(idx, 1);
+        }
+
+        if (typeof saveData === 'function') await saveData();
+        if (typeof generateMonthlySalesReport === 'function') await generateMonthlySalesReport();
+        if (typeof showGlobalMessage === 'function') showGlobalMessage("تم حذف الفاتورة من العرض والسحابة بنجاح.");
+    } catch (error) {
+        console.error("خطأ أثناء الحذف العادي:", error);
+    }
+};
 
 // 🌟 دالة الحذف النهائي للفواتير من التقرير والسحابة
 window.deleteSaleRecord = async function(saleId) {
@@ -8276,6 +8346,9 @@ window.deleteSaleRecord = async function(saleId) {
         }
         if (!sale && typeof salesHistory !== 'undefined') {
             sale = salesHistory.find(s => String(s.id) === String(saleId));
+        }
+        if (!sale && typeof currentMonthlySalesData !== 'undefined') {
+            sale = currentMonthlySalesData.find(s => String(s.id) === String(saleId));
         }
 
         if (!sale) {
@@ -8401,6 +8474,10 @@ window.deleteSaleRecord = async function(saleId) {
         if (typeof salesHistory !== 'undefined') {
             const idx = salesHistory.findIndex(s => String(s.id) === String(saleId));
             if (idx > -1) salesHistory.splice(idx, 1);
+        }
+        if (typeof currentMonthlySalesData !== 'undefined') {
+            const idx = currentMonthlySalesData.findIndex(s => String(s.id) === String(saleId));
+            if (idx > -1) currentMonthlySalesData.splice(idx, 1);
         }
 
         // 5. حفظ البيانات
