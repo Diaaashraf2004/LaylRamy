@@ -10615,6 +10615,12 @@ async function pi_confirmPurchaseInvoice() {
             if (!item.duplicateResolution) {
                 const duplicate = products.find(p => p.name.toLowerCase() === item.name.toLowerCase());
                 if (duplicate) {
+                    // إذا كان المنتج موجوداً مسبقاً ولكن رصيده صفر، نقوم بدمجه تلقائياً بدون إزعاج المستخدم بالمودال
+                    if (Number(duplicate.quantity) <= 0) {
+                        item.duplicateResolution = 'merge';
+                        continue;
+                    }
+
                     window.lastPurchaseDuplicateID = duplicate.id || null; // 🆔 حفظ كود صنف المشتريات المكرر في الذاكرة
                     hasDuplicateInInvoice = true;
                     
