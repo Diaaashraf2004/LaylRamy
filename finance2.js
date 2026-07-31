@@ -542,7 +542,15 @@ async function executeTransaction() {
             if (typeof window.injectSaleToMain === 'function') window.injectSaleToMain(saleObj);
             
             if (typeof window.saveInvoiceToFirestore === 'function') {
-                try { await window.saveInvoiceToFirestore(saleObj); } catch(e) { }
+                try { 
+                    await window.saveInvoiceToFirestore(saleObj); 
+                } catch(e) { 
+                    console.error("🔥 خطأ خطير: فشل حفظ الفاتورة في السحابة!", e);
+                    if (typeof showGlobalMessage === 'function') {
+                        showGlobalMessage("⚠️ فشل رفع الفاتورة للسحابة! تحقق من اتصالك بالإنترنت.", true);
+                    }
+                    if (window.registerGlobalError) window.registerGlobalError(e, "فشل حفظ الفاتورة: " + saleObj.id);
+                }
             }
         }
 

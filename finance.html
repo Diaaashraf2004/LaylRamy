@@ -5,6 +5,36 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <title>برنامج إدارة البضائع والمخزون والفواتير (drashraf) - مُعدل</title>
+    <!-- Global Error Tracker (Black Box) -->
+    <script>
+        window.errorLog = [];
+        window.registerGlobalError = function(error, contextMessage = "") {
+            const errObj = {
+                time: new Date().toLocaleTimeString('ar-EG'),
+                message: error ? (error.message || error.toString()) : "خطأ غير معروف",
+                context: contextMessage,
+                stack: error ? (error.stack || "") : ""
+            };
+            window.errorLog.unshift(errObj);
+            console.error("🔥 Global Error Registered:", errObj);
+            
+            const toast = document.getElementById('global-error-toast');
+            if (toast) {
+                toast.classList.remove('hidden');
+            } else {
+                alert("⚠️ حدث خطأ خلف الكواليس: " + contextMessage);
+            }
+        };
+
+        window.onerror = function(msg, url, lineNo, columnNo, error) {
+            window.registerGlobalError(error || msg, "خطأ برمجي غير متوقع");
+            return false;
+        };
+
+        window.addEventListener('unhandledrejection', function(event) {
+            window.registerGlobalError(event.reason, "فشل في عملية سحابية أو شبكة");
+        });
+    </script>
     <meta name="description" content="برنامج ويب لإدارة المخزون، المبيعات، الموردين، السيولة، الديون، الالتزامات، وحساب رأس المال مع تقارير، بحث فواتير، وترحيل أرصدة تلقائي عند بدء يوم جديد. يتضمن تتبع الأرقام التسلسلية وإدارتها للمخزون الحالي مع بحث داخلي. تطوير ضياء أشرف (drashraf). يشمل بحث وتصفيات للمبيعات المؤقتة وإمكانية تعديل السيولة يدوياً.">
     <meta name="keywords" content="إدارة بضائع, مخزون, موردين, سيولة, ديون, التزامات, مقاصة, تقرير مبيعات, بحث فاتورة, ترحيل أرصدة, ترحيل تلقائي, تعديل, حذف, سبب الدين, برنامج, drashraf, ضياء أشرف, فاتورة, بيع مؤقت, بحث بيع مؤقت, رقم تسلسلي, سيريال, بحث سيريال, استيراد CSV, ربط سيريال بالفاتورة, إدارة سيريالات, بحث داخلي, تعديل السيولة, supplier, invoice, inventory, management, offsetting, sales report, invoice search, carry forward, auto carry forward, edit, delete, debt reason, pending sale, filter pending sales, deduct cost, serial number tracking, serial search, csv import, invoice serial link, manage serials, filter serials, adjust liquidity">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -8879,8 +8909,8 @@ window.removeSaleFromReportOnly = async function(saleId) {
     try {
         if (window.db && window.currentUser) {
             const uid = window.currentUser.uid;
-            try { await window.deleteDoc(window.doc(window.db, "users", uid, "salesToday", saleId)); } catch(e) {}
-            try { await window.deleteDoc(window.doc(window.db, "users", uid, "sales", saleId)); } catch(e) {}
+            try { await window.deleteDoc(window.doc(window.db, "users", uid, "salesToday", saleId)); } catch(e) { if(window.registerGlobalError) window.registerGlobalError(e, "فشل حذف المبيعات اليومية"); }
+            try { await window.deleteDoc(window.doc(window.db, "users", uid, "sales", saleId)); } catch(e) { if(window.registerGlobalError) window.registerGlobalError(e, "فشل حذف المبيعات من السحابة"); }
             try { 
                 await window.deleteDoc(window.doc(window.db, "users", uid, "invoices", saleId)); 
             } catch(e) {
@@ -9061,7 +9091,7 @@ window.deleteSaleRecord = async function(saleId) {
             const uid = window.currentUser.uid;
             
             // محاولة الحذف من كوليكشن المبيعات
-            try { await window.deleteDoc(window.doc(window.db, "users", uid, "sales", saleId)); } catch(e) {}
+            try { await window.deleteDoc(window.doc(window.db, "users", uid, "sales", saleId)); } catch(e) { if(window.registerGlobalError) window.registerGlobalError(e, "فشل حذف المبيعات من السحابة"); }
             
             // محاولة الحذف من كوليكشن الفواتير
             try { 
@@ -18264,6 +18294,57 @@ if (invoiceModalEl) {
 
 </div>
 
+    <!-- Global Error Toast -->
+    <div id="global-error-toast" class="hidden fixed bottom-4 right-4 bg-red-600 text-white px-4 py-3 rounded-xl shadow-2xl z-50 flex items-center gap-3 animate-bounce">
+        <i class="fas fa-exclamation-triangle text-xl"></i>
+        <div>
+            <p class="font-bold text-sm">⚠️ خطأ خلف الكواليس!</p>
+            <p class="text-xs opacity-90">النظام التقط خطأ. <button onclick="showGlobalErrorLog()" class="underline font-bold text-yellow-200">اعرض التفاصيل</button></p>
+        </div>
+        <button onclick="document.getElementById('global-error-toast').classList.add('hidden')" class="ml-2 text-red-200 hover:text-white">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+
+    <!-- Global Error Log Modal -->
+    <div id="global-error-modal" class="hidden fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div class="bg-red-50 p-4 border-b border-red-100 flex justify-between items-center">
+                <h3 class="text-red-700 font-bold text-lg"><i class="fas fa-bug ml-2"></i> صندوق الأخطاء (Black Box)</h3>
+                <button onclick="document.getElementById('global-error-modal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            <div class="p-4 overflow-y-auto flex-1 bg-slate-50" id="global-error-list">
+                <!-- Errors will be populated here -->
+            </div>
+            <div class="p-4 border-t border-slate-200 flex justify-end gap-3 bg-white">
+                <button onclick="window.errorLog = []; document.getElementById('global-error-list').innerHTML = '<p class=\'text-center text-slate-400 my-8\'>لا يوجد أخطاء مسجلة حالياً</p>';" class="px-4 py-2 bg-slate-200 text-slate-700 rounded-xl hover:bg-slate-300 font-medium transition-colors">مسح السجل</button>
+                <button onclick="document.getElementById('global-error-modal').classList.add('hidden')" class="px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 font-bold shadow-sm transition-colors">إغلاق</button>
+            </div>
+        </div>
+    </div>
+    <script>
+        function showGlobalErrorLog() {
+            document.getElementById('global-error-toast').classList.add('hidden');
+            const list = document.getElementById('global-error-list');
+            if (window.errorLog.length === 0) {
+                list.innerHTML = '<p class="text-center text-slate-400 my-8">لا يوجد أخطاء مسجلة حالياً</p>';
+            } else {
+                list.innerHTML = window.errorLog.map(err => `
+                    <div class="mb-4 bg-white p-4 rounded-xl shadow-sm border border-red-100 border-r-4 border-r-red-500">
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-md font-mono">${err.time}</span>
+                            <span class="text-sm font-bold text-slate-700">${err.context}</span>
+                        </div>
+                        <p class="text-sm text-red-600 font-mono mb-2 p-2 bg-red-50 rounded-lg break-words" dir="ltr">${err.message}</p>
+                        ${err.stack ? `<pre class="text-xs text-slate-500 bg-slate-100 p-2 rounded overflow-x-auto" dir="ltr">${err.stack}</pre>` : ''}
+                    </div>
+                `).join('');
+            }
+            document.getElementById('global-error-modal').classList.remove('hidden');
+        }
+    </script>
 </body>
     </html>
     
