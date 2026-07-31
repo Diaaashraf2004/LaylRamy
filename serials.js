@@ -74,6 +74,25 @@
                 const data = snap.data();
                 standaloneSerials = data.data || [];
                 serialsOperationLog = data.log || [];
+                
+                // Retroactively recover exact date/time from memory for old serials
+                let migrated = false;
+                standaloneSerials.forEach(item => {
+                    if (!item.addedTimestamp) {
+                        const origLog = (window.serialNumbersLog || []).find(s => s.serial === item.serial);
+                        if (origLog && origLog.addedTimestamp) {
+                            const ts = new Date(origLog.addedTimestamp).getTime();
+                            if (!isNaN(ts)) {
+                                item.addedTimestamp = ts;
+                                migrated = true;
+                            }
+                        }
+                    }
+                });
+                if (migrated) {
+                    saveDataToFirebase();
+                }
+                
             } else {
                 standaloneSerials = [];
                 serialsOperationLog = [];
@@ -458,6 +477,14 @@
         }
     };
 
+    function formatRegistrationDate(log) {
+        if (!log.addedTimestamp) return "تاريخ غير معروف";
+        const d = new Date(log.addedTimestamp);
+        const dateStr = d.toLocaleDateString('ar-EG');
+        const timeStr = d.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+        return `${dateStr} ${timeStr}`;
+    }
+
     function renderSerialsTable() {
         if (!Array.isArray(standaloneSerials) || standaloneSerials.length === 0) {
             tableBody.innerHTML = '<tr><td colspan="9" class="text-center py-12 text-slate-400"><i class="fas fa-folder-open text-4xl mb-3"></i><p>لا يوجد سيريالات مسجلة حالياً.</p></td></tr>';
@@ -588,7 +615,8 @@
                         <input type="checkbox" class="serial-row-checkbox w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer" value="${log.serial}">
                     </td>
                     <td class="px-4 py-3">
-                        <div class="font-bold text-slate-800 font-mono">${log.serial}</div>
+                        <div class="font-bold text-slate-800 font-mono text-base">${log.serial}</div>
+                        <div class="text-[11px] text-slate-500 mt-1 font-medium" title="تاريخ التسجيل"><i class="fas fa-clock text-slate-400"></i> ${formatRegistrationDate(log)}</div>
                     </td>
                     <td class="px-4 py-3">
                         <div class="font-bold text-slate-700 text-sm">${log.productName || '-'}</div>
