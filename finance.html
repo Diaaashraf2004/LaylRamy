@@ -3945,7 +3945,8 @@ function createStateSnapshot() {
         pendingReturns: JSON.parse(JSON.stringify(pendingReturns)),
         // 🌟 السطر الجديد: أخذ لقطة من الفواتير المعلقة لنظام الاستبدال
         pendingOrders: JSON.parse(JSON.stringify(window.pendingOrders || [])),
-        standaloneSerials: typeof window.getStandaloneSerials === 'function' ? JSON.parse(JSON.stringify(window.getStandaloneSerials())) : []
+        standaloneSerials: typeof window.getStandaloneSerials === 'function' ? JSON.parse(JSON.stringify(window.getStandaloneSerials())) : [],
+        serialsOperationLog: typeof window.getSerialsOperationLog === 'function' ? JSON.parse(JSON.stringify(window.getSerialsOperationLog())) : []
     };
 }
 
@@ -4066,6 +4067,9 @@ function loadStateFromSnapshot(snapshot) {
     if (typeof window.setStandaloneSerials === 'function') {
         window.setStandaloneSerials(snapshot.standaloneSerials || []);
     }
+    if (typeof window.setSerialsOperationLog === 'function') {
+        window.setSerialsOperationLog(snapshot.serialsOperationLog || []);
+    }
 }
 function saveStateToHistory() {
     // هذه هي الدالة الرئيسية التي سنستدعيها قبل كل إجراء
@@ -4081,17 +4085,43 @@ function saveStateToHistory() {
     if (undoBtn) undoBtn.disabled = false;
     if (redoBtn) redoBtn.disabled = true;
 
+    document.querySelectorAll('.local-undo-btn').forEach(btn => {
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        btn.style.cursor = 'pointer';
+    });
+    document.querySelectorAll('.local-redo-btn').forEach(btn => {
+        btn.disabled = true;
+        btn.style.opacity = '0.5';
+        btn.style.cursor = 'not-allowed';
+    });
+
     // اختياري: وضع حد لذاكرة التراجع لمنع استهلاك ذاكرة كبير جدًا
     if (stateHistory.length > 50) {
         stateHistory.shift(); // إزالة أقدم عنصر
     }
 }
+window.saveStateToHistory = saveStateToHistory; // expose globally for serials.js
 function updateUndoRedoButtons() {
     // تحديث حالة أزرار التراجع والإعادة
     const undoBtn = d('undo-button');
     const redoBtn = d('redo-button');
-    if (undoBtn) undoBtn.disabled = stateHistory.length === 0;
-    if (redoBtn) redoBtn.disabled = redoHistory.length === 0;
+    const noUndo = stateHistory.length === 0;
+    const noRedo = redoHistory.length === 0;
+
+    if (undoBtn) undoBtn.disabled = noUndo;
+    if (redoBtn) redoBtn.disabled = noRedo;
+
+    document.querySelectorAll('.local-undo-btn').forEach(btn => {
+        btn.disabled = noUndo;
+        btn.style.opacity = noUndo ? '0.5' : '1';
+        btn.style.cursor = noUndo ? 'not-allowed' : 'pointer';
+    });
+    document.querySelectorAll('.local-redo-btn').forEach(btn => {
+        btn.disabled = noRedo;
+        btn.style.opacity = noRedo ? '0.5' : '1';
+        btn.style.cursor = noRedo ? 'not-allowed' : 'pointer';
+    });
 }
 // ==========================================
 // 1. دالة التراجع الذكية (Super Undo)
@@ -12709,8 +12739,10 @@ if (fc_main_tabs) {
 
 
 if (d('undo-button')) { d('undo-button').addEventListener('click', undo); }
+window.undo = undo; // expose globally for onclick buttons in other sections (serials)
 
 if (d('redo-button')) { d('redo-button').addEventListener('click', redo); }
+window.redo = redo; // expose globally for onclick buttons in other sections (serials)
 
                if (saveButtonAlt) {
 
@@ -18147,7 +18179,7 @@ if (invoiceModalEl) {
     <section id="serials-tracker-section" class="widget-card content-section hidden">
         <div class="flex flex-col gap-6">
             <!-- Header -->
-            <div class="bg-white px-6 py-5 rounded-2xl border border-slate-200 flex justify-between items-center shadow-sm">
+            <div class="bg-white px-6 py-5 rounded-2xl border border-slate-200 flex flex-col sm:flex-row justify-between items-center shadow-sm gap-4">
                 <div class="flex items-center gap-3">
                     <div class="w-12 h-12 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 text-xl font-bold">
                         <i class="fas fa-barcode"></i>
@@ -18156,6 +18188,41 @@ if (invoiceModalEl) {
                         <h1 class="text-xl sm:text-2xl font-black text-slate-800 tracking-tight m-0">إدارة وتتبع السيريالات</h1>
                         <p class="text-xs sm:text-sm text-slate-500 font-medium mt-0.5 m-0">سجل شامل لكل جهاز وحالته (الفحص، البطارية، المتابعة، البيع)</p>
                     </div>
+                </div>
+                <!-- Local Undo/Redo Controls & Log -->
+                <div class="flex items-center gap-2 flex-wrap justify-end">
+                    <button id="serials-log-toggle" class="px-4 py-2 bg-indigo-100 text-indigo-700 hover:bg-indigo-200 font-bold rounded-xl shadow-sm transition-colors flex items-center gap-2" title="سجل العمليات">
+                        <i class="fas fa-list-alt"></i> <span class="hidden sm:inline">سجل العمليات</span>
+                    </button>
+                    <button onclick="console.log('Local Undo Clicked'); if(typeof undo === 'function') undo(); else console.error('undo function not found!');" class="local-undo-btn px-4 py-2 bg-orange-100 text-orange-700 hover:bg-orange-200 font-bold rounded-xl shadow-sm transition-colors flex items-center gap-2" style="opacity: 0.5; cursor: not-allowed;" disabled title="تراجع خطوة">
+                        <i class="fas fa-undo"></i> <span>تراجع</span>
+                    </button>
+                    <button onclick="console.log('Local Redo Clicked'); if(typeof redo === 'function') redo(); else console.error('redo function not found!');" class="local-redo-btn px-4 py-2 bg-yellow-100 text-yellow-700 hover:bg-yellow-200 font-bold rounded-xl shadow-sm transition-colors flex items-center gap-2" style="opacity: 0.5; cursor: not-allowed;" disabled title="إعادة خطوة">
+                        <i class="fas fa-redo"></i> <span>إعادة</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Serials Log Section (Hidden by default) -->
+            <div id="serials-log-container" class="hidden bg-white p-5 rounded-2xl border border-indigo-100 shadow-sm mb-2">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-md font-bold text-indigo-800 flex items-center gap-2"><i class="fas fa-history"></i> سجل حركات السيريالات</h3>
+                    <button id="serials-log-close" class="text-slate-400 hover:text-rose-500 transition-colors"><i class="fas fa-times text-xl"></i></button>
+                </div>
+                <div class="overflow-x-auto rounded-xl border border-slate-200 max-h-80 overflow-y-auto">
+                    <table class="w-full text-right text-sm whitespace-nowrap">
+                        <thead class="bg-indigo-50 text-indigo-700 font-bold sticky top-0">
+                            <tr>
+                                <th class="px-4 py-3 border-b border-indigo-100">التاريخ والوقت</th>
+                                <th class="px-4 py-3 border-b border-indigo-100">السيريال</th>
+                                <th class="px-4 py-3 border-b border-indigo-100">الإجراء</th>
+                                <th class="px-4 py-3 border-b border-indigo-100 w-1/2">التفاصيل</th>
+                            </tr>
+                        </thead>
+                        <tbody id="serials-log-table-body" class="divide-y divide-slate-100 text-slate-600 font-medium">
+                            <!-- Logs will be injected here -->
+                        </tbody>
+                    </table>
                 </div>
             </div>
 
