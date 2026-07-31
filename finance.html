@@ -9,6 +9,81 @@
     <meta name="keywords" content="إدارة بضائع, مخزون, موردين, سيولة, ديون, التزامات, مقاصة, تقرير مبيعات, بحث فاتورة, ترحيل أرصدة, ترحيل تلقائي, تعديل, حذف, سبب الدين, برنامج, drashraf, ضياء أشرف, فاتورة, بيع مؤقت, بحث بيع مؤقت, رقم تسلسلي, سيريال, بحث سيريال, استيراد CSV, ربط سيريال بالفاتورة, إدارة سيريالات, بحث داخلي, تعديل السيولة, supplier, invoice, inventory, management, offsetting, sales report, invoice search, carry forward, auto carry forward, edit, delete, debt reason, pending sale, filter pending sales, deduct cost, serial number tracking, serial search, csv import, invoice serial link, manage serials, filter serials, adjust liquidity">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            corePlugins: {
+                preflight: false,
+            },
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Cairo', 'sans-serif'],
+                        mono: ['Inter', 'monospace'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#f0f7ff',
+                            100: '#e0effe',
+                            500: '#2563eb',
+                            600: '#1d4ed8',
+                            700: '#1e40af',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Custom Scrollbar for log section */
+        #log-section ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        #log-section ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        #log-section ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        #log-section ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        .card-shadow {
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05);
+        }
+        
+        .hover-card-shadow {
+            transition: all 0.2s ease-in-out;
+        }
+        .hover-card-shadow:hover {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
+            transform: translateY(-1px);
+        }
+
+        /* Modal Overlay Transition */
+        .modal-fade {
+            transition: opacity 0.2s ease-in-out;
+        }
+        
+        /* Scoped reset for buttons in log section since preflight is false */
+        #log-section button, .modal-fade button {
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        
+        /* Fix for Tailwind flex gap with RTL in some older webkits, just in case */
+        #log-section, .modal-fade {
+            font-family: 'Cairo', sans-serif;
+        }
+    </style>
     <style>
     /* === تصميم تقرير المبيعات الجديد === */
 .report-grid {
@@ -1123,6 +1198,8 @@ input:checked:active + .slider:before {
         @media (min-width: 1024px){.lg\:grid-cols-3{grid-template-columns:repeat(3, minmax(0, 1fr))}.lg\:grid-cols-4{grid-template-columns:repeat(4, minmax(0, 1fr))}}
     </style>
     <link rel="stylesheet" href="finance2.css">
+    <!-- Serials Tracker CSS -->
+    <link rel="stylesheet" href="serials.css">
 </head><body class="p-6">
 <div id="auth-container" class="widget-card" style="max-width: 400px; margin: 5% auto;">
     <h2 id="auth-title">تسجيل الدخول</h2>
@@ -1151,6 +1228,7 @@ input:checked:active + .slider:before {
             <button class="nav-button active" data-target="summary-section">الملخص</button>
             <button class="nav-button" data-target="inventory-section">المخزون والإضافة</button>
             <button class="nav-button" data-target="suppliers-section">الموردين والبحث التسلسلي</button>
+            <button class="nav-button font-bold py-2 px-4 rounded transition shadow-sm" style="background-color: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd;" data-target="serials-tracker-section">إدارة السيريالات 🔢</button>
             <button class="nav-button" data-target="purchases-section">إدارة المشتريات</button>
             <button class="nav-button" data-target="returns-section">إدارة المرتجعات</button>
             <button class="nav-button" data-target="sell-product">بيع بضاعة / فاتورة</button>
@@ -2334,16 +2412,284 @@ input:checked:active + .slider:before {
         </div>
     </div>
 </section>
-            <section id="log-section" class="widget-card content-section hidden">
-                <h2>سجل العمليات العام (لليوم الحالي)</h2>
-                <div class="flex justify-between items-center mb-4 flex-wrap gap-2">
-                    <span class="text-sm text-gray-600">يعرض هذا السجل العمليات التي تمت في الجلسة الحالية للبيانات المعروضة.</span>
-                    <button id="clear-log-button" class="text-xs bg-gray-200 hover:bg-gray-300 text-gray-600 font-bold py-1 px-2 rounded flex-shrink-0">مسح سجل اليوم المعروض</button>
+            <section id="log-section" class="widget-card content-section hidden" style="background-color: #f8fafc; padding: 1.25rem;">
+                <div class="max-w-7xl mx-auto space-y-5">
+
+                    <!-- Page Header Bar -->
+                    <div class="bg-white rounded-2xl p-5 border border-slate-200/80 card-shadow flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div class="flex items-center gap-3.5">
+                            <div class="w-12 h-12 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 text-xl font-bold">
+                                <i class="fas fa-history"></i>
+                            </div>
+                            <div>
+                                <div class="flex items-center gap-2">
+                                    <h1 class="text-xl sm:text-2xl font-black text-slate-800 tracking-tight m-0">سجل العمليات العام</h1>
+                                    <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/80 inline-flex items-center gap-1.5">
+                                        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                        الجلسة الحالية
+                                    </span>
+                                </div>
+                                <p class="text-xs sm:text-sm text-slate-500 font-medium mt-0.5 m-0">تتبع زمني متسلسل لكافة الحركات المالية وتغييرات المخزون والترحيل</p>
+                            </div>
+                        </div>
+
+                        <!-- Action Control Buttons -->
+                        <div class="flex items-center gap-2 w-full md:w-auto justify-end flex-wrap">
+                            <button onclick="exportCSVLog()" class="text-xs bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold py-2.5 px-3.5 rounded-xl border border-slate-200 transition-all flex items-center gap-2">
+                                <i class="fas fa-file-excel text-emerald-600"></i>
+                                <span>تصدير CSV</span>
+                            </button>
+                            <button onclick="window.print()" class="text-xs bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold py-2.5 px-3.5 rounded-xl border border-slate-200 transition-all flex items-center gap-2">
+                                <i class="fas fa-print text-blue-600"></i>
+                                <span>طباعة السجل</span>
+                            </button>
+                            <button onclick="openClearLogModal()" class="text-xs bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold py-2.5 px-3.5 rounded-xl border border-rose-200/80 transition-all flex items-center gap-2">
+                                <i class="fas fa-trash-alt"></i>
+                                <span>مسح السجل</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- KPI Summary Cards -->
+                    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                        
+                        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 card-shadow hover-card-shadow">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <span class="text-xs font-semibold text-slate-500">إجمالي الحركات</span>
+                                    <h3 id="stat-total" class="text-2xl font-bold font-mono text-slate-800 mt-1 m-0">0</h3>
+                                </div>
+                                <span class="w-9 h-9 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center text-sm">
+                                    <i class="fas fa-list-check"></i>
+                                </span>
+                            </div>
+                            <div class="mt-3 text-[11px] text-slate-400 font-medium flex items-center gap-1">
+                                <i class="fas fa-check-circle text-blue-500"></i>
+                                <span>موثقة تلقائياً بالنظام</span>
+                            </div>
+                        </div>
+
+                        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 card-shadow hover-card-shadow">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <span class="text-xs font-semibold text-slate-500">المبيعات والإيرادات</span>
+                                    <h3 id="stat-sales" class="text-2xl font-bold font-mono text-emerald-600 mt-1 m-0">0</h3>
+                                </div>
+                                <span class="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-sm border border-emerald-100">
+                                    <i class="fas fa-shopping-cart"></i>
+                                </span>
+                            </div>
+                            <div class="mt-3 text-[11px] text-emerald-600 font-medium flex items-center gap-1">
+                                <i class="fas fa-arrow-trend-up"></i>
+                                <span>عمليات المبيعات النشطة</span>
+                            </div>
+                        </div>
+
+                        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 card-shadow hover-card-shadow">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <span class="text-xs font-semibold text-slate-500">الديون والموردين</span>
+                                    <h3 id="stat-debts" class="text-2xl font-bold font-mono text-indigo-600 mt-1 m-0">0</h3>
+                                </div>
+                                <span class="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-sm border border-indigo-100">
+                                    <i class="fas fa-handshake"></i>
+                                </span>
+                            </div>
+                            <div class="mt-3 text-[11px] text-slate-400 font-medium flex items-center gap-1">
+                                <i class="fas fa-vault text-indigo-500"></i>
+                                <span>حركات حسابات خارجية</span>
+                            </div>
+                        </div>
+
+                        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 card-shadow hover-card-shadow">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <span class="text-xs font-semibold text-slate-500">المصروفات والسحوبات</span>
+                                    <h3 id="stat-expenses" class="text-2xl font-bold font-mono text-amber-600 mt-1 m-0">0</h3>
+                                </div>
+                                <span class="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-sm border border-amber-100">
+                                    <i class="fas fa-minus-circle"></i>
+                                </span>
+                            </div>
+                            <div class="mt-3 text-[11px] text-slate-400 font-medium flex items-center gap-1">
+                                <i class="fas fa-shield-alt text-amber-500"></i>
+                                <span>سحوبات وخارج</span>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- Filter and Search Bar -->
+                    <div class="bg-white rounded-2xl p-4 border border-slate-200/80 card-shadow space-y-3.5">
+                        <div class="flex flex-col md:flex-row gap-3 items-center justify-between">
+                            
+                            <!-- Search Box -->
+                            <div class="relative w-full md:w-2/3">
+                                <span class="absolute inset-y-0 right-0 flex items-center pr-3.5 pointer-events-none text-slate-400">
+                                    <i class="fas fa-search text-sm"></i>
+                                </span>
+                                <input type="text" id="log-search-input2" onkeyup="updateLogDisplay()" placeholder="ابحث بالنص، المبالغ، الحسابات، أو التفاصيل..." class="w-full pl-9 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all">
+                                <button id="clear-search-btn" onclick="document.getElementById('log-search-input2').value=''; updateLogDisplay();" class="hidden absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 hover:text-slate-600">
+                                    <i class="fas fa-times-circle text-xs"></i>
+                                </button>
+                            </div>
+
+                        </div>
+
+                        <!-- Filter Category Tabs -->
+                        <div class="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs border-t border-slate-100 pt-3">
+                            <span class="text-slate-400 font-bold pl-2 flex-shrink-0">التصنيف:</span>
+                            
+                            <button onclick="setLogCategory('all')" id="cat-all" class="cat-tab active px-3.5 py-2 rounded-xl font-bold bg-blue-600 text-white flex items-center gap-1.5 transition-all flex-shrink-0 shadow-sm">
+                                <span>⚡ الكل</span>
+                                <span id="badge-all" class="bg-white/20 text-white px-1.5 py-0.5 rounded-md text-[10px] font-mono">0</span>
+                            </button>
+
+                            <button onclick="setLogCategory('بيع')" id="cat-sale" class="cat-tab px-3.5 py-2 rounded-xl font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200/70 flex items-center gap-1.5 transition-all flex-shrink-0">
+                                <i class="fas fa-shopping-cart text-emerald-600 text-[11px]"></i>
+                                <span>المبيعات</span>
+                                <span id="badge-sale" class="bg-slate-200/80 text-slate-600 px-1.5 py-0.5 rounded-md text-[10px] font-mono">0</span>
+                            </button>
+
+                            <button onclick="setLogCategory('مصروف')" id="cat-expense" class="cat-tab px-3.5 py-2 rounded-xl font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200/70 flex items-center gap-1.5 transition-all flex-shrink-0">
+                                <i class="fas fa-minus-circle text-rose-600 text-[11px]"></i>
+                                <span>المصروفات</span>
+                                <span id="badge-expense" class="bg-slate-200/80 text-slate-600 px-1.5 py-0.5 rounded-md text-[10px] font-mono">0</span>
+                            </button>
+
+                            <button onclick="setLogCategory('دين')" id="cat-debt" class="cat-tab px-3.5 py-2 rounded-xl font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200/70 flex items-center gap-1.5 transition-all flex-shrink-0">
+                                <i class="fas fa-handshake text-orange-600 text-[11px]"></i>
+                                <span>الديون</span>
+                                <span id="badge-debt" class="bg-slate-200/80 text-slate-600 px-1.5 py-0.5 rounded-md text-[10px] font-mono">0</span>
+                            </button>
+
+                            <button onclick="setLogCategory('إضافة')" id="cat-add" class="cat-tab px-3.5 py-2 rounded-xl font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200/70 flex items-center gap-1.5 transition-all flex-shrink-0">
+                                <i class="fas fa-gear text-blue-600 text-[11px]"></i>
+                                <span>إضافات النظام</span>
+                                <span id="badge-add" class="bg-slate-200/80 text-slate-600 px-1.5 py-0.5 rounded-md text-[10px] font-mono">0</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Main Table Container -->
+                    <div class="bg-white rounded-2xl border border-slate-200/80 card-shadow overflow-hidden">
+                        
+                        <div class="overflow-x-auto max-h-[60vh]">
+                            <table class="w-full text-sm text-right text-slate-700 border-collapse">
+                                <thead class="text-xs uppercase bg-slate-100/80 text-slate-500 sticky top-0 backdrop-blur-md z-10 border-b border-slate-200">
+                                    <tr>
+                                        <th class="px-4 py-3.5 text-center w-12 font-bold">#</th>
+                                        <th class="px-4 py-3.5 font-bold w-48">الوقت والتاريخ</th>
+                                        <th class="px-4 py-3.5 font-bold w-52">نوع العملية</th>
+                                        <th class="px-4 py-3.5 font-bold">البيان والتفاصيل</th>
+                                        <th class="px-4 py-3.5 text-center font-bold w-24">معاينة</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="operation-log-table-body" class="divide-y divide-slate-100 bg-white">
+                                    <!-- Dynamic Rows Rendered Here -->
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Empty State Container -->
+                        <div id="empty-state" class="hidden p-12 text-center">
+                            <div class="w-16 h-16 bg-slate-100 text-slate-400 rounded-2xl flex items-center justify-center mx-auto mb-3 text-2xl">
+                                <i class="fas fa-inbox"></i>
+                            </div>
+                            <h3 class="text-base font-bold text-slate-700 m-0">لا توجد عمليات مسجلة</h3>
+                            <p class="text-xs text-slate-400 mt-1 m-0">لم يتم العثور على حركات تطابق كلمات البحث أو التصنيف المحدد.</p>
+                        </div>
+
+                        <!-- Notification Message Banner -->
+                        <div id="status-banner" class="hidden px-4 py-2.5 text-xs font-semibold text-center transition-all"></div>
+
+                    </div>
+
+                    <!-- Footer Counter Info -->
+                    <div class="bg-white rounded-2xl p-3 px-4 border border-slate-200/80 card-shadow flex flex-col sm:flex-row justify-between items-center text-xs text-slate-500 gap-2">
+                        <div class="flex items-center gap-2">
+                            <span>عرض <strong id="visible-count" class="text-blue-600 font-mono">0</strong> من إجمالي <strong id="total-count" class="text-slate-800 font-mono">0</strong> حركة مسجلة</span>
+                        </div>
+                        <div class="flex items-center gap-2 text-slate-400">
+                            <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                            <span>النظام يعمل ويحدث السجل لحظياً</span>
+                        </div>
+                    </div>
+
                 </div>
-                <ul id="operation-log-list" class="list-disc pl-5 space-y-2">
-                    <li class="text-center text-gray-500 list-none">لا توجد عمليات مسجلة بعد.</li>
-                </ul>
-            </section><div id="invoiceModal" class="invoice-modal modal">
+            </section>
+
+            <!-- Transaction Detail Modal -->
+            <div id="detail-modal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 hidden modal-fade flex items-center justify-center p-4">
+                <div class="bg-white rounded-2xl max-w-lg w-full border border-slate-200 shadow-2xl overflow-hidden transform transition-all">
+                    <!-- Modal Header -->
+                    <div class="p-4 px-5 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+                        <div class="flex items-center gap-2.5">
+                            <span id="modal-type-icon" class="w-8 h-8 rounded-xl flex items-center justify-center text-sm font-bold"></span>
+                            <div>
+                                <h3 class="font-bold text-slate-800 text-base m-0">تفاصيل الحركة</h3>
+                                <p class="text-xs text-slate-400 font-mono m-0" id="modal-ref-id">#000</p>
+                            </div>
+                        </div>
+                        <button onclick="closeDetailModal()" class="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 flex items-center justify-center transition-all">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+
+                    <!-- Modal Body -->
+                    <div class="p-5 space-y-4 text-sm">
+                        <div class="p-3 bg-slate-50 rounded-xl border border-slate-200/80 space-y-2">
+                            <div class="flex justify-between items-center text-xs text-slate-500">
+                                <span>التاريخ والوقت:</span>
+                                <span id="modal-time" class="font-mono font-semibold text-slate-700"></span>
+                            </div>
+                            <div class="flex justify-between items-center text-xs text-slate-500">
+                                <span>تصنيف الحركة:</span>
+                                <span id="modal-badge"></span>
+                            </div>
+                        </div>
+
+                        <div>
+                            <span class="text-xs text-slate-500 font-bold block mb-1.5">البيان والتفاصيل الكاملة</span>
+                            <div id="modal-details" class="p-4 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 leading-relaxed font-semibold text-sm">
+                            </div>
+                        </div>
+
+                        <div class="p-3 bg-blue-50 border border-blue-100 rounded-xl text-xs text-blue-700 leading-relaxed flex items-start gap-2">
+                            <i class="fas fa-info-circle text-blue-500 text-sm mt-0.5"></i>
+                            <span>تم توثيق هذه الحركة تلقائياً عبر النظام المحاسبي لضمان الترحيل الدقيق للميزانية.</span>
+                        </div>
+                    </div>
+
+                    <!-- Modal Footer -->
+                    <div class="p-3 bg-slate-50 border-t border-slate-200 flex justify-end">
+                        <button onclick="closeDetailModal()" class="bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs py-2 px-5 rounded-xl transition-all">
+                            إغلاق
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Clear Log Confirmation Modal -->
+            <div id="clear-modal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 hidden modal-fade flex items-center justify-center p-4">
+                <div class="bg-white rounded-2xl max-w-sm w-full border border-slate-200 shadow-2xl p-5 text-center space-y-4">
+                    <div class="w-12 h-12 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center mx-auto text-xl">
+                        <i class="fas fa-triangle-exclamation"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-bold text-slate-800 m-0">مسح كافة سجلات العمليات؟</h3>
+                        <p class="text-xs text-slate-500 mt-1 m-0">سيتم تفريغ السجل الحالي بالكامل. لا يمكن التراجع عن هذا الإجراء.</p>
+                    </div>
+                    <div class="flex items-center gap-2 pt-2">
+                        <button onclick="clearLogConfirm()" class="flex-1 bg-rose-600 hover:bg-rose-700 text-white font-bold py-2.5 text-xs rounded-xl transition-all">
+                            نعم، مسح السجل
+                        </button>
+                        <button onclick="closeClearLogModal()" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 text-xs rounded-xl transition-all">
+                            إلغاء
+                        </button>
+                    </div>
+                </div>
+            </div><div id="invoiceModal" class="invoice-modal modal">
                 <div class="invoice-modal-content modal-content">
                     <div class="invoice-modal-header modal-header">
                         <span class="invoice-close-btn modal-close-btn no-print">&times;</span>
@@ -3004,6 +3350,15 @@ let debtCollectionNotes = []; // Array of {id, customerId, debtId, note, created
         let isInvoiceFromPending = false; // Flag if invoice modal is opened from a pending sale confirmation
         let isEditingPendingInvoice = false; // Flag if invoice modal is opened for EDITING a pending invoice
         let pendingSaleOriginData = null; // Stores the original pending sale data when confirming with invoice
+        
+        // --- Expose for external scripts (serials.js) ---
+        window.getSerialNumbersLog = () => serialNumbersLog;
+        window.getSuppliers = () => typeof suppliers !== 'undefined' ? suppliers : [];
+        window.triggerSaveStateToCloud = () => {
+            if (typeof saveStateToCloud === 'function') return saveStateToCloud();
+            return Promise.resolve();
+        };
+        // ------------------------------------------------
         let inv_phoneCounter = 1; // Counter for dynamic phone fields in invoice
         let currentManagingSerialsProduct = null; // **** لتخزين اسم المنتج الذي يتم إدارة سيريالاته ****
         let currentSupplierSerials = []; // **** لتخزين السيريالات المعروضة حالياً للفلترة ****
@@ -4172,7 +4527,231 @@ const filteredProducts = products.filter(product => {
         productNamesDatalist.innerHTML = products.map(p => `<option value="${p.name}">${p.name} (القسم: ${p.category || 'عام'}) - المتاح: ${p.quantity}</option>`).join('');
     }
 }
- function updateLogDisplay(){if(!operationLogList){return;} if(operationLog.length === 0){operationLogList.innerHTML = '<li class="text-center text-gray-500 list-none">لا توجد عمليات مسجلة بعد.</li>';} else {operationLogList.innerHTML = [...operationLog].reverse().map(log => `<li class=""><span class="font-semibold text-gray-700">${log.type}:</span> <span class="text-gray-600">${log.details}</span><span class="block text-xs text-gray-400">${formatDateTime(log.timestamp)}</span></li>`).join('');} }
+let currentLogCategory = 'all';
+
+function formatLogTime(isoString) {
+    if (!isoString) return { date: '', time: '' };
+    try {
+        const date = new Date(isoString);
+        const formattedDate = date.toLocaleDateString('ar-EG', { day: 'numeric', month: 'long', year: 'numeric' });
+        const formattedTime = date.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', hour12: true });
+        return { date: formattedDate, time: formattedTime };
+    } catch (e) {
+        return { date: isoString, time: '' };
+    }
+}
+
+function getLogBadge(type) {
+    if (type.includes("بيع مؤقت")) {
+        return { style: "bg-emerald-50 text-emerald-700 border-emerald-200", icon: "fa-arrow-up-right-from-square text-emerald-600" };
+    } else if (type.includes("بيع") || type.includes("إيراد") || type.includes("تسديد")) {
+        return { style: "bg-emerald-50 text-emerald-700 border-emerald-200", icon: "fa-cart-shopping text-emerald-600" };
+    } else if (type.includes("تحويل")) {
+        return { style: "bg-indigo-50 text-indigo-700 border-indigo-200", icon: "fa-right-left text-indigo-600" };
+    } else if (type.includes("ترحيل")) {
+        return { style: "bg-amber-50 text-amber-700 border-amber-200", icon: "fa-rotate text-amber-600" };
+    } else if (type.includes("مصروف") || type.includes("سحب") || type.includes("شراء")) {
+        return { style: "bg-rose-50 text-rose-700 border-rose-200", icon: "fa-minus-circle text-rose-600" };
+    } else if (type.includes("دين") || type.includes("مورد")) {
+        return { style: "bg-orange-50 text-orange-700 border-orange-200", icon: "fa-handshake text-orange-600" };
+    } else {
+        return { style: "bg-blue-50 text-blue-700 border-blue-200", icon: "fa-info-circle text-blue-600" };
+    }
+}
+
+function setLogCategory(category) {
+    currentLogCategory = category;
+    document.querySelectorAll(".cat-tab").forEach(tab => {
+        tab.classList.remove("active", "bg-blue-600", "text-white", "shadow-sm");
+        tab.classList.add("bg-slate-100", "text-slate-600");
+    });
+
+    const activeTab = document.getElementById(`cat-${category === 'all' ? 'all' : category === 'بيع' ? 'sale' : category === 'مصروف' ? 'expense' : category === 'دين' ? 'debt' : 'add'}`);
+    if (activeTab) {
+        activeTab.classList.add("active", "bg-blue-600", "text-white", "shadow-sm");
+        activeTab.classList.remove("bg-slate-100", "text-slate-600");
+    }
+    updateLogDisplay();
+}
+
+function updateLogStats(filteredLogs) {
+    const total = operationLog.length;
+    const sales = operationLog.filter(l => l.type.includes("بيع")).length;
+    const debts = operationLog.filter(l => l.type.includes("دين") || l.type.includes("مورد")).length;
+    const expenses = operationLog.filter(l => l.type.includes("مصروف") || l.type.includes("سحب")).length;
+    
+    if (document.getElementById("stat-total")) document.getElementById("stat-total").innerText = total;
+    if (document.getElementById("stat-sales")) document.getElementById("stat-sales").innerText = sales;
+    if (document.getElementById("stat-debts")) document.getElementById("stat-debts").innerText = debts;
+    if (document.getElementById("stat-expenses")) document.getElementById("stat-expenses").innerText = expenses;
+    
+    if (document.getElementById("visible-count")) document.getElementById("visible-count").innerText = filteredLogs.length;
+    if (document.getElementById("total-count")) document.getElementById("total-count").innerText = total;
+
+    if (document.getElementById("badge-all")) document.getElementById("badge-all").innerText = total;
+    if (document.getElementById("badge-sale")) document.getElementById("badge-sale").innerText = sales;
+    if (document.getElementById("badge-expense")) document.getElementById("badge-expense").innerText = expenses;
+    if (document.getElementById("badge-debt")) document.getElementById("badge-debt").innerText = debts;
+    if (document.getElementById("badge-add")) document.getElementById("badge-add").innerText = operationLog.filter(l => l.type.includes("إضافة")).length;
+}
+
+function updateLogDisplay() {
+    const tableBody = document.getElementById("operation-log-table-body");
+    const emptyState = document.getElementById("empty-state");
+    const searchInput = document.getElementById("log-search-input2");
+    
+    if (!tableBody) return;
+    
+    const searchVal = searchInput ? searchInput.value.trim().toLowerCase() : "";
+    const clearBtn = document.getElementById("clear-search-btn");
+    if (clearBtn) {
+        if (searchVal) clearBtn.classList.remove("hidden");
+        else clearBtn.classList.add("hidden");
+    }
+
+    const filteredLogs = [...operationLog].reverse().filter(log => {
+        const matchesSearch = !searchVal || log.details.toLowerCase().includes(searchVal) || log.type.toLowerCase().includes(searchVal);
+        const matchesType = currentLogCategory === "all" || log.type.includes(currentLogCategory);
+        return matchesSearch && matchesType;
+    });
+
+    updateLogStats(filteredLogs);
+
+    if (filteredLogs.length === 0) {
+        tableBody.innerHTML = "";
+        if (emptyState) emptyState.classList.remove("hidden");
+        return;
+    }
+
+    if (emptyState) emptyState.classList.add("hidden");
+
+    tableBody.innerHTML = filteredLogs.map((log, index) => {
+        const timeObj = formatLogTime(log.timestamp);
+        const badge = getLogBadge(log.type);
+        const logId = operationLog.length - index; // simple reverse id logic
+
+        return `
+            <tr class="hover:bg-slate-50/80 transition-colors">
+                <td class="px-4 py-3.5 text-center font-mono text-slate-400 text-xs font-semibold">${logId}</td>
+                <td class="px-4 py-3.5 text-xs text-slate-600 font-medium whitespace-nowrap">
+                    <div class="font-semibold text-slate-800">${timeObj.date}</div>
+                    <div class="text-[11px] text-slate-400 font-mono mt-0.5">${timeObj.time}</div>
+                </td>
+                <td class="px-4 py-3.5 align-middle">
+                    <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold border ${badge.style}">
+                        <i class="fas ${badge.icon}"></i>
+                        <span>${log.type}</span>
+                    </span>
+                </td>
+                <td class="px-4 py-3.5 text-slate-700 font-semibold leading-relaxed">${log.details}</td>
+                <td class="px-4 py-3.5 text-center">
+                    <button onclick="openDetailModal(${index})" class="text-xs bg-slate-100 hover:bg-slate-200/80 text-slate-600 p-2 px-3 rounded-lg transition-all font-bold">
+                        <i class="fas fa-eye text-blue-600"></i>
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function openDetailModal(filteredIndex) {
+    const searchInput = document.getElementById("log-search-input2");
+    const searchVal = searchInput ? searchInput.value.trim().toLowerCase() : "";
+    const filteredLogs = [...operationLog].reverse().filter(log => {
+        const matchesSearch = !searchVal || log.details.toLowerCase().includes(searchVal) || log.type.toLowerCase().includes(searchVal);
+        const matchesType = currentLogCategory === "all" || log.type.includes(currentLogCategory);
+        return matchesSearch && matchesType;
+    });
+
+    const log = filteredLogs[filteredIndex];
+    if (!log) return;
+
+    const timeObj = formatLogTime(log.timestamp);
+    const badge = getLogBadge(log.type);
+    const logId = operationLog.length - filteredIndex;
+
+    document.getElementById("modal-ref-id").innerText = `#LOG-${logId}`;
+    document.getElementById("modal-time").innerText = `${timeObj.date} - ${timeObj.time}`;
+    document.getElementById("modal-details").innerText = log.details;
+
+    const iconBox = document.getElementById("modal-type-icon");
+    iconBox.className = `w-8 h-8 rounded-xl flex items-center justify-center text-sm border ${badge.style}`;
+    iconBox.innerHTML = `<i class="fas ${badge.icon}"></i>`;
+
+    document.getElementById("modal-badge").innerHTML = `
+        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-bold border ${badge.style}">
+            <span>${log.type}</span>
+        </span>
+    `;
+
+    const modal = document.getElementById("detail-modal");
+    if(modal) {
+        modal.classList.remove("hidden");
+    }
+}
+
+function closeDetailModal() {
+    const modal = document.getElementById("detail-modal");
+    if(modal) {
+        modal.classList.add("hidden");
+    }
+}
+
+function openClearLogModal() {
+    const modal = document.getElementById("clear-modal");
+    if(modal) {
+        modal.classList.remove("hidden");
+    }
+}
+
+function closeClearLogModal() {
+    const modal = document.getElementById("clear-modal");
+    if(modal) {
+        modal.classList.add("hidden");
+    }
+}
+
+function clearLogConfirm() {
+    operationLog = [];
+    updateLogDisplay();
+    closeClearLogModal();
+    const banner = document.getElementById("status-banner");
+    if(banner) {
+        banner.className = "px-4 py-2.5 text-xs font-semibold text-center border-t transition-opacity duration-300 bg-rose-50 text-rose-700 border-rose-200";
+        banner.innerText = "تم مسح السجل بنجاح.";
+        banner.classList.remove("hidden");
+        setTimeout(() => banner.classList.add("hidden"), 3000);
+    }
+}
+
+// Expose these functions to the global window scope since they are referenced by HTML onclick attributes
+// and this entire block is wrapped in a DOMContentLoaded listener.
+window.setLogCategory = setLogCategory;
+window.updateLogDisplay = updateLogDisplay;
+window.exportCSVLog = exportCSVLog;
+window.openDetailModal = openDetailModal;
+window.closeDetailModal = closeDetailModal;
+window.openClearLogModal = openClearLogModal;
+window.closeClearLogModal = closeClearLogModal;
+window.clearLogConfirm = clearLogConfirm;
+
+function exportCSVLog() {
+    if (operationLog.length === 0) return;
+    let csvContent = "\\uFEFF#;الوقت والتاريخ;نوع العملية;التفاصيل\\n";
+    [...operationLog].reverse().forEach((log, index) => {
+        const timeObj = formatLogTime(log.timestamp);
+        const logId = operationLog.length - index;
+        csvContent += `"${logId}";"${timeObj.date} ${timeObj.time}";"${log.type}";"${log.details.replace(/"/g, '""')}"\\n`;
+    });
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `سجل_العمليات_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
      function updateAdditionalCostsCheckboxes(selectedAttachments = []) {
     if (!additionalCostsContainer || !sellProductNameInput) return;
 
@@ -5413,8 +5992,7 @@ window.convertPendingSaleToDebt = async function(pendingSaleId, debtMode, target
             invoiceNumber: invoiceCode,      
             type: 'invoice-from-pending',    
             convertedFromPending: true,
-            migrated: false,                     // 🌟 إضافة flag الترحيل 🌟
-            saleDate: saleData.saleDate || new Date().toISOString().split('T')[0], 
+            migrated: false,            saleDate: typeof currentLoadedDate !== 'undefined' && currentLoadedDate ? currentLoadedDate : new Date().toISOString().split('T')[0], 
             date: new Date().toISOString().split('T')[0], 
             grandTotal: totalAmount, 
             totalSellPrice: totalAmount,
@@ -7301,12 +7879,19 @@ async function handleSaveInvoice(skipConfirmation = true) {
         });
         const generatedInvoiceNumber = `${todayStr}-${(maxSeq + 1).toString().padStart(3, '0')}`;
 
-        const originalSaleDate =
-            pendingSaleOriginData?.saleDate ||
-            (pendingSaleOriginData?.createdAt ? pendingSaleOriginData.createdAt.split('T')[0] : null) ||
-            (pendingSaleOriginData?.timestamp ? pendingSaleOriginData.timestamp.split('T')[0] : null) ||
-            currentLoadedDate ||
-            getTodayDateString();
+        let originalSaleDate;
+        if (isInvoiceFromPending && !isPending) {
+            // Confirming a pending sale -> becomes a final sale TODAY
+            originalSaleDate = currentLoadedDate || getTodayDateString();
+        } else {
+            // Editing a pending sale, or creating a new one -> keep original date
+            originalSaleDate =
+                pendingSaleOriginData?.saleDate ||
+                (pendingSaleOriginData?.createdAt ? pendingSaleOriginData.createdAt.split('T')[0] : null) ||
+                (pendingSaleOriginData?.timestamp ? pendingSaleOriginData.timestamp.split('T')[0] : null) ||
+                currentLoadedDate ||
+                getTodayDateString();
+        }
 
         const invoiceRecord = {
             id: isInvoiceFromPending && pendingSaleOriginData ? pendingSaleOriginData.id.replace('pending','inv') : `inv-${Date.now()}`,
@@ -8290,7 +8875,12 @@ window.removeSaleFromReportOnly = async function(saleId) {
             const uid = window.currentUser.uid;
             try { await window.deleteDoc(window.doc(window.db, "users", uid, "salesToday", saleId)); } catch(e) {}
             try { await window.deleteDoc(window.doc(window.db, "users", uid, "sales", saleId)); } catch(e) {}
-            try { await window.deleteDoc(window.doc(window.db, "users", uid, "invoices", saleId)); } catch(e) {}
+            try { 
+                await window.deleteDoc(window.doc(window.db, "users", uid, "invoices", saleId)); 
+            } catch(e) {
+                console.error("فشل حذف الفاتورة من السحابة:", e);
+                alert("⚠️ تحذير: فشل حذف الفاتورة من السحابة (" + e.message + "). قد تظهر مرة أخرى لاحقًا في التقرير.");
+            }
         }
 
         if (typeof salesToday !== 'undefined') {
@@ -8352,7 +8942,20 @@ window.deleteSaleRecord = async function(saleId) {
         }
 
         if (!sale) {
-            alert("خطأ: لم يتم العثور على سجل الفاتورة لتعديل الأرصدة.");
+            // 🌟 Fallback: جرّب تجيب الفاتورة من السحابة مباشرة قبل ما توقف
+            try {
+                if (window.db && window.currentUser) {
+                    const uid = window.currentUser.uid;
+                    const docSnap = await window.getDoc(window.doc(window.db, "users", uid, "invoices", saleId));
+                    if (docSnap.exists()) {
+                        sale = docSnap.data();
+                    }
+                }
+            } catch (e) { /* تجاهل، هنتعامل مع الحالة تحت */ }
+        }
+
+        if (!sale) {
+            alert("خطأ: لم يتم العثور على سجل الفاتورة لتعديل الأرصدة (لا محليًا ولا في السحابة).");
             return;
         }
 
@@ -8455,7 +9058,12 @@ window.deleteSaleRecord = async function(saleId) {
             try { await window.deleteDoc(window.doc(window.db, "users", uid, "sales", saleId)); } catch(e) {}
             
             // محاولة الحذف من كوليكشن الفواتير
-            try { await window.deleteDoc(window.doc(window.db, "users", uid, "invoices", saleId)); } catch(e) {}
+            try { 
+                await window.deleteDoc(window.doc(window.db, "users", uid, "invoices", saleId)); 
+            } catch(e) {
+                console.error("فشل حذف الفاتورة من السحابة:", e);
+                alert("⚠️ تحذير: فشل حذف الفاتورة من السحابة (" + e.message + "). قد تظهر مرة أخرى لاحقًا في التقرير.");
+            }
         }
 
         // 4. الحذف من الذاكرة المحلية بكل القوائم لتختفي فوراً
@@ -8528,7 +9136,8 @@ async function performDirectSearch() {
         const [year, month] = yearMonth.split('-');
         
         const startDate = `${yearMonth}-01`;
-        const endDate = new Date(year, month, 0).toISOString().split('T')[0];
+        const lastDay = new Date(Number(year), Number(month), 0).getDate();
+        const endDate = `${yearMonth}-${String(lastDay).padStart(2, '0')}`;
 
         const invoicesColRef = window.collection(window.db, "users", userId, "invoices");
         const q = window.query(invoicesColRef, 
@@ -8784,7 +9393,8 @@ async function generateMonthlySalesReport() {
     const userId = window.currentUser.uid;
     const [year, month] = yearMonth.split('-');
     const startDate = `${yearMonth}-01`;
-    const endDate = new Date(year, month, 0).toISOString().split('T')[0];
+    const lastDay = new Date(Number(year), Number(month), 0).getDate();
+    const endDate = `${yearMonth}-${String(lastDay).padStart(2, '0')}`;
 
     // خريطة لتجميع الفواتير
     const salesMap = new Map();
@@ -8850,6 +9460,7 @@ async function generateMonthlySalesReport() {
     // =========================================================
     let rawSalesList = Array.from(salesMap.values());
     let finalSalesList = [];
+    const seenIds = new Set();
     const uniqueFingerprints = new Set();
 
     const normalizeText = (text) => {
@@ -8858,7 +9469,15 @@ async function generateMonthlySalesReport() {
     };
 
     rawSalesList.forEach(sale => {
-        // 1. استخراج التاريخ
+        // أي فاتورة لها id فريد تُعتبر موجودة دائمًا
+        if (sale.id) {
+            if (seenIds.has(sale.id)) return;
+            seenIds.add(sale.id);
+            finalSalesList.push(sale);
+            return;
+        }
+
+        // Fallback: فقط للسجلات القديمة جدًا التي لا تملك id
         let safeDate = "";
         if (sale.saleDate) safeDate = String(sale.saleDate).split('T')[0];
         else if (sale.timestamp) {
@@ -8867,18 +9486,10 @@ async function generateMonthlySalesReport() {
             else safeDate = String(sale.timestamp).split('T')[0];
         }
 
-        // 2. توحيد المبلغ والاسم
         const amount = Math.round(Number(sale.grandTotal || sale.finalTotal || sale.totalSellPrice || 0)); 
         const cleanCustomer = normalizeText(sale.customerName || 'cash');
-        
-        // 🌟 السر هنا: نأخذ (الشهر والسنة) فقط ونتجاهل (اليوم) 🌟
-        // مثال: بدلاً من 2026-04-06 ستصبح 2026-04 فقط
-        const monthOnly = safeDate.substring(0, 7); 
-        
-        // 3. البصمة الساحقة: (الشهر + المبلغ + الاسم)
-        const fingerprint = `${monthOnly}_${amount}_${cleanCustomer}`;
+        const fingerprint = `${safeDate}_${amount}_${cleanCustomer}`;
 
-        // 4. تصفية التكرار
         if (!uniqueFingerprints.has(fingerprint)) {
             uniqueFingerprints.add(fingerprint);
             finalSalesList.push(sale);
@@ -8928,7 +9539,8 @@ async function performDirectSearch() {
         const [year, month] = yearMonth.split('-');
         
         const startDate = `${yearMonth}-01`;
-        const endDate = new Date(year, month, 0).toISOString().split('T')[0];
+        const lastDay = new Date(Number(year), Number(month), 0).getDate();
+        const endDate = `${yearMonth}-${String(lastDay).padStart(2, '0')}`;
 
         const invoicesColRef = window.collection(window.db, "users", userId, "invoices");
         const q = window.query(invoicesColRef, 
@@ -10186,6 +10798,7 @@ function pi_addItem() {
         <td class="border p-2 text-center font-mono">${formatCurrency(cost)}</td>
         <td class="border p-2 text-center font-mono font-bold">${formatCurrency(subtotal)}</td>
         <td class="border p-2 text-center no-print">
+            <button type="button" class="pi_edit_item_btn text-blue-500 hover:text-blue-700 font-bold ml-2" title="تعديل البند">✎</button>
             <button type="button" class="pi_remove_item_btn text-red-500 hover:text-red-700 font-bold" title="حذف البند">×</button>
         </td>
     `;
@@ -10787,7 +11400,7 @@ window.pi_addExtraCostRow = function() {
     // تجهيز خيارات الالتزامات
     let liabilitiesOptions = '<option value="">-- إنشاء التزام جديد (باسم التكلفة) --</option>';
     if (typeof liabilities !== 'undefined' && Array.isArray(liabilities)) {
-        liabilities.forEach(l => {
+        liabilities.filter(l => parseFloat(l.amount) > 0).forEach(l => {
             liabilitiesOptions += `<option value="${l.id}">${l.name} (مدين بـ: ${l.amount})</option>`;
         });
     }
@@ -14631,10 +15244,42 @@ if (piItemsBody) {
     piItemsBody.addEventListener('click', (e) => {
         if (e.target.classList.contains('pi_remove_item_btn')) {
             e.target.closest('tr').remove();
-            pi_updateTotals();
+            window.pi_updateTotals();
             if (piItemsBody.children.length === 0) {
                 pi_no_items_msg.classList.remove('hidden');
             }
+        } else if (e.target.classList.contains('pi_edit_item_btn')) {
+            const row = e.target.closest('tr');
+            
+            const nameInput = document.getElementById('pi_item_name');
+            const catInput = document.getElementById('pi_item_category');
+            const qtyInput = document.getElementById('pi_item_quantity');
+            const costInput = document.getElementById('pi_item_cost');
+            const totalCostInput = document.getElementById('pi_item_total_cost');
+            const serialsInput = document.getElementById('pi_item_serials');
+            const serialsContainer = document.getElementById('pi_item_serials_container');
+
+            if (nameInput) nameInput.value = row.dataset.name || '';
+            if (catInput) catInput.value = row.dataset.category || '';
+            if (qtyInput) qtyInput.value = row.dataset.quantity || '1';
+            if (costInput) costInput.value = row.dataset.cost || '0';
+            if (totalCostInput) totalCostInput.value = row.dataset.subtotal || '0';
+            
+            try {
+                const serials = JSON.parse(row.dataset.serials || '[]');
+                if (serialsInput) serialsInput.value = serials.join('\n');
+                if (serialsContainer) {
+                    if (serials.length > 0) serialsContainer.classList.remove('hidden');
+                    else serialsContainer.classList.add('hidden');
+                }
+            } catch (err) {}
+
+            row.remove();
+            window.pi_updateTotals();
+            if (piItemsBody.children.length === 0) {
+                pi_no_items_msg.classList.remove('hidden');
+            }
+            if (nameInput) nameInput.focus();
         }
     });
 }
@@ -17459,6 +18104,157 @@ if (invoiceModalEl) {
             <button id="postSaleCloseBtn" class="font-bold py-2 px-4 rounded transition shadow-sm" style="background-color: #e5e7eb; color: #1f2937; border: 1px solid #d1d5db;">إغلاق نافذة البيع</button>
         </div>
     </div>
+</div>
+<!-- ======================================================= -->
+
+    <!-- Serials Tracker Section (Hidden by Default) -->
+    <section id="serials-tracker-section" class="widget-card content-section hidden">
+        <div class="flex flex-col gap-6">
+            <!-- Header -->
+            <div class="bg-white px-6 py-5 rounded-2xl border border-slate-200 flex justify-between items-center shadow-sm">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 text-xl font-bold">
+                        <i class="fas fa-barcode"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-xl sm:text-2xl font-black text-slate-800 tracking-tight m-0">إدارة وتتبع السيريالات</h1>
+                        <p class="text-xs sm:text-sm text-slate-500 font-medium mt-0.5 m-0">سجل شامل لكل جهاز وحالته (الفحص، البطارية، المتابعة، البيع)</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex-1 flex flex-col gap-6 serials-controls">
+                    
+                    <!-- Add New Serial Form -->
+                    <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+                        <h3 class="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2"><i class="fas fa-plus-circle text-blue-500"></i> تسجيل جهاز جديد بالمعرض</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-end">
+                            <div class="lg:col-span-1">
+                                <label class="block text-xs font-bold text-slate-600 mb-1.5">رقم السيريال <span class="text-rose-500">*</span></label>
+                                <input type="text" id="serials-add-sn" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all" placeholder="اكتب السيريال...">
+                            </div>
+                            <div class="lg:col-span-1">
+                                <label class="block text-xs font-bold text-slate-600 mb-1.5">اسم الجهاز <span class="text-rose-500">*</span></label>
+                                <input type="text" id="serials-add-product" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all" placeholder="اسم الجهاز...">
+                            </div>
+                            <div class="lg:col-span-1">
+                                <label class="block text-xs font-bold text-slate-600 mb-1.5">اسم المورد</label>
+                                <input type="text" id="serials-add-supplier" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all" placeholder="المورد...">
+                            </div>
+                            <div class="lg:col-span-1">
+                                <label class="block text-xs font-bold text-slate-600 mb-1.5">نسبة شحن البطارية %</label>
+                                <div class="relative">
+                                    <input type="number" id="serials-add-shipping" class="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all" placeholder="مثال: 5" min="0" max="100">
+                                    <i class="fas fa-battery-half absolute left-3 top-2.5 text-slate-400"></i>
+                                </div>
+                            </div>
+                            <div class="lg:col-span-1">
+                                <label class="block text-xs font-bold text-slate-600 mb-1.5">تاريخ المتابعة</label>
+                                <input type="date" id="serials-add-followup" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-slate-600">
+                            </div>
+                            <div class="lg:col-span-1">
+                                <label class="block text-xs font-bold text-slate-600 mb-1.5">ملاحظات</label>
+                                <input type="text" id="serials-add-notes" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all" placeholder="اختياري...">
+                            </div>
+                            <div class="md:col-span-3 lg:col-span-6 flex justify-end mt-2">
+                                <button id="serials-add-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-6 rounded-xl shadow-sm transition-all flex items-center gap-2 text-sm">
+                                    <i class="fas fa-plus"></i>
+                                    <span>إضافة للسجل</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Filters and Actions Bar -->
+                    <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex flex-col xl:flex-row justify-between gap-4 items-center">
+                        <div class="flex flex-wrap items-center gap-3 w-full xl:w-auto">
+                            <!-- Search -->
+                            <div class="relative w-full sm:w-64">
+                                <span class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-slate-400">
+                                    <i class="fas fa-search"></i>
+                                </span>
+                                <input type="text" id="serials-search-input" class="w-full pl-3 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="ابحث برقم السيريال، المورد...">
+                            </div>
+
+                            <!-- Filters -->
+                            <select id="serials-sale-filter" class="bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none">
+                                <option value="all">حالة البيع (الكل)</option>
+                                <option value="available">متاح للبيع</option>
+                                <option value="pending">معلق (قيد البيع)</option>
+                            </select>
+
+                            <select id="serials-check-filter" class="bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none">
+                                <option value="all">الفحص (الكل)</option>
+                                <option value="checked">مفحوص</option>
+                                <option value="unchecked">غير مفحوص</option>
+                            </select>
+
+                            <select id="serials-ship-filter" class="bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none">
+                                <option value="all">البطارية (الكل)</option>
+                                <option value="shipped">مشحون</option>
+                                <option value="unshipped">غير مشحون</option>
+                            </select>
+
+                            <select id="serials-followup-filter" class="bg-amber-50 border border-amber-200 text-amber-800 font-medium text-sm rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-amber-500 outline-none">
+                                <option value="all">المتابعة (الكل)</option>
+                                <option value="due_today">اليوم ⚠️</option>
+                                <option value="overdue">متأخرة 🔴</option>
+                                <option value="upcoming">قادمة 🗓️</option>
+                            </select>
+                        </div>
+
+                        <div class="flex items-center gap-2 bg-slate-50 p-1.5 rounded-xl border border-slate-200 w-full xl:w-auto overflow-x-auto">
+                            <span class="px-3 py-1.5 rounded-lg bg-white shadow-sm border border-slate-100 text-xs font-bold text-slate-600 whitespace-nowrap">الإجمالي: <span id="serials-stat-total" class="text-blue-600">0</span></span>
+                            <span class="px-3 py-1.5 rounded-lg bg-white shadow-sm border border-slate-100 text-xs font-bold text-slate-600 whitespace-nowrap">مفحوص: <span id="serials-stat-checked" class="text-emerald-600">0</span></span>
+                            <span class="px-3 py-1.5 rounded-lg bg-white shadow-sm border border-slate-100 text-xs font-bold text-slate-600 whitespace-nowrap">مشحون: <span id="serials-stat-shipped" class="text-indigo-600">0</span></span>
+                        </div>
+                    </div>
+
+                    <!-- Bulk Actions -->
+                    <div class="bg-slate-100 rounded-xl p-3 border border-slate-200 flex flex-wrap items-center gap-3">
+                        <span class="text-xs font-bold text-slate-500 ml-2">تطبيق على المحدد:</span>
+                        <button id="serials-bulk-check" class="text-xs bg-white hover:bg-emerald-50 text-emerald-700 font-bold py-2 px-3 rounded-lg border border-emerald-200 transition-all flex items-center gap-1.5 shadow-sm">
+                            <i class="fas fa-check-double"></i> فحص / إلغاء
+                        </button>
+                        <button id="serials-bulk-ship" class="text-xs bg-white hover:bg-indigo-50 text-indigo-700 font-bold py-2 px-3 rounded-lg border border-indigo-200 transition-all flex items-center gap-1.5 shadow-sm">
+                            <i class="fas fa-battery-full"></i> شحن / إلغاء
+                        </button>
+                        <button id="serials-bulk-delete" class="text-xs bg-white hover:bg-rose-50 text-rose-700 font-bold py-2 px-3 rounded-lg border border-rose-200 transition-all flex items-center gap-1.5 shadow-sm">
+                            <i class="fas fa-trash"></i> حذف المحدد
+                        </button>
+                    </div>
+
+                    <!-- Table Container -->
+                    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex-1 flex flex-col">
+                        <div class="overflow-x-auto flex-1">
+                            <table class="w-full text-sm text-right text-slate-700">
+                                <thead class="text-xs uppercase bg-slate-50 text-slate-500 sticky top-0 z-10 border-b border-slate-200">
+                                    <tr>
+                                        <th class="px-4 py-3.5 text-center w-12"><input type="checkbox" id="serials-select-all" class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"></th>
+                                        <th class="px-4 py-3.5 font-bold whitespace-nowrap">رقم السيريال</th>
+                                        <th class="px-4 py-3.5 font-bold whitespace-nowrap">اسم الجهاز / المورد</th>
+                                        <th class="px-4 py-3.5 font-bold text-center whitespace-nowrap">البطارية %</th>
+                                        <th class="px-4 py-3.5 font-bold text-center whitespace-nowrap">حالة البيع</th>
+                                        <th class="px-4 py-3.5 font-bold text-center whitespace-nowrap">الفحص / الشحن</th>
+                                        <th class="px-4 py-3.5 font-bold text-center whitespace-nowrap">المتابعة 🗓️</th>
+                                        <th class="px-4 py-3.5 font-bold whitespace-nowrap">ملاحظات</th>
+                                        <th class="px-4 py-3.5 font-bold text-center w-24">إجراءات</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="serials-table-body" class="divide-y divide-slate-100">
+                                    <!-- Rows populated by JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+            </div>
+        </div>
+    </section>
+    <!-- End Serials Tracker Section -->
+
+    <!-- Serials Tracker JS -->
+    <script src="serials.js"></script>
+
 </div>
 
 </body>
