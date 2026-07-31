@@ -3914,7 +3914,8 @@ function createStateSnapshot() {
         completedReturns: JSON.parse(JSON.stringify(completedReturns)),
         pendingReturns: JSON.parse(JSON.stringify(pendingReturns)),
         // 🌟 السطر الجديد: أخذ لقطة من الفواتير المعلقة لنظام الاستبدال
-        pendingOrders: JSON.parse(JSON.stringify(window.pendingOrders || [])) 
+        pendingOrders: JSON.parse(JSON.stringify(window.pendingOrders || [])),
+        standaloneSerials: typeof window.getStandaloneSerials === 'function' ? JSON.parse(JSON.stringify(window.getStandaloneSerials())) : []
     };
 }
 
@@ -4030,6 +4031,11 @@ function loadStateFromSnapshot(snapshot) {
     
     // 🌟 السطر المحدث: استرجاع الفواتير المعلقة الخاصة بنظام الاستبدال عند التراجع
     window.pendingOrders = snapshot.pendingOrders || [];
+    
+    // 🌟 استرجاع حالة السيريالات
+    if (typeof window.setStandaloneSerials === 'function') {
+        window.setStandaloneSerials(snapshot.standaloneSerials || []);
+    }
 }
 function saveStateToHistory() {
     // هذه هي الدالة الرئيسية التي سنستدعيها قبل كل إجراء
@@ -18178,9 +18184,10 @@ if (invoiceModalEl) {
 
                             <!-- Filters -->
                             <select id="serials-sale-filter" class="bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none">
-                                <option value="all">حالة البيع (الكل)</option>
-                                <option value="available">متاح للبيع</option>
-                                <option value="pending">معلق (قيد البيع)</option>
+                                <option value="all">حالة البيع (المتاح والمعلق)</option>
+                                <option value="available">متاح للبيع فقط</option>
+                                <option value="pending">معلق (محجوز) فقط</option>
+                                <option value="sold">📦 أرشيف المباع</option>
                             </select>
 
                             <select id="serials-check-filter" class="bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none">

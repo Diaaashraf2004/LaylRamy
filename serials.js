@@ -37,6 +37,20 @@
     let standaloneSerials = [];
     let isDataLoaded = false;
 
+    // Undo/Redo Integration
+    window.getStandaloneSerials = () => standaloneSerials;
+    window.setStandaloneSerials = (data) => {
+        standaloneSerials = data || [];
+        renderSerialsTable();
+        saveDataToFirebase();
+    };
+
+    function takeSnapshot() {
+        if (typeof window.saveStateToHistory === 'function') {
+            window.saveStateToHistory();
+        }
+    }
+
     // Load from Firebase
     async function loadDataFromFirebase() {
         if (!window.currentUser || !window.db || !window.doc || !window.getDoc) {
@@ -259,6 +273,7 @@
     };
 
     window.toggleStandaloneFlag = function(serial, flagName) {
+        takeSnapshot();
         let updated = false;
         standaloneSerials.forEach(log => {
             if (log.serial === serial) {
@@ -285,6 +300,7 @@
         if (!item) return;
         const newNote = prompt('أضف/عدل الملاحظة لهذا الجهاز:', item.notes || '');
         if (newNote !== null) {
+            takeSnapshot();
             item.notes = newNote.trim();
             renderSerialsTable();
             saveDataToFirebase();
@@ -294,6 +310,7 @@
     window.updateStandaloneFollowup = function(serial, dateVal) {
         const item = standaloneSerials.find(s => s.serial === serial);
         if (item) {
+            takeSnapshot();
             item.followUpDate = dateVal;
             renderSerialsTable();
             saveDataToFirebase();
@@ -303,6 +320,7 @@
     window.toggleSaleStatus = function(serial) {
         const item = standaloneSerials.find(s => s.serial === serial);
         if (item) {
+            takeSnapshot();
             item.saleStatus = item.saleStatus === 'pending' ? 'available' : 'pending';
             renderSerialsTable();
             saveDataToFirebase();
@@ -311,11 +329,29 @@
     };
 
     window.markSoldFinally = function(serial) {
-        if (!confirm(`هل تم بيع الجهاز نهائياً؟ سيتم حذفه من هذه القائمة نهائياً.`)) return;
-        standaloneSerials = standaloneSerials.filter(s => s.serial !== serial);
-        renderSerialsTable();
-        saveDataToFirebase();
-        if (typeof showGlobalMessage === 'function') showGlobalMessage(`تم بيع السيريال ${serial} وإزالته بنجاح.`);
+        if (!confirm(`هل تم بيع الجهاز نهائياً؟ سيتم أرشفته كمباع.`)) return;
+        const item = standaloneSerials.find(s => s.serial === serial);
+        if (item) {
+            takeSnapshot();
+            item.saleStatus = 'sold';
+            item.soldDate = new Date().toISOString().split('T')[0];
+            renderSerialsTable();
+            saveDataToFirebase();
+            if (typeof showGlobalMessage === 'function') showGlobalMessage(`تم أرشفة السيريال ${serial} كمباع بنجاح.`);
+        }
+    };
+
+    window.restoreSoldSerial = function(serial) {
+        if (!confirm(`هل أنت متأكد من إرجاع هذا السيريال ليكون متاحاً للبيع مرة أخرى؟`)) return;
+        const item = standaloneSerials.find(s => s.serial === serial);
+        if (item) {
+            takeSnapshot();
+            item.saleStatus = 'available';
+            item.soldDate = null;
+            renderSerialsTable();
+            saveDataToFirebase();
+            if (typeof showGlobalMessage === 'function') showGlobalMessage(`تم إرجاع السيريال ${serial} للمتاح بنجاح.`);
+        }
     };
 
     function renderSerialsTable() {
@@ -371,8 +407,16 @@
 
             let matchSale = true;
             const currentSaleStatus = log.saleStatus || 'available';
-            if (saleVal === 'available') matchSale = currentSaleStatus === 'available';
-            if (saleVal === 'pending') matchSale = currentSaleStatus === 'pending';
+            if (saleVal === 'sold') {
+                matchSale = (currentSaleStatus === 'sold');
+            } else {
+                if (currentSaleStatus === 'sold') {
+                    matchSale = false;
+                } else {
+                    if (saleVal === 'available') matchSale = currentSaleStatus === 'available';
+                    if (saleVal === 'pending') matchSale = currentSaleStatus === 'pending';
+                }
+            }
 
             return matchSearch && matchCheck && matchShip && matchFollowup && matchSale;
         });
@@ -395,14 +439,16 @@
             const shipBtnClass = isShipped ? 'bg-indigo-100 text-indigo-700 border-indigo-200' : 'bg-slate-100 text-slate-500 hover:bg-slate-200 border-transparent';
             const shipIcon = isShipped ? 'fa-battery-full' : 'fa-battery-empty';
 
+            const isSold = (log.saleStatus === 'sold');
             const isPending = (log.saleStatus === 'pending');
-            const saleBadgeClass = isPending ? 'bg-amber-100 text-amber-700 border-amber-200' : 'bg-emerald-50 text-emerald-600 border-emerald-100';
-            const saleBadgeIcon = isPending ? 'fa-clock' : 'fa-check';
-            const saleBadgeText = isPending ? 'معلق' : 'متاح';
+            const saleBadgeClass = isSold ? 'bg-slate-100 text-slate-600 border-slate-200' : (isPending ? 'bg-amber-100 text-amber-700 border-amber-200' : 'bg-emerald-50 text-emerald-600 border-emerald-100');
+            const saleBadgeIcon = isSold ? 'fa-box-archive' : (isPending ? 'fa-clock' : 'fa-check');
+            const saleBadgeText = isSold ? 'مباع 📦' : (isPending ? 'معلق' : 'متاح');
 
             // Highlighting
             let rowClass = "hover:bg-slate-50 transition-colors ";
-            if (isPending) rowClass += "bg-amber-50/50 ";
+            if (isSold) rowClass += "bg-slate-50/70 opacity-80 ";
+            else if (isPending) rowClass += "bg-amber-50/50 ";
             else if (isChecked && isShipped) rowClass += "bg-emerald-50/30 ";
 
             // Follow-up status color
@@ -479,18 +525,27 @@
                     <td class="px-4 py-3 text-center">
                         <!-- Actions Dropdown or Buttons -->
                         <div class="flex items-center justify-center gap-1.5 opacity-60 group-hover:opacity-100 transition-opacity">
-                            <button onclick="window.toggleSaleStatus('${log.serial}')" class="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 hover:bg-amber-100 hover:text-amber-700 flex items-center justify-center transition-colors" title="تعليق البيع / إتاحة">
-                                <i class="fas fa-hand-holding-usd"></i>
-                            </button>
-                            <button onclick="window.markSoldFinally('${log.serial}')" class="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700 flex items-center justify-center transition-colors" title="مباع نهائياً (حذف)">
-                                <i class="fas fa-check"></i>
-                            </button>
-                            <button onclick="window.editStandaloneRecord('${log.serial}')" class="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-700 flex items-center justify-center transition-colors" title="تعديل">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <button onclick="window.deleteStandaloneSerial('${log.serial}')" class="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 flex items-center justify-center transition-colors" title="حذف">
-                                <i class="fas fa-trash"></i>
-                            </button>
+                            ${isSold ? `
+                                <button onclick="window.restoreSoldSerial('${log.serial}')" class="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 hover:text-indigo-700 flex items-center justify-center transition-colors" title="إرجاع للمتاح 🔄">
+                                    <i class="fas fa-undo"></i>
+                                </button>
+                                <button onclick="window.deleteStandaloneSerial('${log.serial}')" class="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 flex items-center justify-center transition-colors" title="حذف نهائي">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            ` : `
+                                <button onclick="window.toggleSaleStatus('${log.serial}')" class="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 hover:bg-amber-100 hover:text-amber-700 flex items-center justify-center transition-colors" title="تعليق البيع / إتاحة">
+                                    <i class="fas fa-hand-holding-usd"></i>
+                                </button>
+                                <button onclick="window.markSoldFinally('${log.serial}')" class="w-7 h-7 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-800 flex items-center justify-center transition-colors" title="أرشفة كمباع 📦">
+                                    <i class="fas fa-box-archive"></i>
+                                </button>
+                                <button onclick="window.editStandaloneRecord('${log.serial}')" class="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-700 flex items-center justify-center transition-colors" title="تعديل">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button onclick="window.deleteStandaloneSerial('${log.serial}')" class="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 flex items-center justify-center transition-colors" title="حذف">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            `}
                         </div>
                     </td>
                 </tr>
@@ -508,3 +563,5 @@
         statShipped.textContent = shippedCount;
     }
 })();
+
+
