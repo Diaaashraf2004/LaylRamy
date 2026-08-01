@@ -1953,6 +1953,10 @@ input:checked:active + .slider:before {
                         <label for="income-amount-input">المبلغ:</label>
                         <input type="number" id="income-amount-input" placeholder="0.00">
                     </div>
+                    <div class="form-group" style="margin-top: 10px;">
+                        <label for="income-reason-input">السبب / التفاصيل (اختياري):</label>
+                        <input type="text" id="income-reason-input" placeholder="اكتب سبب أو مصدر الإيداع هنا...">
+                    </div>
                     <button id="add-income-btn" style="background-color: #22c55e;">إضافة الإيراد</button>
                 </div>
                 <div class="action-column" style="border-top: 4px solid #dc2626;">
@@ -1975,6 +1979,10 @@ input:checked:active + .slider:before {
                     <div class="form-group">
                         <label for="expense-amount-input">المبلغ:</label>
                         <input type="number" id="expense-amount-input" placeholder="0.00">
+                    </div>
+                    <div class="form-group" style="margin-top: 10px;">
+                        <label for="expense-reason-input">السبب / التفاصيل (اختياري):</label>
+                        <input type="text" id="expense-reason-input" placeholder="اكتب سبب وتفاصيل المصروف هنا...">
                     </div>
                     <button id="add-expense-btn" style="background-color: #ef4444;">صرف المبلغ</button>
                 </div>
@@ -11738,6 +11746,7 @@ function handleIncomeAddition() {
     const accountId = d('income-safe-select').value;
     const category = d('income-category-select').value;
     const amount = parseInputNumber(d('income-amount-input'));
+    const reason = d('income-reason-input') ? d('income-reason-input').value.trim() : '';
 
     if (!accountId || isNaN(amount) || amount <= 0) {
         alert("يرجى اختيار حساب وإدخال مبلغ إيراد صحيح.");
@@ -11752,7 +11761,10 @@ function handleIncomeAddition() {
     
     saveStateToHistory();
     account.balance += amount;
-    logOperation("إضافة إيراد", `إضافة ${formatCurrency(amount)} إلى حساب "${account.name}" تحت فئة "${category}".`);
+    
+    const desc = reason ? `إضافة ${formatCurrency(amount)} إلى حساب "${account.name}" تحت فئة "${category}". التفاصيل: ${reason}` : `إضافة ${formatCurrency(amount)} إلى حساب "${account.name}" تحت فئة "${category}".`;
+    logOperation("إضافة إيراد", desc);
+    
     // لاحقاً، سنضيف هذا لسجل السيولة المفصل
     return true;
 }
@@ -11761,6 +11773,7 @@ function handleExpenseAddition() {
     const accountId = d('expense-safe-select').value;
     const category = d('expense-category-select').value;
     const amount = parseInputNumber(d('expense-amount-input'));
+    const reason = d('expense-reason-input') ? d('expense-reason-input').value.trim() : '';
 
     // 1. التحقق من المدخلات
     if (!accountId || isNaN(amount) || amount <= 0) {
@@ -11792,19 +11805,21 @@ function handleExpenseAddition() {
 
     // ج) تسجيل الحركة في سجل السيولة (يظهر في حركة الخزينة)
     const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
+    const liqDesc = reason ? `صرف مصروف (${category}) من حساب "${account.name}". التفاصيل: ${reason}` : `صرف مصروف (${category}) من حساب "${account.name}"`;
     liquidityLog.push({
         id: `liq-${Date.now()}`,
         timestamp: new Date().toISOString(),
         type: "remove", // نوع remove عشان يظهر باللون الأحمر كسحب
         amount: amount,
-        description: `صرف مصروف (${category}) من حساب "${account.name}"`,
+        description: liqDesc,
         currentBalance: newTotalLiquidity,
         accountId: accountId
     });
 
     // د) [تعديل هام] توحيد صيغة السجل لتظهر في تقرير المصروفات
     // تم تغيير النوع إلى "تسجيل مصروف" وإضافة كلمة "بقيمة" ليتمكن التقرير من قراءتها
-    logOperation("تسجيل مصروف", `بقيمة ${formatCurrency(amount)} - صرف من حساب "${account.name}" (فئة: ${category}).`);
+    const opDesc = reason ? `بقيمة ${formatCurrency(amount)} - صرف من حساب "${account.name}" (فئة: ${category}). التفاصيل: ${reason}` : `بقيمة ${formatCurrency(amount)} - صرف من حساب "${account.name}" (فئة: ${category}).`;
+    logOperation("تسجيل مصروف", opDesc);
     
     return true;
 }
@@ -15216,6 +15231,7 @@ if (addIncomeBtn) {
         if (handleIncomeAddition()) {
             updateUI();
             d('income-amount-input').value = '';
+            if (d('income-reason-input')) d('income-reason-input').value = '';
         }
     });
 }
@@ -15224,6 +15240,7 @@ if (addExpenseBtn) {
         if (handleExpenseAddition()) {
             updateUI();
             d('expense-amount-input').value = '';
+            if (d('expense-reason-input')) d('expense-reason-input').value = '';
         }
     });
 }
