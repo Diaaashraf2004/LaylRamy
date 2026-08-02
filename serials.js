@@ -41,9 +41,50 @@
     // Undo/Redo Integration
     window.getStandaloneSerials = () => standaloneSerials;
     window.setStandaloneSerials = (data) => {
+        // حماية إضافية: إذا كانت البيانات فارغة ومصفوفة السيريالات الحالية بها بيانات، تجاهل التصفير العشوائي
+        if ((!data || data.length === 0) && standaloneSerials.length > 0) {
+            console.warn("تم منع تفريغ مصفوفة السيريالات العشوائي.");
+            return;
+        }
         standaloneSerials = data || [];
         renderSerialsTable();
         saveDataToFirebase();
+    };
+
+    // نظام نسخ احتياطي محلي مضاد للتفريغ
+    function saveLocalSafeguardBackup() {
+        try {
+            if (standaloneSerials && standaloneSerials.length > 0) {
+                localStorage.setItem('goodsMgmt_standaloneSerials_safeguard', JSON.stringify({
+                    data: standaloneSerials,
+                    log: serialsOperationLog,
+                    savedAt: new Date().toISOString()
+                }));
+            }
+        } catch(e) {
+            console.error("Safeguard save failed", e);
+        }
+    }
+    
+    // دالة لاسترجاع النسخة المحلية
+    window.restoreStandaloneSerialsFromSafeguard = function() {
+        try {
+            const backup = localStorage.getItem('goodsMgmt_standaloneSerials_safeguard');
+            if (backup) {
+                const parsed = JSON.parse(backup);
+                if (parsed.data && parsed.data.length > 0) {
+                    standaloneSerials = parsed.data;
+                    serialsOperationLog = parsed.log || [];
+                    renderSerialsTable();
+                    saveDataToFirebase();
+                    alert("تم استعادة النسخة الاحتياطية المحلية الآمنة بنجاح!");
+                    return;
+                }
+            }
+            alert("لا توجد نسخة احتياطية محلية آمنة مسجلة.");
+        } catch(e) {
+            alert("حدث خطأ أثناء الاستعادة.");
+        }
     };
     window.getSerialsOperationLog = () => serialsOperationLog;
     window.setSerialsOperationLog = (logData) => {
@@ -110,8 +151,11 @@
 
     // Save to Firebase
     async function saveDataToFirebase() {
-        if (!window.currentUser || !window.db || !window.doc || !window.setDoc) return;
+        if (!window.db || !window.currentUser) return;
         try {
+            // حفظ النسخة المحلية كطوق نجاة قبل أي رفع للسحابة
+            saveLocalSafeguardBackup();
+            
             const docRef = window.doc(window.db, 'users', window.currentUser.uid, 'standaloneSerials', 'main');
             await window.setDoc(docRef, { data: standaloneSerials, log: serialsOperationLog });
             console.log('Standalone serials saved to Firebase.');
