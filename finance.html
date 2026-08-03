@@ -16435,6 +16435,10 @@ window.syncLocalSalesToCloud = async function() {
             console.error("فشل رفع الفاتورة:", sale.id, e);
             failCount++;
         }
+
+        // إراحة متصفح المستخدم وقاعدة البيانات لتجنب خطأ resource-exhausted
+        // 30 ملي ثانية كافية جداً لعدم تجميد الشاشة وعدم اختناق Firebase
+        await new Promise(resolve => setTimeout(resolve, 30));
     }
 
     // 4. إعادة الزر لحالته
