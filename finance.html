@@ -2000,6 +2000,10 @@ input:checked:active + .slider:before {
                         <label for="transfer-amount-input">المبلغ:</label>
                         <input type="number" id="transfer-amount-input" placeholder="0.00">
                     </div>
+                    <div class="form-group" style="margin-top: 10px;">
+                        <label for="transfer-reason-input">السبب / التفاصيل (اختياري):</label>
+                        <input type="text" id="transfer-reason-input" placeholder="اكتب سبب التحويل هنا...">
+                    </div>
                     <button id="transfer-btn" style="background-color: #f97316;">تنفيذ التحويل</button>
                 </div>
                 
@@ -4332,6 +4336,8 @@ function loadState(data, dateString) {
     liquidityLog = data.liquidityLog || [];
     salesToday = data.salesToday || [];
     serialNumbersLog = data.serialNumbersLog || [];
+    if (data.standaloneSerials && typeof window.setStandaloneSerials === 'function') window.setStandaloneSerials(data.standaloneSerials);
+    if (data.serialsOperationLog && typeof window.setSerialsOperationLog === 'function') window.setSerialsOperationLog(data.serialsOperationLog);
 
     // الأسطر الخاصة بالاستيراد والمشتريات
     purchaseInvoices = data.purchaseInvoices || []; 
@@ -6463,6 +6469,8 @@ async function saveCurrentStateByDate(dateString) {
         liquidityLog: liquidityLog || [],
         salesToday: salesToday || [],
         serialNumbersLog: serialNumbersLog || [],
+        standaloneSerials: typeof window.getStandaloneSerials === 'function' ? window.getStandaloneSerials() : [],
+        serialsOperationLog: typeof window.getSerialsOperationLog === 'function' ? window.getSerialsOperationLog() : [],
         inboxTasks: inboxTasks || [],
         purchaseInvoices: purchaseInvoices || [],
         pendingPurchases: pendingPurchases || [],
@@ -6507,6 +6515,8 @@ async function saveCurrentStateByDate(dateString) {
             monthlyLiabilities: monthlyLiabilities || [],
             pendingSales: pendingSales || [],
             serialNumbersLog: serialNumbersLog || [],
+        standaloneSerials: typeof window.getStandaloneSerials === 'function' ? window.getStandaloneSerials() : [],
+        serialsOperationLog: typeof window.getSerialsOperationLog === 'function' ? window.getSerialsOperationLog() : [],
             inboxTasks: inboxTasks || [],
             pendingPurchases: pendingPurchases || [],
             pendingReturns: pendingReturns || [],
@@ -6922,6 +6932,8 @@ async function loadDataForDate(dateString) {
         operationLog: operationLog || [],
         liquidityLog: liquidityLog || [], // سجل الخزينة التفصيلي
         serialNumbersLog: serialNumbersLog || [],
+        standaloneSerials: typeof window.getStandaloneSerials === 'function' ? window.getStandaloneSerials() : [],
+        serialsOperationLog: typeof window.getSerialsOperationLog === 'function' ? window.getSerialsOperationLog() : [],
         inboxTasks: inboxTasks || []
     };
 
@@ -7216,7 +7228,7 @@ function processMonthlyLiabilities() {
         showMessage(messageEl, `تم تعديل رصيد حساب "${account.name}" بنجاح.`, false);
         d('adjust-amount-input').value = '';
         d('adjust-reason-input').value = '';
-    } else {
+        } else {
         showMessage(messageEl, "تم إلغاء عملية التعديل.", false, true);
     }
 }
@@ -11800,7 +11812,18 @@ function handleIncomeAddition() {
     const desc = reason ? `إضافة ${formatCurrency(amount)} إلى حساب "${account.name}" تحت فئة "${category}". التفاصيل: ${reason}` : `إضافة ${formatCurrency(amount)} إلى حساب "${account.name}" تحت فئة "${category}".`;
     logOperation("إضافة إيراد", desc);
     
-    // لاحقاً، سنضيف هذا لسجل السيولة المفصل
+    // تسجيل في حركة السيولة
+    const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
+    liquidityLog.push({
+        id: `liq-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        type: "add",
+        amount: amount,
+        description: desc,
+        currentBalance: newTotalLiquidity,
+        accountId: accountId
+    });
+    
     return true;
 }
 
@@ -11894,7 +11917,22 @@ function handleTransfer() {
     saveStateToHistory();
     fromAccount.balance -= amount;
     toAccount.balance += amount;
-    logOperation("تحويل بين الحسابات", `تم تحويل ${formatCurrency(amount)} من "${fromAccount.name}" إلى "${toAccount.name}".`);
+    
+    const reason = d('transfer-reason-input') ? d('transfer-reason-input').value.trim() : '';
+    const desc = reason ? `تم تحويل ${formatCurrency(amount)} من "${fromAccount.name}" إلى "${toAccount.name}". التفاصيل: ${reason}` : `تم تحويل ${formatCurrency(amount)} من "${fromAccount.name}" إلى "${toAccount.name}".`;
+    
+    logOperation("تحويل بين الحسابات", desc);
+    
+    const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
+    liquidityLog.push({
+        id: `liq-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        type: "transfer", // النوع تحويل لإظهاره بدون تأثير على الرصيد الإجمالي
+        amount: amount,
+        description: desc,
+        currentBalance: newTotalLiquidity
+    });
+
     return true;
 }
 
@@ -11924,8 +11962,23 @@ function handleBalanceAdjustment() {
 
     if (confirm(`هل أنت متأكد من تغيير رصيد حساب "${account.name}" إلى ${formatCurrency(newBalance)}؟`)) {
         saveStateToHistory();
+        const diff = newBalance - account.balance;
         account.balance = newBalance;
-        logOperation("تعديل رصيد يدوي", `تم تعديل رصيد حساب "${account.name}" إلى ${formatCurrency(newBalance)}. السبب: ${reason}.`);
+        
+        const desc = `تم تعديل رصيد حساب "${account.name}" إلى ${formatCurrency(newBalance)}. السبب: ${reason}.`;
+        logOperation("تعديل رصيد يدوي", desc);
+        
+        const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
+        liquidityLog.push({
+            id: `liq-${Date.now()}`,
+            timestamp: new Date().toISOString(),
+            type: diff >= 0 ? "add" : "remove",
+            amount: Math.abs(diff),
+            description: desc,
+            currentBalance: newTotalLiquidity,
+            accountId: accountId
+        });
+        
         return true;
     }
     return false;
@@ -14594,22 +14647,37 @@ if (debtsSortSelect) {
 
 if (receivePaymentButton) {
     receivePaymentButton.addEventListener("click", () => {
-        // منع النقر المزدوج
+        // === LOCK ===
+        if (window._receiveDebtProcessing) return;
+        window._receiveDebtProcessing = true;
         receivePaymentButton.disabled = true;
-        setTimeout(() => { receivePaymentButton.disabled = false; }, 1000);
+        receivePaymentButton.textContent = 'جاري السداد...';
         
-        const checkedDebts = d('payment-debtor-list-container').querySelectorAll('.debt-payment-checkbox:checked');
+        const unlockRPB = () => {
+            setTimeout(() => {
+                window._receiveDebtProcessing = false;
+                receivePaymentButton.disabled = false;
+                receivePaymentButton.textContent = 'استلام المبلغ المحدد';
+            }, 2000);
+        };
+        
+        const checkedDebts = Array.from(d('payment-debtor-list-container').querySelectorAll('.debt-payment-checkbox:checked'));
         const selectedAccountId = d('debt-payment-account').value;
         const account = accounts.find(acc => acc.id === selectedAccountId);
 
         if (checkedDebts.length === 0) {
             showMessage(debtsMessage, "يرجى تحديد دين واحد على الأقل لتحصيله.", true);
+            unlockRPB();
             return;
         }
         if (!account) {
             showMessage(debtsMessage, "يرجى اختيار الحساب الذي سيتم إيداع المبلغ فيه.", true);
+            unlockRPB();
             return;
         }
+        
+        // Uncheck immediately to prevent duplicates
+        checkedDebts.forEach(cb => cb.checked = false);
 
         let totalPayment = 0;
         let paidDebtIds = [];
@@ -14626,7 +14694,6 @@ if (receivePaymentButton) {
         });
 
         saveStateToHistory();
-
         account.balance += totalPayment;
         debtors = debtors.filter(d => !paidDebtIds.includes(d.id));
 
@@ -14636,8 +14703,23 @@ if (receivePaymentButton) {
         logOperation("استلام سداد مجمع", `استلام ${formatCurrency(totalPayment)} في حساب "${account.name}" من: ${summaryText}.`);
 
         showMessage(debtsMessage, `تم استلام دفعة مجمعة بقيمة ${formatCurrency(totalPayment)} بنجاح.`);
-        updateUI();
+        
+        // Fast targeted UI update
+        renderAccounts();
+        updateDebtorsListDisplay();
+        renderDebtorPaymentList();
+        updateLiquidityLogDisplay();
+        
+        const totalLiquidityNow = accounts.reduce((sum, acc) => sum + acc.balance, 0); 
+        if (d('summary-current-liquidity')) d('summary-current-liquidity').textContent = formatCurrency(totalLiquidityNow);
+        const totalDebtsValue = debtors.reduce((sum, debtor) => sum + (Number(debtor.amount) || 0), 0);
+        if (d('summary-total-debts-display')) d('summary-total-debts-display').textContent = formatCurrency(totalDebtsValue);
+        
         d('debt-payment-summary').classList.add('hidden');
+        
+        // Cloud save in background
+        if (typeof saveSystemToCloud === 'function') saveSystemToCloud().catch(e => console.error(e));
+        unlockRPB();
     });
 }
               // --- ضع هذا الكود داخل دالة initializeApp بدلاً من الكود القديم الخاص بالالتزامات ---
@@ -14807,6 +14889,11 @@ if (toggleAllLiabilitiesCheckbox) {
 // =======================================================
 
     payLiabilityButton.addEventListener("click", () => {
+        if (payLiabilityButton.dataset && payLiabilityButton.dataset.processing === 'true') return;
+        if (payLiabilityButton.dataset) payLiabilityButton.dataset.processing = 'true';
+        if (payLiabilityButton.disabled !== undefined) payLiabilityButton.disabled = true;
+        setTimeout(() => { if (payLiabilityButton.dataset) payLiabilityButton.dataset.processing = 'false'; if (payLiabilityButton.disabled !== undefined) payLiabilityButton.disabled = false; }, 1500);
+
         // منع النقر المزدوج
         payLiabilityButton.disabled = true;
         setTimeout(() => { payLiabilityButton.disabled = false; }, 1000);
@@ -14876,6 +14963,11 @@ if (toggleAllLiabilitiesCheckbox) {
 }
                  if (performTwoPartyOffsetButton) { 
     performTwoPartyOffsetButton.addEventListener("click", () => {
+        if (performTwoPartyOffsetButton.dataset && performTwoPartyOffsetButton.dataset.processing === 'true') return;
+        if (performTwoPartyOffsetButton.dataset) performTwoPartyOffsetButton.dataset.processing = 'true';
+        if (performTwoPartyOffsetButton.disabled !== undefined) performTwoPartyOffsetButton.disabled = true;
+        setTimeout(() => { if (performTwoPartyOffsetButton.dataset) performTwoPartyOffsetButton.dataset.processing = 'false'; if (performTwoPartyOffsetButton.disabled !== undefined) performTwoPartyOffsetButton.disabled = false; }, 1500);
+
         saveStateToHistory(); // <-- أضف هذا السطر
         performTwoPartyOffset()
     }); 
@@ -14883,6 +14975,11 @@ if (toggleAllLiabilitiesCheckbox) {
 // --- Financial Center Buttons Listener ---
 if (fc_execute_debt_btn) {
     fc_execute_debt_btn.addEventListener('click', () => {
+        if (fc_execute_debt_btn.dataset && fc_execute_debt_btn.dataset.processing === 'true') return;
+        if (fc_execute_debt_btn.dataset) fc_execute_debt_btn.dataset.processing = 'true';
+        if (fc_execute_debt_btn.disabled !== undefined) fc_execute_debt_btn.disabled = true;
+        setTimeout(() => { if (fc_execute_debt_btn.dataset) fc_execute_debt_btn.dataset.processing = 'false'; if (fc_execute_debt_btn.disabled !== undefined) fc_execute_debt_btn.disabled = false; }, 1500);
+
         saveStateToHistory(); // لحفظ الحالة قبل التنفيذ
         fc_execute_debt_treatment();
     });
@@ -14890,6 +14987,11 @@ if (fc_execute_debt_btn) {
 
 if (fc_execute_dist_btn) {
     fc_execute_dist_btn.addEventListener('click', () => {
+        if (fc_execute_dist_btn.dataset && fc_execute_dist_btn.dataset.processing === 'true') return;
+        if (fc_execute_dist_btn.dataset) fc_execute_dist_btn.dataset.processing = 'true';
+        if (fc_execute_dist_btn.disabled !== undefined) fc_execute_dist_btn.disabled = true;
+        setTimeout(() => { if (fc_execute_dist_btn.dataset) fc_execute_dist_btn.dataset.processing = 'false'; if (fc_execute_dist_btn.disabled !== undefined) fc_execute_dist_btn.disabled = false; }, 1500);
+
         saveStateToHistory(); // لحفظ الحالة قبل التنفيذ
         fc_execute_cost_distribution();
     });
@@ -14899,6 +15001,11 @@ const ppConfirmBtn = d('pp-confirm-payment-btn');
 const ppCancelBtn = d('pp-cancel-payment-btn');
 if (ppConfirmBtn) {
     ppConfirmBtn.addEventListener('click', async () => {
+        if (ppConfirmBtn.dataset && ppConfirmBtn.dataset.processing === 'true') return;
+        if (ppConfirmBtn.dataset) ppConfirmBtn.dataset.processing = 'true';
+        if (ppConfirmBtn.disabled !== undefined) ppConfirmBtn.disabled = true;
+        setTimeout(() => { if (ppConfirmBtn.dataset) ppConfirmBtn.dataset.processing = 'false'; if (ppConfirmBtn.disabled !== undefined) ppConfirmBtn.disabled = false; }, 1500);
+
         const pendingId = ppConfirmBtn.dataset.pendingId;
         const purchaseIndex = pendingPurchases.findIndex(p => p.id === pendingId);
         
@@ -15427,37 +15534,45 @@ const adjustBalanceBtn = d('adjust-balance-btn');
 
 if (addIncomeBtn) {
     addIncomeBtn.addEventListener('click', () => {
+        addIncomeBtn.disabled = true;
         if (handleIncomeAddition()) {
             updateUI();
             d('income-amount-input').value = '';
             if (d('income-reason-input')) d('income-reason-input').value = '';
         }
+        setTimeout(() => addIncomeBtn.disabled = false, 500);
     });
 }
 if (addExpenseBtn) {
     addExpenseBtn.addEventListener('click', () => {
+        addExpenseBtn.disabled = true;
         if (handleExpenseAddition()) {
             updateUI();
             d('expense-amount-input').value = '';
             if (d('expense-reason-input')) d('expense-reason-input').value = '';
         }
+        setTimeout(() => addExpenseBtn.disabled = false, 500);
     });
 }
 if (transferBtn) {
     transferBtn.addEventListener('click', () => {
+        transferBtn.disabled = true;
         if (handleTransfer()) {
             updateUI();
             d('transfer-amount-input').value = '';
         }
+        setTimeout(() => transferBtn.disabled = false, 500);
     });
 }
 if (adjustBalanceBtn) {
     adjustBalanceBtn.addEventListener('click', () => {
+        adjustBalanceBtn.disabled = true;
         if (handleBalanceAdjustment()) {
             updateUI();
             d('adjust-amount-input').value = '';
             d('adjust-reason-input').value = '';
         }
+        setTimeout(() => adjustBalanceBtn.disabled = false, 500);
     });
 }
 const actionTabsContainer = document.querySelector('.action-tabs');
@@ -15779,6 +15894,11 @@ document.body.addEventListener('click', (e) => {
 
 // Event listener for the modal's confirm button
 d('confirm-partial-liability-payment-btn').addEventListener('click', () => {
+        if (d('confirm-partial-liability-payment-btn').dataset && d('confirm-partial-liability-payment-btn').dataset.processing === 'true') return;
+        if (d('confirm-partial-liability-payment-btn').dataset) d('confirm-partial-liability-payment-btn').dataset.processing = 'true';
+        if (d('confirm-partial-liability-payment-btn').disabled !== undefined) d('confirm-partial-liability-payment-btn').disabled = true;
+        setTimeout(() => { if (d('confirm-partial-liability-payment-btn').dataset) d('confirm-partial-liability-payment-btn').dataset.processing = 'false'; if (d('confirm-partial-liability-payment-btn').disabled !== undefined) d('confirm-partial-liability-payment-btn').disabled = false; }, 1500);
+
     const liabilityId = d('confirm-partial-liability-payment-btn').dataset.liabilityId;
     const liabilityIndex = liabilities.findIndex(l => l.id === liabilityId);
     if (liabilityIndex === -1) {
@@ -15940,10 +16060,24 @@ window.addEventListener('click', (event) => {
 
 // Event listener for the modal's confirm button
 d('confirm-partial-debt-payment-btn').addEventListener('click', () => {
-    const debtId = d('confirm-partial-debt-payment-btn').dataset.debtId;
+    // === LOCK ===
+    const partialBtn = d('confirm-partial-debt-payment-btn');
+    if (window._partialDebtProcessing) return;
+    window._partialDebtProcessing = true;
+    partialBtn.disabled = true;
+    
+    const unlockPartial = () => {
+        setTimeout(() => {
+            window._partialDebtProcessing = false;
+            partialBtn.disabled = false;
+        }, 2000);
+    };
+
+    const debtId = partialBtn.dataset.debtId;
     const debtIndex = debtors.findIndex(d => d.id === debtId);
     if (debtIndex === -1) {
         showMessage(partialDebtPaymentMessage, "خطأ: لم يتم العثور على الدين.", true);
+        unlockPartial();
         return;
     }
 
@@ -15952,33 +16086,32 @@ d('confirm-partial-debt-payment-btn').addEventListener('click', () => {
     const account = accounts.find(acc => acc.id === accountId);
     const debt = debtors[debtIndex];
 
-    // Validation
     if (isNaN(amountToPay) || amountToPay <= 0) {
         showMessage(partialDebtPaymentMessage, "الرجاء إدخال مبلغ صحيح أكبر من صفر.", true);
+        unlockPartial();
         return;
     }
-    if (amountToPay > debt.amount + 0.001) { // Add tolerance for floating point issues
-        showMessage(partialDebtPaymentMessage, "المبلغ المدفوع أكبر من قيمة الدين.", true);
+    if (amountToPay > debt.amount + 0.001) {
+        showMessage(partialDebtPaymentMessage, "المبلغ المدخل أكبر من قيمة الدين.", true);
+        unlockPartial();
         return;
     }
     if (!account) {
         showMessage(partialDebtPaymentMessage, "الرجاء اختيار الحساب الذي سيتم إيداع المبلغ فيه.", true);
+        unlockPartial();
         return;
     }
     
-    saveStateToHistory(); // For Undo functionality
-
-    // Process payment
+    saveStateToHistory();
     debt.amount -= amountToPay;
     account.balance += amountToPay;
 
-    const summaryText = `سداد جزئي من ${debt.name} (${debt.reason})`;
-    logOperation("استلام سداد جزئي", `استلام ${formatCurrency(amountToPay)} في حساب "${account.name}" من دين "${debt.name}".`);
+    const summaryText = `دفعة دين من ${debt.name} (${debt.reason})`;
+    logOperation("استلام دفعة دين", `استلام ${formatCurrency(amountToPay)} في حساب "${account.name}" من دين "${debt.name}".`);
     
     const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
     liquidityLog.push({ id: `liq-${Date.now()}`, timestamp: new Date().toISOString(), type: "add", amount: amountToPay, description: summaryText, currentBalance: newTotalLiquidity });
 
-    // Remove debt if it's fully paid
     if (debt.amount < 0.01) {
         debtors.splice(debtIndex, 1);
     }
@@ -15986,7 +16119,10 @@ d('confirm-partial-debt-payment-btn').addEventListener('click', () => {
     updateUI();
     closePartialDebtPaymentModal();
     showGlobalMessage(`تم استلام مبلغ ${formatCurrency(amountToPay)} بنجاح.`, false);
-});
+    
+    if (typeof saveSystemToCloud === 'function') saveSystemToCloud().catch(e => console.error(e));
+    unlockPartial();
+})
 
 // Event listeners for closing the modal
 partialDebtPaymentModal.querySelectorAll('.modal-close-btn, .modal-close-btn-footer').forEach(btn => {
@@ -16564,6 +16700,8 @@ async function saveSystemToCloud() {
         pendingReturns: pendingReturns || [],
         liquidityLog: liquidityLog || [],
         serialNumbersLog: serialNumbersLog || [],
+        standaloneSerials: typeof window.getStandaloneSerials === 'function' ? window.getStandaloneSerials() : [],
+        serialsOperationLog: typeof window.getSerialsOperationLog === 'function' ? window.getSerialsOperationLog() : [],
         log: operationLog || [], // سجل العمليات
         
         savedAt: new Date().toISOString(),
@@ -17187,8 +17325,16 @@ window.updateDebtSelectionTotal = function(customerId) {
 };
 
 window.paySelectedDebtsForCustomer = function(customerId) {
-    const checkboxes = document.querySelectorAll(`.debt-item-cb[data-customer-id="${customerId}"]:checked`);
-    if (checkboxes.length === 0) return;
+    // === LOCK ===
+    if (window['_payDebt_' + customerId]) return;
+    window['_payDebt_' + customerId] = true;
+    const unlockF1 = () => { setTimeout(() => { window['_payDebt_' + customerId] = false; }, 2000); };
+
+    const checkboxes = Array.from(document.querySelectorAll(`.debt-item-cb[data-customer-id="${customerId}"]:checked`));
+    if (checkboxes.length === 0) { unlockF1(); return; }
+    
+    // Uncheck immediately to prevent duplicates
+    checkboxes.forEach(cb => cb.checked = false);
     
     const accountSelect = document.querySelector(`.debt-pay-account-select[data-customer-id="${customerId}"]`);
     const accountId = accountSelect.value;
@@ -17196,6 +17342,7 @@ window.paySelectedDebtsForCustomer = function(customerId) {
     
     if (!account) {
         showGlobalMessage('يرجى اختيار حساب مالي صحيح', true);
+        unlockF1();
         return;
     }
 
@@ -17207,28 +17354,33 @@ window.paySelectedDebtsForCustomer = function(customerId) {
         paidDebtIds.push(cb.dataset.debtId);
     });
 
-    if (confirm(`هل أنت متأكد من سداد ديون بقيمة ${formatCurrency(totalAmount)} وإيداعها في "${account.name}"؟`)) {
-        // حفظ الحالة للتراجع
-        if (typeof saveStateToHistory === 'function') saveStateToHistory();
-        
-        // تحديث الحساب
-        account.balance += totalAmount;
-        
-        const customerProfile = debtorProfiles.find(p => p.id === customerId);
-        const customerName = customerProfile ? customerProfile.name : "عميل";
-        
-        // إزالة الديون من النظام
-        window.debtors = window.debtors.filter(d => !paidDebtIds.includes(d.id));
-        
-        // تسجيل العملية
-        logOperation("سداد ديون محددة", `تم سداد ${paidDebtIds.length} بنود ديون للعميل "${customerName}" بقيمة ${formatCurrency(totalAmount)} وإيداعها في "${account.name}"`);
-        
-        saveSystemToCloud().then(() => {
-            showGlobalMessage(`تم سداد الديون بنجاح وإيداع ${formatCurrency(totalAmount)}`, false);
-            updateUI();
-        });
+    if (!confirm(`هل أنت متأكد من سداد ديون بقيمة ${formatCurrency(totalAmount)} وإيداعها في "${account.name}"؟`)) {
+        unlockF1();
+        return;
     }
-};
+
+    // INSTANT execution
+    if (typeof saveStateToHistory === 'function') saveStateToHistory();
+    account.balance += totalAmount;
+    
+    const customerProfile = debtorProfiles.find(p => p.id === customerId);
+    const customerName = customerProfile ? customerProfile.name : "عميل";
+    
+    window.debtors = window.debtors.filter(d => !paidDebtIds.includes(d.id));
+    
+    logOperation("سداد ديون محددة", `تم سداد ${paidDebtIds.length} بنود ديون للعميل "${customerName}" بقيمة ${formatCurrency(totalAmount)} وإيداعها في "${account.name}"`);
+    
+    const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
+    liquidityLog.push({ id: 'liq-' + Date.now(), timestamp: new Date().toISOString(), type: "add", amount: totalAmount, description: `سداد ديون ${customerName}`, currentBalance: newTotalLiquidity, accountId: account.id });
+    
+    // INSTANT UI update
+    showGlobalMessage(`تم سداد الديون بنجاح وإيداع ${formatCurrency(totalAmount)}`, false);
+    updateUI();
+    
+    // Cloud save in background
+    if (typeof saveSystemToCloud === 'function') saveSystemToCloud().catch(e => console.error(e));
+    unlockF1();
+}
 
 // --- 2. مودال السداد الجماعي للعملاء ---
 
@@ -17362,57 +17514,57 @@ window.updateBulkSelectionTotal = function() {
 };
 
 window.confirmBulkDebtPayment = function() {
-    const checkboxes = document.querySelectorAll('.bulk-debt-item-cb:checked');
-    if (checkboxes.length === 0) return;
+    // === LOCK ===
+    if (window._bulkDebtProcessing) return;
+    window._bulkDebtProcessing = true;
+    
+    const btn = document.querySelector('button[onclick="confirmBulkDebtPayment()"]');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري...'; }
+    const unlockF2 = () => { setTimeout(() => { window._bulkDebtProcessing = false; if(btn){btn.disabled=false; btn.innerHTML='<i class="fas fa-check-circle"></i> تأكيد السداد';} }, 2000); };
+
+    const checkboxes = Array.from(document.querySelectorAll('.bulk-debt-item-cb:checked'));
+    if (checkboxes.length === 0) { unlockF2(); return; }
+    
+    // Uncheck immediately
+    checkboxes.forEach(cb => cb.checked = false);
     
     const accountId = document.getElementById('bulkDebtAccountSelect').value;
     const note = document.getElementById('bulkDebtNote').value.trim();
     const account = accounts.find(a => a.id === accountId);
     
-    if (!account) {
-        alert('يرجى اختيار حساب مالي صحيح');
-        return;
-    }
+    if (!account) { alert('يرجى اختيار حساب مالي صحيح'); unlockF2(); return; }
 
-    let totalAmount = 0;
-    let paidDebtIds = [];
-    let involvedCustomers = new Set();
-    
+    let totalAmount = 0, paidDebtIds = [], involvedCustomers = new Set();
     checkboxes.forEach(cb => {
         totalAmount += parseFloat(cb.dataset.amount || 0);
         paidDebtIds.push(cb.dataset.debtId);
-        
-        const customerProfile = debtorProfiles.find(p => p.id === cb.dataset.customerId);
-        if (customerProfile) {
-            involvedCustomers.add(customerProfile.name);
-        }
+        const cp = debtorProfiles.find(p => p.id === cb.dataset.customerId);
+        if (cp) involvedCustomers.add(cp.name);
     });
 
     const customerNamesStr = Array.from(involvedCustomers).join('، ');
 
-    if (confirm(`تأكيد سداد ديون بقيمة ${formatCurrency(totalAmount)} لعدد ${involvedCustomers.size} عملاء وإيداعها في "${account.name}"؟`)) {
-        // حفظ الحالة للتراجع
-        if (typeof saveStateToHistory === 'function') saveStateToHistory();
-        
-        // تحديث الخزنة
-        account.balance += totalAmount;
-        
-        // إزالة الديون المسددة
-        window.debtors = window.debtors.filter(d => !paidDebtIds.includes(d.id));
-        
-        // تسجيل اللوج
-        let logDesc = `سداد جماعي لعدد ${paidDebtIds.length} بند دين بإجمالي ${formatCurrency(totalAmount)} من العملاء: (${customerNamesStr}) وإيداعها في "${account.name}"`;
-        if (note) logDesc += ` - ملاحظة: ${note}`;
-        
-        logOperation("سداد ديون جماعي", logDesc);
-        
-        saveSystemToCloud().then(() => {
-            showGlobalMessage(`تم إيداع ${formatCurrency(totalAmount)} في الخزنة بنجاح`, false);
-            closeBulkDebtModal();
-            updateUI();
-        });
-    }
-};
+    if (!confirm(`تأكيد سداد ديون بقيمة ${formatCurrency(totalAmount)} لعدد ${involvedCustomers.size} عملاء وإيداعها في "${account.name}"؟`)) { unlockF2(); return; }
+
+    // INSTANT
+    if (typeof saveStateToHistory === 'function') saveStateToHistory();
+    account.balance += totalAmount;
+    window.debtors = window.debtors.filter(d => !paidDebtIds.includes(d.id));
+    
+    let logDesc = `سداد جماعي لعدد ${paidDebtIds.length} بند بإجمالي ${formatCurrency(totalAmount)} من: (${customerNamesStr}) في "${account.name}"`;
+    if (note) logDesc += ` - ملاحظة: ${note}`;
+    logOperation("سداد ديون جماعي", logDesc);
+    
+    const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
+    liquidityLog.push({ id: 'liq-' + Date.now(), timestamp: new Date().toISOString(), type: "add", amount: totalAmount, description: logDesc, currentBalance: newTotalLiquidity, accountId: account.id });
+    
+    closeBulkDebtModal();
+    updateUI();
+    showGlobalMessage(`تم إيداع ${formatCurrency(totalAmount)} في الخزنة بنجاح`, false);
+    
+    if (typeof saveSystemToCloud === 'function') saveSystemToCloud().catch(e => console.error(e));
+    unlockF2();
+}
 
 window.deleteDebtItem = function(debtId) {
     const debt = window.debtors.find(d => d.id === debtId);
@@ -18450,7 +18602,8 @@ if (invoiceModalEl) {
                 </div>
                 <!-- Local Undo/Redo Controls & Log -->
                 <div class="flex items-center gap-2 flex-wrap justify-end">
-                    <button id="serials-log-toggle" class="px-4 py-2 bg-indigo-100 text-indigo-700 hover:bg-indigo-200 font-bold rounded-xl shadow-sm transition-colors flex items-center gap-2" title="سجل العمليات">
+                    <button onclick="if(confirm('تحذير: هل أنت متأكد من استعادة السيريالات المفقودة من النسخة الاحتياطية للطوارئ؟ سيتم استبدال البيانات الحالية.')) { if(typeof window.restoreStandaloneSerialsFromSafeguard === 'function') window.restoreStandaloneSerialsFromSafeguard(); else alert('دالة الاستعادة غير موجودة.'); }" class="px-4 py-2 bg-red-100 text-red-700 hover:bg-red-200 font-bold rounded-xl shadow-sm transition-colors flex items-center gap-2" title="استعادة السيريالات المفقودة"><i class="fas fa-life-ring"></i> <span class="hidden sm:inline">استعادة الطوارئ</span></button>
+                      <button id="serials-log-toggle" class="px-4 py-2 bg-indigo-100 text-indigo-700 hover:bg-indigo-200 font-bold rounded-xl shadow-sm transition-colors flex items-center gap-2" title="سجل العمليات">
                         <i class="fas fa-list-alt"></i> <span class="hidden sm:inline">سجل العمليات</span>
                     </button>
                     <button onclick="console.log('Local Undo Clicked'); if(typeof undo === 'function') undo(); else console.error('undo function not found!');" class="local-undo-btn px-4 py-2 bg-orange-100 text-orange-700 hover:bg-orange-200 font-bold rounded-xl shadow-sm transition-colors flex items-center gap-2" style="opacity: 0.5; cursor: not-allowed;" disabled title="تراجع خطوة">
