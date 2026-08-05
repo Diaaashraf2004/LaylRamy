@@ -844,3 +844,222 @@ async function finalizeSave() {
         console.warn("تنبيه: دالة الحفظ السحابي غير متصلة.");
     }
 }
+// Auto-select current month for expenses report on load
+document.addEventListener('DOMContentLoaded', () => {
+    const m = document.getElementById('exp-report-month-year');
+    if (m && !m.value) {
+        const t = new Date();
+        m.value = t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0');
+    }
+});
+
+
+// =========================================
+// المصروفات - منقول لزيادة السرعة
+// =========================================
+window.generateExpensesReportExternal = async function(deps) {
+    const { showMessage, formatCurrency, getTodayDateString, currentLoadedDate, operationLog, liquidityLog, formatDateForDisplay } = deps;
+    const monthInput = document.getElementById('exp-report-month-year');
+    const messageEl = document.getElementById('exp-report-message');
+    const tableBody = document.getElementById('expenses-report-table-body');
+    const summaryContainer = document.getElementById('exp-report-summary-container');
+    const summaryTotalEl = document.getElementById('exp-report-summary-total');
+
+    if (!monthInput || !messageEl || !tableBody || !summaryTotalEl || !summaryContainer) return;
+
+    const yearMonth = monthInput.value;
+    if (!yearMonth) {
+        showMessage(messageEl, "يرجى اختيار الشهر والسنة.", true);
+        return;
+    }
+    
+    // Auto-update UI on state changes by hooking into updateUI
+    if (!window._expenseHookAdded) {
+        const origUpdateUI = window.updateUI;
+        window.updateUI = function() {
+            if (origUpdateUI) origUpdateUI();
+            if (!document.getElementById('expenses-report-section').classList.contains('hidden')) {
+                generateExpensesReport();
+            }
+        };
+        window._expenseHookAdded = true;
+    }
+
+    if (window.cachedCloudExpenses && window.cachedCloudExpenses.month === yearMonth && !window._forceRefreshExpenses) {
+        // Use cache
+        processExpensesData(window.cachedCloudExpenses.data, yearMonth);
+        return;
+    }
+    window._forceRefreshExpenses = false;
+
+    showMessage(messageEl, `جاري جلب وتحليل المصروفات...`, false, true);
+    summaryContainer.classList.add('hidden');
+    tableBody.innerHTML = `<tr><td colspan="4" class="text-center text-gray-500 py-4"><i class="fas fa-spinner fa-spin"></i> جاري معالجة البيانات...</td></tr>`;
+
+    setTimeout(async () => {
+        try {
+            const userId = window.currentUser ? window.currentUser.uid : null;
+            if(!userId) return;
+            const daysSnapshot = await window.getDocs(window.collection(window.db, "users", userId, "days"));
+            let allCloudDays = [];
+
+            daysSnapshot.forEach(doc => {
+                const dateStr = doc.id; // YYYY-MM-DD
+                if (dateStr.startsWith(yearMonth)) {
+                    allCloudDays.push({ date: dateStr, ...doc.data() });
+                }
+            });
+
+            window.cachedCloudExpenses = {
+                month: yearMonth,
+                data: allCloudDays
+            };
+
+            processExpensesData(allCloudDays, yearMonth);
+
+        } catch (error) {
+            console.error("Error fetching expenses:", error);
+            showMessage(messageEl, "حدث خطأ أثناء جلب البيانات السحابية.", true);
+            tableBody.innerHTML = '<tr><td colspan="4" class="text-center text-red-500">فشل تحميل البيانات.</td></tr>';
+        }
+    }, 100);
+
+    function processExpensesData(cloudDays, targetMonth) {
+        const extractAmountFromText = (text) => {
+            if (!text || typeof text !== 'string') return 0;
+            let cleanText = text.replace('جنيه', '').replace('EGP', '');
+            const regex = /(?:بقيمة|سحب|خصم|مبلغ|بدفع|دفع|تسديد)\s*([\d,]+(?:\.\d+)?)/;
+            const match = cleanText.match(regex);
+            if (match && match[1]) return parseFloat(match[1].replace(/,/g, ''));
+            const startMatch = cleanText.match(/^([\d,]+(?:\.\d+)?)/);
+            if (startMatch && startMatch[1]) return parseFloat(startMatch[1].replace(/,/g, ''));
+            return 0;
+        };
+
+        const todayStr = (typeof getTodayDateString === 'function') ? getTodayDateString() : (typeof currentLoadedDate !== 'undefined' && currentLoadedDate ? currentLoadedDate : new Date().toISOString().split('T')[0]);
+        
+        // Merge cloud days with local day if they match the month
+        let mergedDays = [...cloudDays];
+        if (todayStr.startsWith(targetMonth)) {
+            const cloudDayIndex = mergedDays.findIndex(d => d.date === todayStr);
+            const localDayData = {
+                date: todayStr,
+                log: typeof operationLog !== 'undefined' ? operationLog : [],
+                liquidityLog: typeof liquidityLog !== 'undefined' ? liquidityLog : []
+            };
+            if (cloudDayIndex !== -1) {
+                mergedDays[cloudDayIndex] = localDayData;
+            } else {
+                mergedDays.push(localDayData);
+            }
+        }
+
+        let allExpenses = [];
+
+        mergedDays.forEach(dayData => {
+            if (!dayData.date.startsWith(targetMonth)) return;
+            const entryDate = dayData.date;
+
+            // 1. Extract from legacy operationLog (data.log)
+            if (dayData.log && Array.isArray(dayData.log)) {
+                dayData.log.forEach(logEntry => {
+                    const type = logEntry.type || "";
+                    const details = logEntry.details || "";
+
+                    const isExpense = 
+                        type.includes("مصروف") || 
+                        type.includes("سحب") || 
+                        details.includes("مصروف") || 
+                        details.includes("سحب") ||
+                        details.includes("فاتورة شراء");
+
+                    const isRefund = type.includes("add") || details.includes("استرداد") || details.includes("إلغاء") || type.includes("ترحيل");
+
+                    if (isExpense && !isRefund) {
+                        const amount = extractAmountFromText(details);
+                        if (amount > 0) {
+                            allExpenses.push({
+                                date: entryDate,
+                                timestamp: logEntry.timestamp || entryDate,
+                                type: type,
+                                details: details,
+                                amount: amount,
+                                source: dayData.date === todayStr ? 'local' : 'cloud'
+                            });
+                        }
+                    }
+                });
+            }
+
+            // 2. Extract from modern liquidityLog with isExpense flag
+            if (dayData.liquidityLog && Array.isArray(dayData.liquidityLog)) {
+                dayData.liquidityLog.forEach(logEntry => {
+                    if (logEntry.isExpense === true) {
+                        const amount = Number(logEntry.amount) || extractAmountFromText(logEntry.description) || 0;
+                        if (amount > 0) {
+                            allExpenses.push({
+                                date: entryDate,
+                                timestamp: logEntry.timestamp || entryDate,
+                                type: 'تسديد التزام',
+                                details: logEntry.description || '',
+                                amount: amount,
+                                source: dayData.date === todayStr ? 'local' : 'cloud',
+                                isVerified: true
+                            });
+                        }
+                    }
+                });
+            }
+        });
+
+        // Remove exact duplicates
+        let uniqueExpenses = [];
+        let seenKeys = new Set();
+        allExpenses.forEach(exp => {
+            const key = `${exp.amount}_${exp.details.trim()}_${exp.date}`;
+            if (!seenKeys.has(key)) {
+                uniqueExpenses.push(exp);
+                seenKeys.add(key);
+            }
+        });
+
+        uniqueExpenses.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+        let totalAmount = 0;
+        tableBody.innerHTML = '';
+        
+        if (uniqueExpenses.length === 0) {
+            tableBody.innerHTML = `<tr><td colspan="4" class="text-center text-gray-500 py-4">لا توجد مصروفات أو مسحوبات مسجلة في هذا الشهر.</td></tr>`;
+        } else {
+            uniqueExpenses.forEach(exp => {
+                totalAmount += exp.amount;
+                let timeStr = "";
+                try {
+                    timeStr = new Date(exp.timestamp).toLocaleTimeString('ar-EG', {hour: '2-digit', minute:'2-digit'});
+                } catch(e){}
+
+                const tr = document.createElement('tr');
+                tr.className = 'expense-row border-b hover:bg-gray-50 transition-colors';
+                
+                tr.innerHTML = `
+                    <td class="p-3 text-sm">
+                        <div class="font-bold text-gray-700">${typeof formatDateForDisplay === 'function' ? formatDateForDisplay(exp.date) : exp.date}</div>
+                        <div class="text-xs text-gray-400">${timeStr}</div>
+                    </td>
+                    <td class="p-3 text-sm font-semibold text-blue-800">
+                        ${exp.type}
+                        ${exp.isVerified ? `<br><span class="text-xs bg-red-100 text-red-800 px-2 py-1 rounded border border-red-200 mt-1 inline-block">مصروف معتمد</span>` : ''}
+                    </td>
+                    <td class="p-3 text-sm text-gray-600">${exp.details}</td>
+                    <td class="p-3 text-sm text-center font-mono font-bold text-red-600">-${formatCurrency(exp.amount)}</td>
+                `;
+                tableBody.appendChild(tr);
+            });
+        }
+        
+        summaryTotalEl.textContent = formatCurrency(totalAmount);
+        summaryContainer.classList.remove('hidden');
+        if(messageEl) showMessage(messageEl, `تم عرض ${uniqueExpenses.length} عملية مصروف لشهر ${targetMonth}.`, false);
+    }
+}
+

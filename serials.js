@@ -35,70 +35,19 @@
 
     // Independent Data Array
     let standaloneSerials = [];
-    let serialsOperationLog = [];
     let isDataLoaded = false;
 
     // Undo/Redo Integration
     window.getStandaloneSerials = () => standaloneSerials;
     window.setStandaloneSerials = (data) => {
-        // حماية إضافية: إذا كانت البيانات فارغة ومصفوفة السيريالات الحالية بها بيانات، تجاهل التصفير العشوائي
-        if ((!data || data.length === 0) && standaloneSerials.length > 0) {
-            console.warn("تم منع تفريغ مصفوفة السيريالات العشوائي.");
-            return;
-        }
         standaloneSerials = data || [];
         renderSerialsTable();
-        saveDataToFirebase();
-    };
-
-    // نظام نسخ احتياطي محلي مضاد للتفريغ
-    function saveLocalSafeguardBackup() {
-        try {
-            if (standaloneSerials && standaloneSerials.length > 0) {
-                localStorage.setItem('goodsMgmt_standaloneSerials_safeguard', JSON.stringify({
-                    data: standaloneSerials,
-                    log: serialsOperationLog,
-                    savedAt: new Date().toISOString()
-                }));
-            }
-        } catch(e) {
-            console.error("Safeguard save failed", e);
-        }
-    }
-    
-    // دالة لاسترجاع النسخة المحلية
-    window.restoreStandaloneSerialsFromSafeguard = function() {
-        try {
-            const backup = localStorage.getItem('goodsMgmt_standaloneSerials_safeguard');
-            if (backup) {
-                const parsed = JSON.parse(backup);
-                if (parsed.data && parsed.data.length > 0) {
-                    standaloneSerials = parsed.data;
-                    serialsOperationLog = parsed.log || [];
-                    renderSerialsTable();
-                    saveDataToFirebase();
-                    alert("تم استعادة النسخة الاحتياطية المحلية الآمنة بنجاح!");
-                    return;
-                }
-            }
-            alert("لا توجد نسخة احتياطية محلية آمنة مسجلة.");
-        } catch(e) {
-            alert("حدث خطأ أثناء الاستعادة.");
-        }
-    };
-    window.getSerialsOperationLog = () => serialsOperationLog;
-    window.setSerialsOperationLog = (logData) => {
-        serialsOperationLog = logData || [];
-        renderSerialsLogTable();
         saveDataToFirebase();
     };
 
     function takeSnapshot() {
         if (typeof window.saveStateToHistory === 'function') {
             window.saveStateToHistory();
-            if (typeof showGlobalMessage === 'function') showGlobalMessage('تم أخذ لقطة للتراجع', false);
-        } else {
-            console.error("Undo system not found!");
         }
     }
 
@@ -112,35 +61,12 @@
             const docRef = window.doc(window.db, 'users', window.currentUser.uid, 'standaloneSerials', 'main');
             const snap = await window.getDoc(docRef);
             if (snap.exists()) {
-                const data = snap.data();
-                standaloneSerials = data.data || [];
-                serialsOperationLog = data.log || [];
-                
-                // Retroactively recover exact date/time from memory for old serials
-                let migrated = false;
-                standaloneSerials.forEach(item => {
-                    if (!item.addedTimestamp) {
-                        const origLog = (window.serialNumbersLog || []).find(s => s.serial === item.serial);
-                        if (origLog && origLog.addedTimestamp) {
-                            const ts = new Date(origLog.addedTimestamp).getTime();
-                            if (!isNaN(ts)) {
-                                item.addedTimestamp = ts;
-                                migrated = true;
-                            }
-                        }
-                    }
-                });
-                if (migrated) {
-                    saveDataToFirebase();
-                }
-                
+                standaloneSerials = snap.data().data || [];
             } else {
                 standaloneSerials = [];
-                serialsOperationLog = [];
             }
             isDataLoaded = true;
             renderSerialsTable();
-            renderSerialsLogTable();
         } catch (error) {
             console.error('Error loading standalone serials:', error);
             if (typeof showGlobalMessage === 'function') {
@@ -151,13 +77,10 @@
 
     // Save to Firebase
     async function saveDataToFirebase() {
-        if (!window.db || !window.currentUser) return;
+        if (!window.currentUser || !window.db || !window.doc || !window.setDoc) return;
         try {
-            // حفظ النسخة المحلية كطوق نجاة قبل أي رفع للسحابة
-            saveLocalSafeguardBackup();
-            
             const docRef = window.doc(window.db, 'users', window.currentUser.uid, 'standaloneSerials', 'main');
-            await window.setDoc(docRef, { data: standaloneSerials, log: serialsOperationLog });
+            await window.setDoc(docRef, { data: standaloneSerials });
             console.log('Standalone serials saved to Firebase.');
         } catch (error) {
             console.error('Error saving standalone serials:', error);
@@ -165,69 +88,6 @@
                 showGlobalMessage('حدث خطأ أثناء حفظ السيريالات.', true);
             }
         }
-    }
-
-    // Log Action Helper
-    function logSerialAction(actionName, serialNumber, details) {
-        const now = new Date();
-        const timeString = now.toLocaleTimeString('ar-EG');
-        const dateString = now.toLocaleDateString('ar-EG');
-        
-        serialsOperationLog.unshift({
-            id: Date.now() + Math.random(),
-            timestamp: now.getTime(),
-            date: dateString,
-            time: timeString,
-            action: actionName,
-            serial: serialNumber || '-',
-            details: details || ''
-        });
-        
-        if (serialsOperationLog.length > 500) {
-            serialsOperationLog.pop();
-        }
-        renderSerialsLogTable();
-    }
-
-    // Render Log Table
-    function renderSerialsLogTable() {
-        const logBody = document.getElementById('serials-log-table-body');
-        if (!logBody) return;
-        
-        if (!serialsOperationLog || serialsOperationLog.length === 0) {
-            logBody.innerHTML = '<tr><td colspan="4" class="text-center py-6 text-slate-400">لا توجد عمليات مسجلة حالياً.</td></tr>';
-            return;
-        }
-
-        logBody.innerHTML = serialsOperationLog.map(log => `
-            <tr class="hover:bg-indigo-50/30 transition-colors">
-                <td class="px-4 py-2 text-xs">
-                    <div class="font-bold text-slate-700">${log.date}</div>
-                    <div class="text-slate-400">${log.time}</div>
-                </td>
-                <td class="px-4 py-2 font-mono text-sm font-bold text-slate-700">${log.serial}</td>
-                <td class="px-4 py-2">
-                    <span class="px-2 py-1 bg-indigo-50 text-indigo-700 rounded-md text-xs font-bold border border-indigo-100">${log.action}</span>
-                </td>
-                <td class="px-4 py-2 text-xs text-slate-600 whitespace-normal min-w-[200px]">${log.details}</td>
-            </tr>
-        `).join('');
-    }
-
-    // UI Toggle for Log
-    const logToggleBtn = document.getElementById('serials-log-toggle');
-    const logContainer = document.getElementById('serials-log-container');
-    const logCloseBtn = document.getElementById('serials-log-close');
-
-    if (logToggleBtn && logContainer) {
-        logToggleBtn.addEventListener('click', () => {
-            logContainer.classList.toggle('hidden');
-        });
-    }
-    if (logCloseBtn && logContainer) {
-        logCloseBtn.addEventListener('click', () => {
-            logContainer.classList.add('hidden');
-        });
     }
 
     // Listen for clicks on the nav button to load data if not loaded
@@ -266,7 +126,6 @@
     if (bulkCheckBtn) bulkCheckBtn.addEventListener('click', () => {
         const selected = getSelectedSerials();
         if (selected.length === 0) return alert('الرجاء تحديد سيريالات أولاً.');
-        takeSnapshot();
         
         let allChecked = true;
         selected.forEach(serial => {
@@ -280,7 +139,6 @@
         });
 
         renderSerialsTable();
-        logSerialAction("فحص جماعي", selected.join(", "), `تحديث حالة الفحص لـ ${selected.length} سيريال`);
         saveDataToFirebase();
         if (typeof showGlobalMessage === 'function') showGlobalMessage(`تم تحديث حالة الفحص لـ ${selected.length} سيريال.`);
     });
@@ -288,7 +146,6 @@
     if (bulkShipBtn) bulkShipBtn.addEventListener('click', () => {
         const selected = getSelectedSerials();
         if (selected.length === 0) return alert('الرجاء تحديد سيريالات أولاً.');
-        takeSnapshot();
         
         let allShipped = true;
         selected.forEach(serial => {
@@ -302,7 +159,6 @@
         });
 
         renderSerialsTable();
-        logSerialAction("حالة البطارية (جماعي)", selected.join(", "), `تحديث حالة البطارية لـ ${selected.length} سيريال`);
         saveDataToFirebase();
         if (typeof showGlobalMessage === 'function') showGlobalMessage(`تم تحديث حالة البطارية لـ ${selected.length} سيريال.`);
     });
@@ -311,12 +167,10 @@
         const selected = getSelectedSerials();
         if (selected.length === 0) return alert('الرجاء تحديد سيريالات أولاً.');
         
-        if (!confirm(`هل أنت متأكد من حذف ${selected.length} سيريال؟`)) return;
-        takeSnapshot();
+        if (!confirm(`هل أنت متأكد من حذف ${selected.length} سيريال؟ لا يمكن التراجع عن هذا الإجراء.`)) return;
 
         standaloneSerials = standaloneSerials.filter(s => !selected.includes(s.serial));
         renderSerialsTable();
-        logSerialAction("حذف جماعي", selected.join(", "), `تم حذف ${selected.length} سيريال`);
         saveDataToFirebase();
         if (selectAllCheckbox) selectAllCheckbox.checked = false;
         if (typeof showGlobalMessage === 'function') showGlobalMessage(`تم حذف ${selected.length} سيريال بنجاح.`);
@@ -344,19 +198,15 @@
                 alert('هذا السيريال مسجل مسبقاً لجهاز آخر!');
                 return;
             }
-            takeSnapshot();
 
-            const oldSerial = editingSerial;
             const itemIndex = standaloneSerials.findIndex(s => s.serial === editingSerial);
             if (itemIndex > -1) {
-                const oldProduct = standaloneSerials[itemIndex].productName;
                 standaloneSerials[itemIndex].serial = serialVal;
                 standaloneSerials[itemIndex].productName = productVal;
                 standaloneSerials[itemIndex].supplierName = supplierVal;
                 standaloneSerials[itemIndex].shippingPercentage = shippingVal;
                 standaloneSerials[itemIndex].followUpDate = followupVal;
                 standaloneSerials[itemIndex].notes = notesVal;
-                logSerialAction("تعديل بيانات", serialVal, `تعديل: ${oldSerial !== serialVal ? 'السيريال تغيّر، ' : ''}المنتج: ${productVal}`);
             }
 
             editingSerial = null;
@@ -371,7 +221,6 @@
                 alert('هذا السيريال مسجل مسبقاً!');
                 return;
             }
-            takeSnapshot();
 
             const now = new Date();
             const dateString = now.toLocaleDateString('ar-EG');
@@ -389,7 +238,6 @@
                 isShipped: false,
                 saleStatus: 'available'
             });
-            logSerialAction("إضافة سيريال جديد", serialVal, `المنتج: ${productVal} | المورد: ${supplierVal}`);
             if (typeof showGlobalMessage === 'function') showGlobalMessage(`تمت إضافة السيريال: ${serialVal} بنجاح.`);
         }
 
@@ -436,21 +284,14 @@
 
         if (updated) {
             renderSerialsTable();
-            const item = standaloneSerials.find(s => s.serial === serial);
-            const statusStr = flagName === 'isChecked' ? (item.isChecked ? 'تم الفحص' : 'بانتظار الفحص') : (item.isShipped ? 'تم الشحن' : 'بانتظار الشحن');
-            logSerialAction(flagName === 'isChecked' ? "تحديث الفحص" : "تحديث البطارية", serial, `الحالة الجديدة: ${statusStr}`);
             saveDataToFirebase();
         }
     };
 
     window.deleteStandaloneSerial = function(serial) {
         if (!confirm(`هل أنت متأكد من حذف السيريال ${serial}؟`)) return;
-        takeSnapshot();
-        const item = standaloneSerials.find(s => s.serial === serial);
-        const details = item ? `المنتج: ${item.productName} | المورد: ${item.supplierName}` : "بدون بيانات إضافية";
         standaloneSerials = standaloneSerials.filter(s => s.serial !== serial);
         renderSerialsTable();
-        logSerialAction("حذف سيريال", serial, `تم الحذف نهائياً. (${details})`);
         saveDataToFirebase();
     };
 
@@ -460,10 +301,8 @@
         const newNote = prompt('أضف/عدل الملاحظة لهذا الجهاز:', item.notes || '');
         if (newNote !== null) {
             takeSnapshot();
-            const oldNote = item.notes;
             item.notes = newNote.trim();
             renderSerialsTable();
-            logSerialAction("تعديل ملاحظة", serial, `من: (${oldNote || 'بدون'}) إلى: (${item.notes || 'بدون'})`);
             saveDataToFirebase();
         }
     };
@@ -472,10 +311,8 @@
         const item = standaloneSerials.find(s => s.serial === serial);
         if (item) {
             takeSnapshot();
-            const oldDate = item.followUpDate;
             item.followUpDate = dateVal;
             renderSerialsTable();
-            logSerialAction("تحديث المتابعة", serial, `من: (${oldDate || 'غير محدد'}) إلى: (${dateVal || 'غير محدد'})`);
             saveDataToFirebase();
         }
     };
@@ -485,9 +322,7 @@
         if (item) {
             takeSnapshot();
             item.saleStatus = item.saleStatus === 'pending' ? 'available' : 'pending';
-            const statusAr = item.saleStatus === 'pending' ? 'معلق (قيد البيع)' : 'متاح';
             renderSerialsTable();
-            logSerialAction("تغيير حالة البيع", serial, `الحالة الجديدة: ${statusAr}`);
             saveDataToFirebase();
             if (typeof showGlobalMessage === 'function') showGlobalMessage(`تم تغيير حالة البيع للسيريال ${serial}`);
         }
@@ -501,7 +336,6 @@
             item.saleStatus = 'sold';
             item.soldDate = new Date().toISOString().split('T')[0];
             renderSerialsTable();
-            logSerialAction("أرشفة كمباع", serial, `تمت الأرشفة في ${item.soldDate}`);
             saveDataToFirebase();
             if (typeof showGlobalMessage === 'function') showGlobalMessage(`تم أرشفة السيريال ${serial} كمباع بنجاح.`);
         }
@@ -515,19 +349,10 @@
             item.saleStatus = 'available';
             item.soldDate = null;
             renderSerialsTable();
-            logSerialAction("استعادة من المباع", serial, "تم الإرجاع للمتاح");
             saveDataToFirebase();
             if (typeof showGlobalMessage === 'function') showGlobalMessage(`تم إرجاع السيريال ${serial} للمتاح بنجاح.`);
         }
     };
-
-    function formatRegistrationDate(log) {
-        if (!log.addedTimestamp) return "تاريخ غير معروف";
-        const d = new Date(log.addedTimestamp);
-        const dateStr = d.toLocaleDateString('ar-EG');
-        const timeStr = d.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
-        return `${dateStr} ${timeStr}`;
-    }
 
     function renderSerialsTable() {
         if (!Array.isArray(standaloneSerials) || standaloneSerials.length === 0) {
@@ -659,8 +484,7 @@
                         <input type="checkbox" class="serial-row-checkbox w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer" value="${log.serial}">
                     </td>
                     <td class="px-4 py-3">
-                        <div class="font-bold text-slate-800 font-mono text-base">${log.serial}</div>
-                        <div class="text-[11px] text-slate-500 mt-1 font-medium" title="تاريخ التسجيل"><i class="fas fa-clock text-slate-400"></i> ${formatRegistrationDate(log)}</div>
+                        <div class="font-bold text-slate-800 font-mono">${log.serial}</div>
                     </td>
                     <td class="px-4 py-3">
                         <div class="font-bold text-slate-700 text-sm">${log.productName || '-'}</div>
