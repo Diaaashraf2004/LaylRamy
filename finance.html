@@ -6025,7 +6025,9 @@ window.convertPendingSaleToDebt = async function(pendingSaleId, debtMode, target
             invoiceNumber: invoiceCode,      
             type: 'invoice-from-pending',    
             convertedFromPending: true,
-            migrated: false,            saleDate: typeof currentLoadedDate !== 'undefined' && currentLoadedDate ? currentLoadedDate : new Date().toISOString().split('T')[0], 
+            migrated: false,
+            // 🌟 استخدام التاريخ الأصلي للبيعة المؤقتة 🌟
+            saleDate: saleData.saleDate || (saleData.createdAt ? saleData.createdAt.split('T')[0] : null) || (saleData.timestamp ? saleData.timestamp.split('T')[0] : null) || (typeof currentLoadedDate !== 'undefined' && currentLoadedDate ? currentLoadedDate : new Date().toISOString().split('T')[0]),
             date: new Date().toISOString().split('T')[0], 
             grandTotal: totalAmount, 
             totalSellPrice: totalAmount,
@@ -6037,11 +6039,27 @@ window.convertPendingSaleToDebt = async function(pendingSaleId, debtMode, target
             accountId: accountId
         };
 
-        // 🌟 الإصلاح الثاني: منع تكرار الإضافة في المصفوفة المحلية 🌟
-        if (typeof salesToday !== 'undefined') {
-            if (!salesToday.some(s => s.id === safeInvoiceId)) {
+        // 🌟 منع تلويث اليوم الحالي بفواتير الأيام السابقة 🌟
+        const activeDate = (typeof currentLoadedDate !== 'undefined' && currentLoadedDate) ? currentLoadedDate : new Date().toISOString().split('T')[0];
+        if (confirmedInvoice.saleDate === activeDate) {
+            if (typeof salesToday !== 'undefined' && !salesToday.some(s => s.id === safeInvoiceId)) {
                 salesToday.push(confirmedInvoice);
             }
+        } else {
+            // الفاتورة تابعة ليوم سابق
+            try {
+                const oldDayDocRef = window.doc(window.db, "users", window.currentUser.uid, "days", confirmedInvoice.saleDate);
+                window.getDoc(oldDayDocRef).then(oldDaySnap => {
+                    if (oldDaySnap.exists()) {
+                        const oldDayData = oldDaySnap.data();
+                        if (!oldDayData.salesToday) oldDayData.salesToday = [];
+                        if (!oldDayData.salesToday.some(s => s.id === safeInvoiceId)) {
+                            oldDayData.salesToday.push(confirmedInvoice);
+                            window.setDoc(oldDayDocRef, { salesToday: oldDayData.salesToday }, { merge: true });
+                        }
+                    }
+                });
+            } catch (err) { console.error("خطأ أثناء تحديث اليوم السابق:", err); }
         }
         
         if (typeof saveInvoiceToFirestore === 'function') {
@@ -7912,19 +7930,13 @@ async function handleSaveInvoice(skipConfirmation = true) {
         });
         const generatedInvoiceNumber = `${todayStr}-${(maxSeq + 1).toString().padStart(3, '0')}`;
 
-        let originalSaleDate;
-        if (isInvoiceFromPending && !isPending) {
-            // Confirming a pending sale -> becomes a final sale TODAY
-            originalSaleDate = currentLoadedDate || getTodayDateString();
-        } else {
-            // Editing a pending sale, or creating a new one -> keep original date
-            originalSaleDate =
-                pendingSaleOriginData?.saleDate ||
-                (pendingSaleOriginData?.createdAt ? pendingSaleOriginData.createdAt.split('T')[0] : null) ||
-                (pendingSaleOriginData?.timestamp ? pendingSaleOriginData.timestamp.split('T')[0] : null) ||
-                currentLoadedDate ||
-                getTodayDateString();
-        }
+        // Editing a pending sale, or confirming it to a new one -> ALWAYS keep original date
+        let originalSaleDate =
+            pendingSaleOriginData?.saleDate ||
+            (pendingSaleOriginData?.createdAt ? pendingSaleOriginData.createdAt.split('T')[0] : null) ||
+            (pendingSaleOriginData?.timestamp ? pendingSaleOriginData.timestamp.split('T')[0] : null) ||
+            currentLoadedDate ||
+            getTodayDateString();
 
         const invoiceRecord = {
             id: isInvoiceFromPending && pendingSaleOriginData ? pendingSaleOriginData.id.replace('pending','inv') : `inv-${Date.now()}`,
@@ -7950,8 +7962,26 @@ async function handleSaveInvoice(skipConfirmation = true) {
             accountId: selectedAccountId
         };
         
-        salesToday.push(invoiceRecord);
+        // --- منع تلويث اليوم الحالي بفواتير الأيام السابقة ---
+        const activeDate = currentLoadedDate || getTodayDateString();
+        if (invoiceRecord.saleDate === activeDate) {
+            salesToday.push(invoiceRecord);
+        } else {
+            try {
+                const oldDayDocRef = window.doc(window.db, "users", window.currentUser.uid, "days", invoiceRecord.saleDate);
+                const oldDaySnap = await window.getDoc(oldDayDocRef);
+                if (oldDaySnap.exists()) {
+                    const oldDayData = oldDaySnap.data();
+                    if (!oldDayData.salesToday) oldDayData.salesToday = [];
+                    if (!oldDayData.salesToday.some(s => s.id === invoiceRecord.id)) {
+                        oldDayData.salesToday.push(invoiceRecord);
+                        await window.setDoc(oldDayDocRef, { salesToday: oldDayData.salesToday }, { merge: true });
+                    }
+                }
+            } catch (err) { console.error("خطأ أثناء تحديث اليوم السابق:", err); }
+        }
         await saveInvoiceToFirestore(invoiceRecord); 
+
 
         logOperation("إنشاء فاتورة", `فاتورة ${generatedInvoiceNumber} للعميل ${customerName}. (إجمالي: ${grandTotal})`);
         
