@@ -6036,30 +6036,17 @@ window.convertPendingSaleToDebt = async function(pendingSaleId, debtMode, target
             profit: finalProfit,           
             items: normalizedItems,        
             timestamp: saleData.timestamp || new Date().toISOString(), // 🌟 تثبيت الوقت القديم إن وجد 🌟
+            confirmedAt: new Date().toISOString(), // 🌟 تتبع وقت التأكيد الفعلي لمنع الأشباح في التراجع 🌟
             accountId: accountId
         };
 
-        // 🌟 منع تلويث اليوم الحالي بفواتير الأيام السابقة 🌟
+        // 🌟 التوافق مع التراجع (Undo) وتجنب تلوث واجهة اليوم الحالي 🌟
         const activeDate = (typeof currentLoadedDate !== 'undefined' && currentLoadedDate) ? currentLoadedDate : new Date().toISOString().split('T')[0];
-        if (confirmedInvoice.saleDate === activeDate) {
-            if (typeof salesToday !== 'undefined' && !salesToday.some(s => s.id === safeInvoiceId)) {
-                salesToday.push(confirmedInvoice);
-            }
-        } else {
-            // الفاتورة تابعة ليوم سابق
-            try {
-                const oldDayDocRef = window.doc(window.db, "users", window.currentUser.uid, "days", confirmedInvoice.saleDate);
-                window.getDoc(oldDayDocRef).then(oldDaySnap => {
-                    if (oldDaySnap.exists()) {
-                        const oldDayData = oldDaySnap.data();
-                        if (!oldDayData.salesToday) oldDayData.salesToday = [];
-                        if (!oldDayData.salesToday.some(s => s.id === safeInvoiceId)) {
-                            oldDayData.salesToday.push(confirmedInvoice);
-                            window.setDoc(oldDayDocRef, { salesToday: oldDayData.salesToday }, { merge: true });
-                        }
-                    }
-                });
-            } catch (err) { console.error("خطأ أثناء تحديث اليوم السابق:", err); }
+        if (confirmedInvoice.saleDate !== activeDate) {
+            confirmedInvoice.isHiddenFromDaily = true;
+        }
+        if (typeof salesToday !== 'undefined' && !salesToday.some(s => s.id === safeInvoiceId)) {
+            salesToday.push(confirmedInvoice);
         }
         
         if (typeof saveInvoiceToFirestore === 'function') {
@@ -7943,6 +7930,7 @@ async function handleSaveInvoice(skipConfirmation = true) {
             invoiceNumber: generatedInvoiceNumber,
             type: 'invoice',
             timestamp: new Date().toISOString(),
+            confirmedAt: new Date().toISOString(),
             createdAt: pendingSaleOriginData?.createdAt || new Date().toISOString(),
             saleDate: originalSaleDate,
             customerName,
@@ -7962,24 +7950,12 @@ async function handleSaveInvoice(skipConfirmation = true) {
             accountId: selectedAccountId
         };
         
-        // --- منع تلويث اليوم الحالي بفواتير الأيام السابقة ---
+        // --- التوافق مع التراجع (Undo) وتجنب تلوث واجهة اليوم الحالي ---
         const activeDate = currentLoadedDate || getTodayDateString();
-        if (invoiceRecord.saleDate === activeDate) {
-            salesToday.push(invoiceRecord);
-        } else {
-            try {
-                const oldDayDocRef = window.doc(window.db, "users", window.currentUser.uid, "days", invoiceRecord.saleDate);
-                const oldDaySnap = await window.getDoc(oldDayDocRef);
-                if (oldDaySnap.exists()) {
-                    const oldDayData = oldDaySnap.data();
-                    if (!oldDayData.salesToday) oldDayData.salesToday = [];
-                    if (!oldDayData.salesToday.some(s => s.id === invoiceRecord.id)) {
-                        oldDayData.salesToday.push(invoiceRecord);
-                        await window.setDoc(oldDayDocRef, { salesToday: oldDayData.salesToday }, { merge: true });
-                    }
-                }
-            } catch (err) { console.error("خطأ أثناء تحديث اليوم السابق:", err); }
+        if (invoiceRecord.saleDate !== activeDate) {
+            invoiceRecord.isHiddenFromDaily = true;
         }
+        salesToday.push(invoiceRecord);
         await saveInvoiceToFirestore(invoiceRecord); 
 
 
@@ -9324,26 +9300,47 @@ async function generateMonthlySalesReport() {
     }
 
     // =========================================================
-    // 🔥 الخطوة 2 (الجديدة): تنقية البيانات بناءً على الواقع المحلي (Smart Filter)
-    // هذا يمنع ظهور الفواتير التي قمت بعمل (Undo) لها
+    // 🔥 الخطوة 2 (الجديدة المحسنة): تنقية البيانات بناءً على الواقع المحلي (Smart Filter)
+    // هذا يمنع ظهور الفواتير التي قمت بعمل (Undo) لها، حتى الفواتير القديمة (التي لها تاريخ رجعي)
     // =========================================================
-    if (typeof currentLoadedDate !== 'undefined' && currentLoadedDate && typeof salesToday !== 'undefined') {
+    const activeDateForFilter = (typeof currentLoadedDate !== 'undefined' && currentLoadedDate) ? currentLoadedDate : (typeof getTodayDateString === 'function' ? getTodayDateString() : new Date().toISOString().split('T')[0]);
+    
+    if (typeof salesToday !== 'undefined' && Array.isArray(salesToday)) {
         for (const [id, cloudSale] of salesMap.entries()) {
-            const sDate = cloudSale.saleDate || (cloudSale.timestamp ? cloudSale.timestamp.split('T')[0] : '');
+            let sDate = cloudSale.saleDate ? String(cloudSale.saleDate).split('T')[0] : "";
+            let tDate = "";
+            if (cloudSale.timestamp) {
+                try {
+                    if (typeof cloudSale.timestamp === 'object' && cloudSale.timestamp.toDate) {
+                        tDate = cloudSale.timestamp.toDate().toISOString().split('T')[0];
+                    } else if (typeof cloudSale.timestamp === 'number') {
+                        tDate = new Date(cloudSale.timestamp).toISOString().split('T')[0];
+                    } else {
+                        tDate = String(cloudSale.timestamp).split('T')[0];
+                    }
+                } catch(e) { console.warn("Error parsing timestamp in smart filter", e); }
+            }
             
-            // إذا كانت الفاتورة بتاريخ "اليوم المفتوح حالياً"
-            if (sDate === currentLoadedDate) {
-                // يجب أن تكون موجودة في الذاكرة المحلية أيضاً
+            let cDate = "";
+            if (cloudSale.confirmedAt) {
+                try {
+                    cDate = String(cloudSale.confirmedAt).split('T')[0];
+                } catch(e) {}
+            }
+            if (!sDate) sDate = tDate || cDate;
+            
+            // إذا كانت الفاتورة تنتمي لليوم المفتوح حالياً (سواء بتاريخ البيع أو بتاريخ الإنشاء الفعلي أو التأكيد)
+            if (sDate === activeDateForFilter || tDate === activeDateForFilter || cDate === activeDateForFilter) {
+                // يجب أن تكون موجودة في الذاكرة المحلية (حتى لو كانت مخفية عن العرض اليومي)
                 const existsLocally = salesToday.some(local => local.id === id);
                 
-                // إذا كانت في السحابة لكن اختفت محلياً (بسبب Undo)، نحذفها من التقرير
+                // إذا لم تكن في الذاكرة المحلية (غالباً بسبب التراجع Undo)، نحذفها من التقرير فوراً
                 if (!existsLocally) {
                     salesMap.delete(id);
                 }
             }
         }
     }
-
     // =========================================================
     // الخطوة 3: دمج البيانات المحلية الجديدة (لتظهر الفواتير الجديدة فوراً)
     // =========================================================
@@ -13672,6 +13669,7 @@ function sellProduct(skipConfirmation = true) {
         });
         return;
     }
+    if (typeof saveStateToHistory === 'function') saveStateToHistory(); // 🌟 تفعيل نظام التراجع للبيع السريع
 
     if (selectedSerial) {
         if (serialIndex !== -1) {
