@@ -216,6 +216,10 @@
       return true;
     } catch (e) {
       console.error("assertCanWrite error:", e);
+      if (e.code === 'permission-denied' || (e.message && e.message.includes('permission'))) {
+        showForceLogoutMessage("انتهت جلسة تسجيل الدخول أو فقدت الصلاحية. يرجى تحديث الصفحة وإعادة تسجيل الدخول.");
+        stopHeartbeat();
+      }
       return false;
     }
   }

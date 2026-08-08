@@ -6385,7 +6385,12 @@ function resetReturnForm() {
 
 async function saveCurrentStateByDate(dateString) {
     const canWrite = await window.SessionGuard.assertCanWrite();
-    if (!canWrite) return;
+    if (!canWrite) {
+        if (typeof autoSaveTimer !== 'undefined' && autoSaveTimer) {
+            clearInterval(autoSaveTimer);
+        }
+        return;
+    }
     
     // 1. التحقق من تسجيل الدخول
     if (!window.currentUser) {
