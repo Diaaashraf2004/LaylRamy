@@ -36,6 +36,7 @@
     // Independent Data Array
     let standaloneSerials = [];
     let isDataLoaded = false;
+    let lastLoadedLength = -1;
 
     // Undo/Redo Integration
     window.getStandaloneSerials = () => standaloneSerials;
@@ -48,6 +49,25 @@
     function takeSnapshot() {
         if (typeof window.saveStateToHistory === 'function') {
             window.saveStateToHistory();
+        }
+    }
+
+    function cloneSerials() {
+        return JSON.parse(JSON.stringify(standaloneSerials));
+    }
+
+    async function persistSerialChange(before, successMessage) {
+        renderSerialsTable();
+        try {
+            await saveDataToFirebase();
+            if (successMessage && typeof showGlobalMessage === 'function') showGlobalMessage(successMessage);
+            return true;
+        } catch (error) {
+            standaloneSerials = before;
+            renderSerialsTable();
+            console.error('Standalone serials change rolled back after cloud failure:', error);
+            if (typeof showGlobalMessage === 'function') showGlobalMessage('فشلت المزامنة؛ تمت استعادة البيانات المحلية كما كانت.', true);
+            return false;
         }
     }
 
@@ -66,6 +86,7 @@
                 standaloneSerials = [];
             }
             isDataLoaded = true;
+            lastLoadedLength = standaloneSerials.length;
             renderSerialsTable();
         } catch (error) {
             console.error('Error loading standalone serials:', error);
@@ -77,16 +98,36 @@
 
     // Save to Firebase
     async function saveDataToFirebase() {
-        if (!window.currentUser || !window.db || !window.doc || !window.setDoc) return;
+        if (!isDataLoaded) {
+            console.warn('تجاوز الحفظ: لم يتم تحميل السيريالات بعد');
+            return;
+        }
+        if (standaloneSerials.length === 0 && lastLoadedLength > 0) {
+            console.error('تجاوز الحفظ: مصفوفة السيريالات فارغة فجأة للحماية من فقدان البيانات');
+            if (typeof showGlobalMessage === 'function') {
+                showGlobalMessage('تم حظر حفظ سيريالات فارغة للحماية من فقدان البيانات. يرجى تحديث الصفحة.', true);
+            }
+            return;
+        }
+        
+        if (!window.FinanceSync || !window.doc) {
+            const error = new Error('Firebase sync is not ready');
+            console.error('Cannot save standalone serials:', error);
+            if (typeof showGlobalMessage === 'function') showGlobalMessage('تعذر حفظ السيريالات: المزامنة غير جاهزة.', true);
+            throw error;
+        }
         try {
             const docRef = window.doc(window.db, 'users', window.currentUser.uid, 'standaloneSerials', 'main');
-            await window.setDoc(docRef, { data: standaloneSerials });
+            await window.FinanceSync.safeSet(docRef, { data: standaloneSerials }, { merge: true }, 'saveStandaloneSerials');
+            lastLoadedLength = standaloneSerials.length;
             console.log('Standalone serials saved to Firebase.');
+            return true;
         } catch (error) {
             console.error('Error saving standalone serials:', error);
             if (typeof showGlobalMessage === 'function') {
-                showGlobalMessage('حدث خطأ أثناء حفظ السيريالات.', true);
+                showGlobalMessage('حدث خطأ أثناء حفظ السيريالات في السحابة. لم يتم تأكيد التغيير.', true);
             }
+            throw error;
         }
     }
 
@@ -163,17 +204,15 @@
         if (typeof showGlobalMessage === 'function') showGlobalMessage(`تم تحديث حالة البطارية لـ ${selected.length} سيريال.`);
     });
 
-    if (bulkDeleteBtn) bulkDeleteBtn.addEventListener('click', () => {
+    if (bulkDeleteBtn) bulkDeleteBtn.addEventListener('click', async () => {
         const selected = getSelectedSerials();
         if (selected.length === 0) return alert('الرجاء تحديد سيريالات أولاً.');
         
         if (!confirm(`هل أنت متأكد من حذف ${selected.length} سيريال؟ لا يمكن التراجع عن هذا الإجراء.`)) return;
 
+        const before = cloneSerials();
         standaloneSerials = standaloneSerials.filter(s => !selected.includes(s.serial));
-        renderSerialsTable();
-        saveDataToFirebase();
-        if (selectAllCheckbox) selectAllCheckbox.checked = false;
-        if (typeof showGlobalMessage === 'function') showGlobalMessage(`تم حذف ${selected.length} سيريال بنجاح.`);
+        if (await persistSerialChange(before, `تم حذف ${selected.length} سيريال بنجاح.`) && selectAllCheckbox) selectAllCheckbox.checked = false;
     });
 
     let editingSerial = null;
@@ -288,11 +327,11 @@
         }
     };
 
-    window.deleteStandaloneSerial = function(serial) {
+    window.deleteStandaloneSerial = async function(serial) {
         if (!confirm(`هل أنت متأكد من حذف السيريال ${serial}؟`)) return;
+        const before = cloneSerials();
         standaloneSerials = standaloneSerials.filter(s => s.serial !== serial);
-        renderSerialsTable();
-        saveDataToFirebase();
+        await persistSerialChange(before, `تم حذف السيريال ${serial} بنجاح.`);
     };
 
     window.editStandaloneNotes = function(serial) {
@@ -352,6 +391,36 @@
             saveDataToFirebase();
             if (typeof showGlobalMessage === 'function') showGlobalMessage(`تم إرجاع السيريال ${serial} للمتاح بنجاح.`);
         }
+    };
+
+    // تمرير أرقام الفهارس فقط إلى معالجات HTML يمنع إدخال بيانات المستخدم في onclick.
+    function serialAt(index) {
+        const item = standaloneSerials[Number(index)];
+        return item ? item.serial : null;
+    }
+    window.toggleStandaloneFlagByIndex = (index, flag) => {
+        const serial = serialAt(index); if (serial !== null) window.toggleStandaloneFlag(serial, flag);
+    };
+    window.updateStandaloneFollowupByIndex = (index, date) => {
+        const serial = serialAt(index); if (serial !== null) window.updateStandaloneFollowup(serial, date);
+    };
+    window.editStandaloneNotesByIndex = (index) => {
+        const serial = serialAt(index); if (serial !== null) window.editStandaloneNotes(serial);
+    };
+    window.restoreSoldSerialByIndex = (index) => {
+        const serial = serialAt(index); if (serial !== null) window.restoreSoldSerial(serial);
+    };
+    window.deleteStandaloneSerialByIndex = (index) => {
+        const serial = serialAt(index); if (serial !== null) window.deleteStandaloneSerial(serial);
+    };
+    window.toggleSaleStatusByIndex = (index) => {
+        const serial = serialAt(index); if (serial !== null) window.toggleSaleStatus(serial);
+    };
+    window.markSoldFinallyByIndex = (index) => {
+        const serial = serialAt(index); if (serial !== null) window.markSoldFinally(serial);
+    };
+    window.editStandaloneRecordByIndex = (index) => {
+        const serial = serialAt(index); if (serial !== null) window.editStandaloneRecord(serial);
     };
 
     function renderSerialsTable() {
@@ -428,6 +497,7 @@
         let shippedCount = 0;
 
         filteredLogs.forEach(log => {
+            const serialIndex = standaloneSerials.indexOf(log);
             if (log.isChecked) checkedCount++;
             if (log.isShipped) shippedCount++;
 
@@ -470,10 +540,10 @@
             // Notes icon styling
             const hasNote = log.notes && log.notes.trim().length > 0;
             const noteIcon = hasNote ? 'fa-comment-dots text-blue-500' : 'fa-comment-medical text-slate-300 hover:text-blue-400';
-            const noteTitle = hasNote ? log.notes : 'أضف ملاحظة';
+            const noteTitle = hasNote ? escapeHTML(log.notes) : 'أضف ملاحظة';
 
             // Shipping Progress
-            const shipPercent = Number(log.shippingPercentage || 0);
+            const shipPercent = Math.min(100, Math.max(0, Number(log.shippingPercentage || 0) || 0));
             let shipColor = 'bg-rose-500';
             if (shipPercent > 20) shipColor = 'bg-amber-500';
             if (shipPercent > 60) shipColor = 'bg-emerald-500';
@@ -481,14 +551,14 @@
             html += `
                 <tr class="${rowClass} border-b border-slate-100 last:border-none group">
                     <td class="px-4 py-3 text-center">
-                        <input type="checkbox" class="serial-row-checkbox w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer" value="${log.serial}">
+                        <input type="checkbox" class="serial-row-checkbox w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer" value="${escapeHTML(log.serial)}">
                     </td>
                     <td class="px-4 py-3">
-                        <div class="font-bold text-slate-800 font-mono">${log.serial}</div>
+                        <div class="font-bold text-slate-800 font-mono">${escapeHTML(log.serial)}</div>
                     </td>
                     <td class="px-4 py-3">
-                        <div class="font-bold text-slate-700 text-sm">${log.productName || '-'}</div>
-                        <div class="text-xs text-slate-400 mt-0.5"><i class="fas fa-truck-loading mr-1"></i> ${log.supplierName || '-'}</div>
+                        <div class="font-bold text-slate-700 text-sm">${escapeHTML(log.productName || '-')}</div>
+                        <div class="text-xs text-slate-400 mt-0.5"><i class="fas fa-truck-loading mr-1"></i> ${escapeHTML(log.supplierName || '-')}</div>
                     </td>
                     <td class="px-4 py-3 text-center">
                         <div class="flex flex-col items-center gap-1">
@@ -505,20 +575,20 @@
                     </td>
                     <td class="px-4 py-3">
                         <div class="flex items-center justify-center gap-2">
-                            <button onclick="window.toggleStandaloneFlag('${log.serial}', 'isChecked')" class="w-8 h-8 rounded-full border flex items-center justify-center transition-colors ${checkBtnClass}" title="فحص">
+                            <button onclick="window.toggleStandaloneFlagByIndex(${serialIndex}, 'isChecked')" class="w-8 h-8 rounded-full border flex items-center justify-center transition-colors ${checkBtnClass}" title="فحص">
                                 <i class="fas ${checkIcon}"></i>
                             </button>
-                            <button onclick="window.toggleStandaloneFlag('${log.serial}', 'isShipped')" class="w-8 h-8 rounded-full border flex items-center justify-center transition-colors ${shipBtnClass}" title="بطارية مشحونة">
+                            <button onclick="window.toggleStandaloneFlagByIndex(${serialIndex}, 'isShipped')" class="w-8 h-8 rounded-full border flex items-center justify-center transition-colors ${shipBtnClass}" title="بطارية مشحونة">
                                 <i class="fas ${shipIcon}"></i>
                             </button>
                         </div>
                     </td>
                     <td class="px-4 py-3 text-center relative">
                         ${followUpIndicator}
-                        <input type="date" value="${log.followUpDate || ''}" class="rounded-lg text-xs px-2 py-1.5 outline-none transition-colors w-[115px] ${followUpStyle}" onchange="window.updateStandaloneFollowup('${log.serial}', this.value)">
+                        <input type="date" value="${escapeHTML(log.followUpDate || '')}" class="rounded-lg text-xs px-2 py-1.5 outline-none transition-colors w-[115px] ${followUpStyle}" onchange="window.updateStandaloneFollowupByIndex(${serialIndex}, this.value)">
                     </td>
                     <td class="px-4 py-3 text-center">
-                        <button onclick="window.editStandaloneNotes('${log.serial}')" title="${noteTitle}" class="p-1.5 rounded-lg hover:bg-slate-100 transition-all">
+                        <button onclick="window.editStandaloneNotesByIndex(${serialIndex})" title="${noteTitle}" class="p-1.5 rounded-lg hover:bg-slate-100 transition-all">
                             <i class="fas ${noteIcon} text-lg"></i>
                         </button>
                     </td>
@@ -526,23 +596,23 @@
                         <!-- Actions Dropdown or Buttons -->
                         <div class="flex items-center justify-center gap-1.5 opacity-60 group-hover:opacity-100 transition-opacity">
                             ${isSold ? `
-                                <button onclick="window.restoreSoldSerial('${log.serial}')" class="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 hover:text-indigo-700 flex items-center justify-center transition-colors" title="إرجاع للمتاح 🔄">
+                                <button onclick="window.restoreSoldSerialByIndex(${serialIndex})" class="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 hover:text-indigo-700 flex items-center justify-center transition-colors" title="إرجاع للمتاح 🔄">
                                     <i class="fas fa-undo"></i>
                                 </button>
-                                <button onclick="window.deleteStandaloneSerial('${log.serial}')" class="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 flex items-center justify-center transition-colors" title="حذف نهائي">
+                                <button onclick="window.deleteStandaloneSerialByIndex(${serialIndex})" class="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 flex items-center justify-center transition-colors" title="حذف نهائي">
                                     <i class="fas fa-trash"></i>
                                 </button>
                             ` : `
-                                <button onclick="window.toggleSaleStatus('${log.serial}')" class="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 hover:bg-amber-100 hover:text-amber-700 flex items-center justify-center transition-colors" title="تعليق البيع / إتاحة">
+                                <button onclick="window.toggleSaleStatusByIndex(${serialIndex})" class="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 hover:bg-amber-100 hover:text-amber-700 flex items-center justify-center transition-colors" title="تعليق البيع / إتاحة">
                                     <i class="fas fa-hand-holding-usd"></i>
                                 </button>
-                                <button onclick="window.markSoldFinally('${log.serial}')" class="w-7 h-7 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-800 flex items-center justify-center transition-colors" title="أرشفة كمباع 📦">
+                                <button onclick="window.markSoldFinallyByIndex(${serialIndex})" class="w-7 h-7 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-800 flex items-center justify-center transition-colors" title="أرشفة كمباع 📦">
                                     <i class="fas fa-box-archive"></i>
                                 </button>
-                                <button onclick="window.editStandaloneRecord('${log.serial}')" class="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-700 flex items-center justify-center transition-colors" title="تعديل">
+                                <button onclick="window.editStandaloneRecordByIndex(${serialIndex})" class="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-700 flex items-center justify-center transition-colors" title="تعديل">
                                     <i class="fas fa-edit"></i>
                                 </button>
-                                <button onclick="window.deleteStandaloneSerial('${log.serial}')" class="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 flex items-center justify-center transition-colors" title="حذف">
+                                <button onclick="window.deleteStandaloneSerialByIndex(${serialIndex})" class="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 flex items-center justify-center transition-colors" title="حذف">
                                     <i class="fas fa-trash"></i>
                                 </button>
                             `}

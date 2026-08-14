@@ -711,9 +711,7 @@ async function executeCancelOrder() {
         revertInventoryEffect(o);
         
         // 2. رد التكلفة لرأس المال لأن العملية أُلغيت بالكامل والبضاعة عادت
-        if (totalCostOut > 0 && typeof updateCapital === 'function') {
-            updateCapital(totalCostOut);
-        }
+        
 
         addLogSafe({ timestamp: new Date().toISOString(), type: "إلغاء شامل", details: `إلغاء شحنة العميل [${cleanName}]`, amount: 0 });
         
@@ -748,9 +746,7 @@ async function executeCancelOrder() {
         if(o.nAccs) o.nAccs.forEach(a => addBack(a.name, a.cost, a.price));
 
         // 2. رد التكلفة لرأس المال (لأن الأجهزة الجديدة عادت للمحل)
-        if (totalCostOut > 0 && typeof updateCapital === 'function') {
-            updateCapital(totalCostOut);
-        }
+        
 
         // 3. سحب قيمة الأجهزة المرتجعة للعميل من حساب المحل (لأنه هياخد فلوسه ويمشي)
         let payoutAmount = Number(o.rMainPrice) || 0;
@@ -1036,7 +1032,7 @@ window.generateExpensesReportExternal = async function(deps) {
                 let timeStr = "";
                 try {
                     timeStr = new Date(exp.timestamp).toLocaleTimeString('ar-EG', {hour: '2-digit', minute:'2-digit'});
-                } catch(e){}
+                } catch(e){ console.warn('Could not parse pending-sale date:', e); }
 
                 const tr = document.createElement('tr');
                 tr.className = 'expense-row border-b hover:bg-gray-50 transition-colors';
@@ -1062,4 +1058,3 @@ window.generateExpensesReportExternal = async function(deps) {
         if(messageEl) showMessage(messageEl, `تم عرض ${uniqueExpenses.length} عملية مصروف لشهر ${targetMonth}.`, false);
     }
 }
-

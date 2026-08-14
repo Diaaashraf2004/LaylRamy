@@ -1,0 +1,1159 @@
+/* finance.css — extracted from finance.html */
+        /* Custom Scrollbar for log section */
+        #log-section ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        #log-section ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        #log-section ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        #log-section ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        .card-shadow {
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05);
+        }
+        
+        .hover-card-shadow {
+            transition: all 0.2s ease-in-out;
+        }
+        .hover-card-shadow:hover {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
+            transform: translateY(-1px);
+        }
+
+        /* Modal Overlay Transition */
+        .modal-fade {
+            transition: opacity 0.2s ease-in-out;
+        }
+        
+        /* Scoped reset for buttons in log section since preflight is false */
+        #log-section button, .modal-fade button {
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        
+        /* Fix for Tailwind flex gap with RTL in some older webkits, just in case */
+        #log-section, .modal-fade {
+            font-family: 'Cairo', sans-serif;
+        }
+    
+    
+    /* === تصميم تقرير المبيعات الجديد === */
+.report-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.stat-card {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 1rem;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    transition: transform 0.2s;
+    display: flex;
+    flex-direction: column;
+}
+
+.stat-card:hover { transform: translateY(-3px); }
+
+.stat-title { font-size: 0.875rem; font-weight: 600; color: #64748b; margin-bottom: 0.5rem; }
+.stat-value { font-size: 1.5rem; font-weight: 800; font-family: 'Segoe UI', monospace; }
+
+.stat-sales { border-bottom: 4px solid #3b82f6; }
+.stat-sales .stat-value { color: #1d4ed8; }
+
+.stat-cost { border-bottom: 4px solid #f59e0b; }
+.stat-cost .stat-value { color: #b45309; }
+
+.stat-profit { border-bottom: 4px solid #10b981; }
+.stat-profit .stat-value { color: #047857; }
+
+/* تصميم الجدول */
+.report-table-container {
+    background: white;
+    border-radius: 1rem;
+    border: 1px solid #e2e8f0;
+    overflow: hidden;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
+.modern-table { width: 100%; border-collapse: collapse; text-align: right; }
+.modern-table thead { background-color: #f8fafc; border-bottom: 1px solid #e2e8f0; }
+.modern-table th { padding: 1rem; font-size: 0.85rem; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; }
+.modern-table td { padding: 1rem; border-bottom: 1px solid #f1f5f9; color: #334155; vertical-align: middle; }
+.modern-table tr:last-child td { border-bottom: none; }
+.modern-table tr:hover { background-color: #f8fafc; }
+
+/* بادجات الحالة */
+.badge { padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 700; display: inline-block; }
+.badge-invoice { background-color: #e0e7ff; color: #3730a3; }
+.badge-quick { background-color: #f0fdf4; color: #166534; }
+.badge-pending { background-color: #fff7ed; color: #9a3412; }
+
+/* أيقونات الجدول */
+.td-icon { color: #94a3b8; margin-left: 0.5rem; }
+    /* === START: Professional Inline Payment Form Styles === */
+.inline-payment-form {
+    background-color: #f0f5ff; /* خلفية زرقاء فاتحة جداً */
+    padding: 1rem;
+    margin-top: 0.75rem;
+    border-top: 2px solid #adc8ff;
+    border-radius: 0 0 0.375rem 0.375rem; /* حواف دائرية للأسفل فقط */
+    
+    /* Animation */
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.4s ease-in-out, padding 0.4s ease-in-out;
+}
+
+.inline-payment-form.visible {
+    max-height: 300px; /* ارتفاع كافٍ لإظهار النموذج */
+    padding: 1rem;
+}
+
+.inline-payment-form .form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    align-items: end;
+}
+/* === END: Professional Inline Payment Form Styles === */
+    /* --- START: NEW STYLES FOR BULK PAYMENT --- */
+.payment-list-container {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid #e2e8f0;
+    padding: 0.75rem;
+    border-radius: 0.375rem;
+    background-color: #f9fafb;
+    margin-top: 0.5rem;
+}
+.payment-list-container label {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem;
+    border-radius: 0.25rem;
+    cursor: pointer;
+    border-bottom: 1px solid #e5e7eb;
+}
+.payment-list-container label:last-child {
+    border-bottom: none;
+}
+.payment-list-container label:hover {
+    background-color: #e5e7eb;
+}
+.payment-list-container input[type="checkbox"] {
+    width: 1.1rem;
+    height: 1.1rem;
+    flex-shrink: 0;
+}
+.payment-summary {
+    margin-top: 1rem;
+    padding: 0.75rem;
+    background-color: #eff6ff;
+    border: 1px solid #93c5fd;
+    border-radius: 0.375rem;
+    text-align: center;
+    font-weight: 600;
+    color: #1e40af;
+}
+/* --- END: NEW STYLES FOR BULK PAYMENT --- */
+
+        /* --- التنسيقات الأساسية --- */
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; margin: 0; padding: 0; }
+        html { direction: rtl; }
+
+        /* --- تنسيقات الأقسام (Widgets) --- */
+        .widget-card { background-color: #ffffff; border-radius: 0.75rem; padding: 1.5rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); border: 1px solid #e5e7eb; transition: box-shadow 0.3s ease-in-out; margin-bottom: 1.5rem; }
+        .widget-card:hover { box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1); }
+        .widget-card h2 { font-size: 1.25rem; font-weight: 600; color: #1f2937; margin-top: 0; margin-bottom: 1.25rem; padding-bottom: 0.75rem; border-bottom: 1px solid #e5e7eb; }
+        .widget-card h3.sub-heading { font-size: 1.1rem; font-weight: 600; color: #374151; margin-top: 1.5rem; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px dashed #e5e7eb; }
+
+        /* --- تنسيقات التنقل (Tabs) --- */
+        #main-nav button { padding: 0.5rem 1rem; border-radius: 0.375rem; font-weight: 500; color: #4b5563; background-color: #f9fafb; border: 1px solid #e5e7eb; transition: all 0.2s ease-in-out; margin-bottom: 0.5rem; cursor: pointer; }
+        #main-nav button:hover { background-color: #f3f4f6; color: #1f2937; }
+        #main-nav button.active { background-color: #3b82f6; color: #ffffff; border-color: #2563eb; }
+
+        /* --- تنسيقات أخرى --- */
+        .save-icon { display: inline-block; width: 1em; height: 1em; margin-left: 0.5em; vertical-align: middle; fill: currentColor; }
+        input[type="text"], input[type="number"], input[type="tel"], input[type="date"], input[type="month"], select, textarea, input[type="checkbox"] { /* Added checkbox */
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+            padding: 0.5rem 0.75rem;
+            width: 100%;
+            transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+            box-sizing: border-box; /* Added for consistent sizing */
+            font-size: 1em; /* Ensure consistent font size */
+            background-color: white; /* Ensure background */
+        }
+        input[type="checkbox"] { /* Specific checkbox overrides */
+             width: auto; /* Checkboxes shouldn't be full width */
+             padding: 0; /* Remove padding */
+             vertical-align: middle; /* Align with text */
+             margin-left: 0.5rem; /* Space after checkbox */
+             cursor: pointer;
+        }
+        input[type="file"] { /* Style file input trigger button instead */
+            display: none;
+        }
+        input[type="text"]:focus, input[type="number"]:focus, input[type="tel"]:focus, input[type="date"]:focus, input[type="month"]:focus, select:focus, textarea:focus, input[type="checkbox"]:focus { /* Added checkbox focus */
+            outline: none;
+            border-color: #2563eb;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+        }
+        input[type="date"], input[type="month"] { appearance: none; -webkit-appearance: none; cursor: pointer; position: relative; } /* Added relative positioning */
+        input[type="date"]::-webkit-calendar-picker-indicator, input[type="month"]::-webkit-calendar-picker-indicator { opacity: 0.6; cursor: pointer; filter: invert(0.5); /* Position indicator if needed, often handled by browser */ }
+        select {
+            appearance: none; -webkit-appearance: none;
+            background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22%236b7280%22%3E%3Cpath%20fill-rule%3D%22evenodd%22%20d%3D%22M5.293%207.293a1%201%200%20011.414%200L10%2010.586l3.293-3.293a1%201%200%20111.414%201.414l-4%204a1%201%200%2001-1.414%200l-4-4a1%201%200%20010-1.414z%22%20clip-rule%3D%22evenodd%22%2F%3E%3C%2Fsvg%3E');
+            background-repeat: no-repeat; background-position: left 0.5rem center; background-size: 1.25em; padding-left: 2.5rem; cursor: pointer;
+        }
+
+        .section-message {
+            min-height: 1.5em; margin-top: 0.75rem; font-weight: 600; display: none;
+            border-radius: 0.375rem; padding: 0.75rem; border: 1px solid transparent;
+            text-align: center; font-size: 0.9em;
+        }
+        .section-message.visible { display: block; }
+        .section-message.success { color: #065f46; background-color: #d1fae5; border-color: #6ee7b7; } /* text-green-800 bg-green-100 border-green-300 */
+        .section-message.error { color: #991b1b; background-color: #fee2e2; border-color: #fca5a5; } /* text-red-800 bg-red-100 border-red-300 */
+        .section-message.info { color: #1e40af; background-color: #dbeafe; border-color: #93c5fd; } /* text-blue-800 bg-blue-100 border-blue-300 */
+
+
+        /* Adjusting global message slightly */
+        #global-message { margin-bottom: 1rem; text-align: center; }
+
+        #additional-costs-container { max-height: 150px; overflow-y: auto; border: 1px solid #e2e8f0; padding: 0.75rem; border-radius: 0.375rem; background-color: #f9fafb; margin-top: 1rem; }
+        #additional-costs-container label { display: block; margin-bottom: 0.5rem; font-size: 0.875rem; cursor: pointer; padding: 4px; border-radius: 3px; }
+        #additional-costs-container label:hover { background-color: #e5e7eb; }
+        #additional-costs-container input[type="checkbox"] { margin-left: 0.5rem; cursor: pointer; vertical-align: middle;} /* Already had checkbox styles here */
+
+        /* Unified max-height for lists */
+        #pending-sales-list, #debtors-list, #liquidity-log-list, #liabilities-list,
+        #sales-report-table-body, #supplier-list, #product-list, #operation-log-list,
+        #search-results-list, #supplier-serials-results, #modal-registered-serials-list { /* Added modal-registered-serials-list */
+             max-height: 300px; overflow-y: auto;
+        }
+        #product-list { max-height: 50vh; }
+        #search-results-list { max-height: 40vh; }
+        #supplier-serials-results { max-height: 40vh; border: 1px solid #e5e7eb; padding: 0.75rem; border-radius: 0.375rem; background-color: #f9fafb; } /* Style for serial results */
+        #modal-registered-serials-list { max-height: 150px; /* Shorter height for modal list */ border: 1px solid #e5e7eb; padding: 0.75rem; border-radius: 0.375rem; background-color: #f9fafb; margin-top: 1rem; }
+        #operation-log-list { max-height: 60vh; background-color: #f9fafb; border: 1px solid #e5e7eb; padding: 0.75rem; border-radius: 0.375rem; }
+        #operation-log-list li { border-bottom: 1px solid #eee; padding-bottom: 0.5rem; margin-bottom: 0.5rem; list-style-position: inside; }
+
+        #pending-sales-list li, #liquidity-log-list li, #liabilities-list li, #supplier-serials-results li, #modal-registered-serials-list li { /* Added modal-registered-serials-list */
+            border-bottom: 1px solid #eee; padding: 0.75rem 0.5rem; margin-bottom: 0.5rem; font-size: 0.9em; list-style: none;
+        }
+        #supplier-serials-results li strong, #modal-registered-serials-list li strong { color: #1d4ed8; } /* Style serial number */
+        #debtors-list details { list-style: none; padding: 0; margin: 0 0 0.5rem 0; border: 1px solid #e5e7eb; border-radius: 0.375rem; overflow: hidden;}
+        #debtors-list summary { list-style: none; cursor: pointer; background-color: #f9fafb; padding: 0.75rem; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
+        #debtors-list summary::-webkit-details-marker { display: none; }
+        #debtors-list details[open] summary { border-bottom: 1px solid #e5e7eb; }
+        #debtors-list ul { padding: 0.75rem; background-color: #ffffff; margin: 0; }
+        #debtors-list li .debt-details { font-size: 0.8em; color: #6b7280; }
+        #pending-sales-list li .details, #liquidity-log-list li .details, #liabilities-list li .details { color: #4b5563; }
+        #pending-sales-list li .actions button, #debtors-list li .actions button, #liabilities-list li .actions button, .supplier-actions button, .product-actions button { font-size: 0.75rem; padding: 0.25rem 0.5rem; margin-right: 0.5rem; cursor: pointer; border-radius: 0.25rem; border: 1px solid transparent; }
+        .product-actions .manage-serials-btn { background-color: #6366f1; color: white; border-color: #4f46e5; } /* Style for manage serials button */
+        .product-actions .manage-serials-btn:hover { background-color: #4f46e5; }
+
+        #consignment-value-display { font-size: 1.125rem; font-weight: 600; color: #ca8a04; }
+
+        /* Ensure containers have consistent spacing and border */
+        #debtors-list-container, #liquidity-log-container, #liabilities-list-container,
+        #pending-sales-container, #import-export-section, #sales-report-display,
+        #suppliers-list-container, #search-results-container, #serial-search-container,
+        #liquidity-adjustment-container { /* Added liquidity-adjustment-container */
+            margin-top: 1.5rem; border-top: 1px solid #e5e7eb; padding-top: 1rem;
+        }
+        #debtors-list-container h3, #liquidity-log-container h3, #liabilities-list-container h3,
+        #pending-sales-container h3, #import-export-section h3, #sales-report-display h3,
+        #suppliers-list-container h3, #search-results-container h3, #serial-search-container h3,
+        #liquidity-adjustment-container h3 { /* Added liquidity-adjustment-container */
+            font-weight: 600; margin-bottom: 0.75rem; color: #374151; font-size: 1.1rem;
+        }
+        /* Styling for pending sales search and totals (New) */
+        #pending-sales-controls { display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem; align-items: center;}
+        #pending-sales-search-group { flex-grow: 1; min-width: 200px;}
+        #pending-sales-totals-group { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; font-size: 0.9em; font-weight: 500; flex-shrink: 0;}
+        #pending-sales-totals-group span { white-space: nowrap; }
+        #pending-sales-total-cost { color: #c026d3; } /* Fuchsia for cost */
+        #pending-sales-total-profit { color: #16a34a; } /* Green for profit */
+
+
+        #liquidity-log-list li span.add { color: #16a34a; }
+        #liquidity-log-list li span.remove { color: #dc2626; }
+        #liabilities-list li span { color: #7c3aed; } /* Purple color for liabilities */
+
+        .hidden { display: none; }
+        #import-file-input, #import-serial-csv-input, #modal-import-serial-csv-input { display: none; } /* Hide all file inputs */
+
+        #sales-report-table { width: 100%; border-collapse: collapse; }
+        #sales-report-table th, #sales-report-table td { border: 1px solid #e5e7eb; padding: 0.5rem; text-align: right; font-size: 0.875rem; vertical-align: top; }
+        #sales-report-table th { background-color: #f9fafb; font-weight: 600; text-align: center;}
+        #sales-report-table tfoot td { font-weight: bold; background-color: #f3f4f6; }
+        #sales-report-table tbody tr.no-sales-day td { color: #9ca3af; font-style: italic; text-align: center; }
+        #sales-report-table td.font-mono { font-family: monospace; }
+
+        textarea { resize: vertical; min-height: 60px; font-family: inherit; }
+        .required { color: #dc2626; margin-left: 2px; font-weight: bold; }
+        button, label.button-like { /* Style label like a button */
+            transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out;
+            cursor: pointer;
+            padding: 0.5rem 1rem; /* Example padding */
+            border-radius: 0.375rem;
+            font-weight: 500;
+            text-align: center;
+            display: inline-block; /* Make label behave like button */
+        }
+        button:disabled { cursor: default; opacity: 0.7; }
+
+        /* --- Modal Styles (Generic) --- */
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0, 0, 0, 0.5); }
+        .modal-content { background-color: #fefefe; margin: 5% auto; padding: 0; border: 1px solid #888; width: 90%; max-width: 600px; border-radius: 0.5rem; box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2),0 6px 20px 0 rgba(0,0,0,0.19); animation-name: animatetop; animation-duration: 0.4s; display: flex; flex-direction: column; }
+        @keyframes animatetop { from {top: -300px; opacity: 0} to {top: 0; opacity: 1} }
+        .modal-header { padding: 0.75rem 1rem; background-color: #f9fafb; color: #1f2937; border-bottom: 1px solid #e5e7eb; border-top-left-radius: 0.5rem; border-top-right-radius: 0.5rem; display: flex; justify-content: space-between; align-items: center; }
+        .modal-header h2 { margin: 0; font-size: 1.15em; font-weight: 600; }
+        .modal-close-btn { color: #9ca3af; font-size: 24px; font-weight: bold; cursor: pointer; border: none; background: none; padding: 0;}
+        .modal-close-btn:hover, .modal-close-btn:focus { color: #374151; text-decoration: none; }
+        .modal-body { padding: 1rem 1.25rem; max-height: 70vh; overflow-y: auto; }
+        .modal-footer { padding: 0.75rem 1rem; background-color: #f9fafb; border-top: 1px solid #e5e7eb; text-align: left; display: flex; justify-content: flex-start; flex-wrap: wrap; gap: 0.5rem; border-bottom-left-radius: 0.5rem; border-bottom-right-radius: 0.5rem; }
+        .modal-footer button { padding: 0.5rem 1rem; border-radius: 0.375rem; font-weight: 500; border: 1px solid transparent; transition: all 0.2s ease-in-out; cursor: pointer; }
+        .modal-footer button:not([class*="text-"]) { color: white; }
+        .modal-footer button.modal-close-btn-footer { background-color: #6b7280; border-color: #6b7280; margin-right: auto; margin-left: 0; } /* Adjusted margin */
+        .modal-footer button.modal-close-btn-footer:hover { background-color: #4b5563; border-color: #4b5563;}
+
+        /* --- Invoice Modal Specific Styles (Overrides) --- */
+        #invoiceModal .modal-content { max-width: 800px; } /* Larger modal for invoice */
+        #inv_printInvoiceBtn { background-color: #f59e0b; border-color: #f59e0b; color:#fff;}
+        #inv_printInvoiceBtn:hover { background-color: #d97706; border-color: #d97706;}
+        #inv_saveInvoiceBtn { background-color: #10b981; border-color: #10b981;}
+        #inv_saveInvoiceBtn:hover { background-color: #059669; border-color: #059669;}
+
+        /* --- Manage Serials Modal Specific Styles --- */
+        #manageSerialsModal .modal-content { max-width: 500px; } /* Smaller modal */
+        #modal_saveAddedSerialsBtn { background-color: #3b82f6; border-color: #2563eb; }
+        #modal_saveAddedSerialsBtn:hover { background-color: #2563eb; border-color: #1d4ed8; }
+        #modal_productNameDisplay { font-weight: 600; color: #1e40af; }
+        #modal_serialCounts { font-size: 0.9em; color: #4b5563; margin-bottom: 1rem; }
+
+        fieldset { border: 1px solid #e5e7eb; border-radius: 0.5rem; padding: 1rem; margin-bottom: 1.25rem; }
+        legend { font-weight: 600; color: #374151; padding: 0 0.5rem; font-size: 1rem; }
+        .form-row { display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem; align-items: flex-end; }
+        .form-group { flex: 1; min-width: 150px; display: flex; flex-direction: column; }
+        .form-group label { margin-bottom: 0.3rem; font-size: 0.875rem; color: #374151; font-weight: 500;}
+        .inv-phone-entry { margin-bottom: 0.75rem; padding-bottom: 0.75rem; border-bottom: 1px dashed #e5e7eb; align-items: center; }
+        .inv-phone-entry .form-group { flex-grow: 1; margin-bottom: 0; } /* Removed bottom margin */
+        .remove-phone-btn { padding: 0.3rem 0.5rem; background-color: #f59e0b; color: white; border: none; border-radius: 0.375rem; cursor: pointer; font-size: 0.9em; margin-right: 0; margin-left: 0; flex-shrink: 0; height: fit-content; } /* Adjusted margin */
+        .remove-phone-btn:hover { background-color: #d97706;}
+        #inv_addPhoneBtn { padding: 0.5rem 0.75rem; background-color: #0ea5e9; color: white; border: none; border-radius: 0.375rem; cursor: pointer; margin-top: 0.25rem; font-size: 0.9em; }
+        #inv_addPhoneBtn:hover { background-color: #0284c7; }
+        .add-item-section { background-color: #f9fafb; padding: 1rem; border: 1px solid #e5e7eb; border-radius: 0.5rem; margin-bottom: 1rem; }
+        .add-item-section h4 { margin-top: 0; margin-bottom: 0.75rem; color: #4b5563; font-weight: 600; font-size: 1rem; }
+        #inv_addItemBtn { background-color: #3b82f6; color: white; border-color: #3b82f6; width: auto; padding: 0.5rem 1rem; border-radius: 0.375rem; font-weight: 500; cursor: pointer; flex-shrink: 0; /* Prevent shrinking */ }
+        #inv_addItemBtn:hover { background-color: #2563eb; border-color: #2563eb; }
+        #inv_invoiceItemsTable { width: 100%; border-collapse: collapse; margin-top: 0.75rem; }
+        #inv_invoiceItemsTable th, #inv_invoiceItemsTable td { border: 1px solid #e5e7eb; padding: 0.5rem; text-align: right; font-size: 0.9em; vertical-align: middle; }
+        #inv_invoiceItemsTable th { background-color: #f3f4f6; font-weight: 600; text-align: center; }
+        #inv_invoiceItemsTable tbody tr:nth-child(even) { background-color: #f9fafb; }
+        #inv_invoiceItemsTable td.item-qty, #inv_invoiceItemsTable td.item-price, #inv_invoiceItemsTable td.item-subtotal { text-align: center; font-family: monospace; }
+        #inv_invoiceItemsTable td .serial-display { font-size: 0.8em; color: #6b7280; display: block; margin-top: 2px; } /* Style for serial in invoice */
+        .item-subtotal { font-weight: bold; }
+        .remove-item-btn { color: #ef4444; background: none; border: none; font-weight: bold; cursor: pointer; font-size: 1.1em; padding: 0 5px; }
+        .remove-item-btn:hover { color: #dc2626; }
+        .serial-select-container { margin-top: 0.3rem; } /* Container for serial dropdown */
+        .serial-select-container input[type="text"] { /* Style for serial search input */
+             width: auto; /* Adjust width as needed */
+             min-width: 150px;
+             padding: 0.25rem 0.5rem;
+             font-size: 0.85em;
+             margin-bottom: 0.25rem; /* Space below search */
+        }
+        .serial-select-container select { font-size: 0.85em; padding: 0.25rem 0.5rem; width: auto; min-width: 150px; max-height: 100px; } /* Style for serial dropdown */
+
+        #inv_deductibleCostsContainer { max-height: 100px; overflow-y: auto; border: 1px solid #e5e7eb; padding: 0.75rem; border-radius: 0.375rem; background-color: #f9fafb; margin-top: 1rem; }
+        #inv_deductibleCostsContainer label { display: block; margin-bottom: 0.5rem; font-size: 0.875rem; cursor: pointer; padding: 4px; border-radius: 3px; }
+        #inv_deductibleCostsContainer label:hover { background-color: #e5e7eb; }
+        #inv_deductibleCostsContainer input[type="checkbox"] { margin-left: 0.5rem; cursor: pointer; vertical-align: middle; }
+        .totals-display .form-group { flex-direction: row; align-items: center; justify-content: space-between; background-color: #f3f4f6; padding: 0.5rem 0.75rem; border-radius: 0.375rem; min-width: 180px; flex-basis: auto; margin-bottom: 0.5rem; }
+        .totals-display label { margin-bottom: 0; font-weight: 600; white-space: nowrap; margin-left: 0.5rem; }
+        .totals-display span, .totals-display strong { font-family: monospace; font-size: 1em; margin-right: 0.3rem; white-space: nowrap; }
+        #inv_grandTotalPrice { color: #dc2626; font-size: 1.1em; }
+        .error-message {
+            color: #991b1b; background-color: #fee2e2; border: 1px solid #fca5a5;
+            padding: 0.75rem; border-radius: 0.375rem; margin-top: 1rem;
+            text-align: center; font-size: 0.9em; display: none;
+        }
+        .error-message.visible { display: block; }
+        #inv_itemAddError { padding: 0.3rem 0.6rem; margin-top: 0.4rem; margin-bottom: 0.75rem; }
+        .no-print { /* Applied via @media print */ }
+
+        /* --- Print Styles --- */
+        @media print {
+            body { background-color: #ffffff !important; margin: 0; padding: 10px; font-size: 10pt; }
+            section, .widget-card, .modal { display: none !important; } /* Hide all main sections & modals by default */
+             #main-nav, footer, #global-message, #current-data-date, #current-time { display: none !important; } /* Hide time in footer */
+
+            /* Show only specific sections for general report */
+             body.print-report #summary-section,
+             body.print-report #inventory-section,
+             body.print-report #suppliers-section,
+             body.print-report #debts-section,
+             body.print-report #liabilities-section,
+             body.print-report #log-section {
+                 display: block !important;
+                 box-shadow: none !important;
+                 border: 1px solid #ccc !important;
+                 margin-bottom: 15px !important;
+                 border-radius: 0 !important;
+                 padding: 10px !important;
+             }
+             body.print-report #inventory-section #add-update-product-form, /* Hide product input form */
+             body.print-report #inventory-section #serial-number-entry-container, /* Hide serial number input */
+             body.print-report #inventory-section label[for="product-deduct-liquidity"], /* Hide deduct checkbox */
+             body.print-report #suppliers-section #add-update-supplier-form, /* Hide supplier input form */
+             body.print-report #suppliers-section #serial-search-container, /* Hide serial search form */
+             body.print-report #debts-section > div:not(#debtors-list-container), /* Hide input forms in debts */
+             body.print-report #liabilities-section > div:not(#liabilities-list-container), /* Hide input forms in liabilities */
+             body.print-report #log-section button,
+             body.print-report #liquidity-adjustment-container { /* Hide liquidity adjustment form */
+                  display: none !important;
+             }
+             body.print-report .product-actions, body.print-report .supplier-actions { display: none !important; }
+             body.print-report #debtors-list details { page-break-inside: avoid; }
+             body.print-report #debtors-list details > ul { display: block !important; } /* Ensure debt details are expanded */
+             body.print-report #debtors-list summary { list-style: none; cursor: default; background-color: #eee !important; padding: 5px !important; }
+             body.print-report #debtors-list summary::-webkit-details-marker { display: none !important; }
+             body.print-report h2 { border-bottom: 1px solid #eee !important; font-size: 1.2em !important; page-break-after: avoid; }
+             body.print-report h3 { font-size: 1.1em !important; page-break-after: avoid; }
+             body.print-report .grid { display: block !important; } /* Simplify grid layouts */
+             body.print-report table { font-size: 9pt !important; page-break-inside: auto; }
+             body.print-report th, body.print-report td { padding: 4px !important; }
+             body.print-report tr { page-break-inside: avoid; page-break-after: auto; }
+             body.print-report thead { display: table-header-group; }
+             body.print-report tfoot { display: table-footer-group; }
+
+
+            /* Hide things not needed in any print */
+            .no-print, #controls-section, #load-data-section, #pending-sales-section button, #consignment-value-display, #debtors-list button, #load-date-day-name-alt, #liquidity-section button, #liabilities-section button, #liabilities-list button, #settings-section button, #pending-sales-list button, #import-export-section, #offsetting-section, #sales-report-section button, #sales-report-section input, #sales-report-section label, #search-section, #openInvoiceModalBtn, #add-update-product-form button, #sell-product > div:first-of-type, #pending-sales-container h3, #liquidity-section > div:nth-of-type(2), #expenses-section > div:nth-of-type(2), #debts-section > div:nth-of-type(2), #debts-section > div:nth-of-type(3), #liabilities-section > div:nth-of-type(2), #offsetting-section > div:nth-of-type(1), #log-section button, #add-update-supplier-form button, #suppliers-list-container button,
+            #pending-sales-controls /* Hide pending sales search/totals in print */ {
+                 display: none !important;
+             }
+
+            /* Invoice Modal Print Specifics */
+            body.print-invoice #main-content { display: none !important; } /* Hide main app when printing invoice */
+            body.print-invoice #invoicePrintArea { display: block !important; }
+            body.print-invoice .invoice-modal-content { border: none !important; box-shadow: none !important; margin: 0 !important; max-width: 100% !important; border-radius: 0 !important; animation: none !important; }
+            body.print-invoice .invoice-modal-body { max-height: none !important; overflow: visible !important; padding: 0 !important; }
+            body.print-invoice .no-print { display: none !important; }
+            body.print-invoice #inv_invoiceItemsTable { font-size: 9pt !important; }
+            body.print-invoice #inv_invoiceItemsTable th, body.print-invoice #inv_invoiceItemsTable td { padding: 4px !important; }
+            body.print-invoice .serial-display-print { display: block !important; font-size: 0.8em; color: #555; } /* Show serial in print */
+
+        }
+        /* --- START: FINANCIAL CENTER STYLES --- */
+.fc-main-tabs button.active { border-color: #3b82f6; color: #3b82f6; background-color: #eff6ff; }
+.fc-form-input, .fc-form-select { border: 1px solid #d1d5db; border-radius: 0.375rem; padding: 0.5rem 0.75rem; width: 100%; transition: all 0.2s; }
+.fc-form-input:focus, .fc-form-select:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2); }
+.fc-step-card { background-color: white; border-radius: 0.75rem; padding: 1.5rem; box-shadow: 0 1px 3px 0 rgba(0,0,0,0.07); border: 1px solid #e5e7eb; margin-bottom: 1.5rem; }
+.fc-step-card h3 { font-size: 1.25rem; font-weight: 700; color: #1e3a8a; margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; gap: 0.75rem; }
+.fc-step-card h3 .fc-step-number { background-color: #3b82f6; color: white; height: 2rem; width: 2rem; border-radius: 9999px; display: inline-flex; align-items: center; justify-content: center; font-weight: bold; flex-shrink: 0; }
+.fc-preview-card { transition: all 0.4s ease-in-out; max-height: 0; overflow: hidden; opacity: 0; border-width: 2px; }
+.fc-preview-card.visible { max-height: 1500px; opacity: 1; margin-top: 1.5rem; }
+.fc-manual-dist-input { width: 80px; text-align: center; }
+.fc-disabled-section { opacity: 0.45; pointer-events: none; user-select: none; background-color: #f9fafb; }
+/* --- END: FINANCIAL CENTER STYLES --- */
+#undo-button:disabled, #redo-button:disabled {
+    background-color: #fed7aa; /* لون برتقالي باهت */
+    color: #7c2d12;           /* لون بني داكن للنص */
+    opacity: 0.7;
+    cursor: not-allowed;
+ /* === بداية التصميم الاحترافي الجديد لزر الحفظ التلقائي === */
+
+/* الحاوية الرئيسية للزر */
+.auto-save-switch {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 28px;
+}
+
+/* إخفاء مربع الاختيار الافتراضي */
+.auto-save-switch input { 
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+/* شريط التمرير (الجزء الخلفي للزر) */
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #d1d5db; /* لون رمادي فاتح احترافي لوضع الإيقاف */
+  -webkit-transition: .3s;
+  transition: .3s;
+  border-radius: 28px; /* حواف دائرية بالكامل */
+}
+
+/* الدائرة التي تتحرك (المقبض) */
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 22px;
+  width: 22px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  -webkit-transition: .3s;
+  transition: .3s;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1); /* ظل ناعم لإعطاء عمق */
+}
+
+/* عند تفعيل الزر */
+input:checked + .slider {
+  background-color: #2563eb; /* لون أزرق جذاب يتناسب مع البرنامج */
+}
+
+/* عند تفعيل الزر، يتم تحريك المقبض */
+input:checked + .slider:before {
+  -webkit-transform: translateX(22px);
+  -ms-transform: translateX(22px);
+  transform: translateX(22px);
+}
+
+/* تأثير بسيط عند الضغط على الزر (يعطي إحساسًا بالتفاعلية) */
+input:active + .slider:before {
+    width: 26px; /* يتمدد المقبض قليلاً عند الضغط */
+}
+
+input:checked:active + .slider:before {
+    -webkit-transform: translateX(18px);
+    -ms-transform: translateX(18px);
+    transform: translateX(18px); /* يتم تعديل موضعه ليتناسب مع الحجم الجديد */
+}
+/* ============================================= */
+/* ====== تنسيقات قسم المرتجعات الجديد ====== */
+/* ============================================= */
+/* ============================================= */
+/* ====== تنسيقات التصميم الجديد لقسم المرتجعات ====== */
+/* ============================================= */
+#returns-section .section-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 2px solid #e2e8f0;
+}
+#returns-section .section-header h2 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #1a202c;
+    margin: 0;
+}
+#returns-section .section-header .icon {
+    font-size: 2rem;
+    color: #e53e3e;
+}
+#returns-section .card-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+#returns-section .option-card {
+    background-color: #f7fafc;
+    border-radius: 10px;
+    padding: 1.5rem;
+    border: 1px solid #e2e8f0;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    transition: all 0.2s ease-in-out;
+}
+#returns-section .option-card:hover {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+    border-color: #a0aec0;
+}
+#returns-section .card-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+#returns-section .card-header .card-icon {
+    font-size: 1.5rem;
+    color: #718096;
+}
+#returns-section .card-header .card-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #2d3748;
+    margin: 0;
+}
+#returns-section .card-content {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding-right: 2.5rem;
+    border-right: 2px dashed #e2e8f0;
+}
+#returns-section .form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+}
+#returns-section .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+#returns-section .form-group label {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #4a5568;
+}
+#returns-section .form-input,
+#returns-section .form-select {
+    border: 1px solid #cbd5e0;
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    width: 100%;
+    transition: all 0.3s;
+    font-size: 1rem;
+    background-color: #ffffff;
+}
+#returns-section .radio-buttons,
+#returns-section .checkbox-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+#returns-section .radio-label,
+#returns-section .checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #4a5568;
+    padding: 0.75rem 1rem;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    transition: all 0.2s ease-in-out;
+    background-color: #f7fafc;
+}
+#returns-section .radio-label:hover,
+#returns-section .checkbox-label:hover {
+    border-color: #4299e1;
+    background-color: #ebf8ff;
+}
+#returns-section input[type="radio"]:checked + .label-text,
+#returns-section input[type="checkbox"]:checked + .label-text {
+    color: #2b6cb0;
+    font-weight: 700;
+}
+#returns-section input[type="radio"],
+#returns-section input[type="checkbox"] {
+    display: none;
+}
+#returns-section .display-text-box {
+    padding: 0.75rem 1rem;
+    background-color: #edf2f7;
+    border-radius: 8px;
+    text-align: center;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #2d3748;
+    border: 1px solid #e2e8f0;
+}
+#returns-section .action-button {
+    background-color: #e53e3e;
+    color: white;
+    padding: 1rem;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 1.1rem;
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.3s, transform 0.1s;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    width: 100%;
+}
+#returns-section .action-button:hover {
+    background-color: #c53030;
+    transform: translateY(-1px);
+}
+#returns-section .hidden { display: none; }
+
+/* === نهاية التصميم الاحترافي الجديد === */
+}
+/* ... أكواد CSS أخرى ... */
+
+input:checked:active + .slider:before {
+    -webkit-transform: translateX(18px);
+    -ms-transform: translateX(18px);
+    transform: translateX(18px); /* يتم تعديل موضعه ليتناسب مع الحجم الجديد */
+}
+
+
+/* === نهاية التصميم الاحترافي الجديد === */
+} 
+/* ============================================= */
+/* ====== تنسيقات جدول تقرير المصروفات ====== */
+/* ============================================= */
+#expenses-report-table {
+    width: 100%;
+    border-collapse: collapse; /* يزيل المسافات المزدوجة بين الحدود */
+    margin-top: 1rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    border-radius: 0.5rem;
+    overflow: hidden; /* لإخفاء الزوايا الحادة للخلفية */
+}
+
+#expenses-report-table th {
+    background-color: #f9fafb; /* خلفية رمادية فاتحة جداً للرأس */
+    color: #374151; /* لون نص أغمق قليلاً */
+    font-weight: 600;
+    text-align: right;
+    padding: 0.75rem 1rem;
+    border-bottom: 2px solid #e5e7eb;
+}
+
+#expenses-report-table td {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #e5e7eb;
+    color: #4b5563; /* لون نص المحتوى */
+}
+
+/* سطر تجميع التاريخ */
+#expenses-report-table .date-group-header td {
+    background-color: #eff6ff; /* خلفية زرقاء فاتحة */
+    color: #1e40af; /* لون أزرق داكن للنص */
+    font-weight: bold;
+    padding: 0.5rem 1rem;
+    border-top: 2px solid #dbeafe;
+    border-bottom: 2px solid #dbeafe;
+}
+
+/* تظليل السطور الفردية لتحسين القراءة */
+#expenses-report-table tbody tr.expense-row:nth-child(even) {
+    background-color: #f9fafb;
+}
+
+#expenses-report-table tfoot td {
+    font-weight: bold;
+    font-size: 1.1em;
+    background-color: #f3f4f6;
+    border-top: 2px solid #d1d5db;
+}
+/* ============================================= */
+/* ====== تنسيقات التصميم الجديد لقسم المرتجعات ====== */
+/* ============================================= */
+#returns-section .section-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 2px solid #e2e8f0;
+}
+
+#returns-section .section-header h2 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #1a202c;
+    margin: 0;
+}
+
+    
+#returns-section .section-header .icon {
+    font-size: 2rem;
+    color: #e53e3e;
+}
+    
+#returns-section .card-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+#returns-section .option-card {
+    background-color: #f7fafc;
+    border-radius: 10px;
+    padding: 1.5rem;
+    border: 1px solid #e2e8f0;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    transition: all 0.2s ease-in-out;
+}
+
+#returns-section .option-card:hover {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+    border-color: #a0aec0;
+}
+
+#returns-section .card-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+#returns-section .card-header .card-icon {
+    font-size: 1.5rem;
+    color: #718096;
+}
+
+#returns-section .card-header .card-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #2d3748;
+    margin: 0;
+}
+    
+#returns-section .card-content {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding-right: 2.5rem;
+    border-right: 2px dashed #e2e8f0;
+}
+
+#returns-section .form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+#returns-section .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+    
+#returns-section .form-group label {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #4a5568;
+}
+
+#returns-section .form-input,
+#returns-section .form-select {
+    border: 1px solid #cbd5e0;
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    width: 100%;
+    transition: all 0.3s;
+    font-size: 1rem;
+    background-color: #ffffff;
+}
+
+#returns-section .radio-buttons,
+#returns-section .checkbox-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+#returns-section .radio-label,
+#returns-section .checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #4a5568;
+    padding: 0.75rem 1rem;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    transition: all 0.2s ease-in-out;
+    background-color: #f7fafc;
+}
+    
+#returns-section .radio-label:hover,
+#returns-section .checkbox-label:hover {
+    border-color: #4299e1;
+    background-color: #ebf8ff;
+}
+
+#returns-section input[type="radio"]:checked + .label-text,
+#returns-section input[type="checkbox"]:checked + .label-text {
+    color: #2b6cb0;
+    font-weight: 700;
+}
+    
+#returns-section input[type="radio"],
+#returns-section input[type="checkbox"] {
+    display: none;
+}
+
+#returns-section .display-text-box {
+    padding: 0.75rem 1rem;
+    background-color: #edf2f7;
+    border-radius: 8px;
+    text-align: center;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #2d3748;
+    border: 1px solid #e2e8f0;
+}
+
+#returns-section .action-button {
+    background-color: #e53e3e;
+    color: white;
+    padding: 1rem;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 1.1rem;
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.3s, transform 0.1s;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    width: 100%;
+}
+
+#returns-section .action-button:hover {
+    background-color: #c53030;
+    transform: translateY(-1px);
+}
+
+#returns-section .hidden { display: none; }
+/* ======================================================= */
+/* START: NEW STYLES FOR LIQUIDITY SECTION V2              */
+/* ======================================================= */
+#safes-overview-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+.safe-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    transition: all 0.2s ease-in-out;
+}
+.safe-card.total-card {
+    background-color: #1e3a8a;
+    color: white;
+    border-color: #1e40af;
+}
+.safe-card h4 {
+    margin: 0 0 0.5rem 0;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #6b7280;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.safe-card.total-card h4 {
+    color: #93c5fd;
+}
+.safe-card-balance {
+    font-size: 1.5rem;
+    font-weight: 700;
+    font-family: monospace;
+    color: #1d4ed8;
+}
+.safe-card.total-card .safe-card-balance {
+    color: white;
+}
+.action-tabs {
+    display: flex;
+    gap: 0.5rem;
+    border-bottom: 1px solid #d1d5db;
+    margin-bottom: 1.5rem;
+}
+.action-tabs button {
+    background-color: transparent;
+    color: #4b5563;
+    border-radius: 0.5rem 0.5rem 0 0;
+    border: 1px solid transparent;
+    border-bottom: none;
+    padding: 0.75rem 1.25rem;
+    font-weight: 600;
+    width: auto;
+}
+.action-tabs button.active {
+    background-color: #ffffff;
+    color: #3b82f6;
+    border-color: #d1d5db;
+}
+.liquidity-actions-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+    align-items: flex-start;
+}
+.action-column {
+    background-color: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    padding: 1rem;
+}
+.action-column h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #374151;
+    margin-top: 0;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+#liquidity-log-advanced-container {
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #e5e7eb;
+}
+#accounts-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+.account-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem;
+    border-bottom: 1px solid #e5e7eb;
+}
+.account-item:last-child {
+    border-bottom: none;
+}
+.account-item-name {
+    font-weight: 500;
+}
+.account-item-actions button {
+    width: auto;
+    font-size: 0.8rem;
+    padding: 0.25rem 0.75rem;
+    margin-right: 0.5rem;
+}
+.edit-btn { background-color: #f59e0b; }
+.delete-btn { background-color: #ef4444; }
+
+#account-form {
+    margin-top: 1.5rem;
+    padding: 1.5rem;
+    background-color: #f9fafb;
+    border-radius: 0.5rem;
+    border: 1px solid #e5e7eb;
+}
+#account-form h3 { margin-top: 0; }
+
+/* Styles for screens smaller than 768px (most phones) */
+@media (max-width: 768px) {
+    
+    /* تقليل الهوامش العامة للجسم */
+    body {
+        padding: 0.75rem; /* 12px */
+    }
+
+    /* تعديل حجم الخط الرئيسي والعناوين */
+    h1 {
+        font-size: 1.5rem; /* 24px */
+    }
+    .widget-card h2, .fc-step-card h3 {
+        font-size: 1.1rem; /* 18px */
+    }
+
+    /* جعل الأقسام تأخذ العرض الكامل وتقليل الهوامش الداخلية */
+    .widget-card {
+        padding: 1rem; /* 16px */
+    }
+
+    /* تعديل أزرار التنقل الرئيسية لتكون أفضل على الموبايل */
+    #main-nav {
+        gap: 0.5rem; /* 8px */
+    }
+    #main-nav button {
+        flex-grow: 1; /* تجعل الأزرار تتمدد لتملأ السطر */
+        flex-basis: 45%; /* كل زر يأخذ حوالي نصف العرض */
+        font-size: 0.8rem; /* تصغير الخط قليلاً */
+    }
+
+    /* تحويل كل الشبكات (Grids) إلى عمود واحد */
+    .grid {
+        grid-template-columns: 1fr !important; /* !important للتأكد من تطبيق الستايل */
+    }
+
+    /* تنسيق النماذج لتكون عمودية وواضحة */
+    .form-row, 
+    #pending-sales-controls, 
+    #add-update-monthly-liability-form .grid {
+        flex-direction: column;
+        gap: 0.75rem;
+        align-items: stretch; /* تجعل العناصر تمتد بعرض الحاوية */
+    }
+    .form-group {
+        min-width: 100%;
+    }
+
+    /* تعديل عرض الجداول لتكون قابلة للتمرير أفقيًا */
+    #sales-report-display .overflow-x-auto,
+    #expenses-report-display .overflow-x-auto {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch; /* لتحسين التمرير على iOS */
+        border: 1px solid #e5e7eb;
+        border-radius: 0.5rem;
+    }
+    #sales-report-table, #expenses-report-table, #pi_items_table {
+        min-width: 600px; /* اجعل الجدول أعرض من الشاشة لإجبار التمرير */
+        font-size: 0.8rem;
+    }
+    
+    /* تعديل حجم النوافذ المنبثقة (Modals) */
+    .modal-content {
+        width: 95%;
+        margin: 10% auto;
+        max-height: 80vh;
+    }
+    .modal-body {
+        padding: 0.75rem;
+    }
+    
+    /* تعديل الأزرار في الفوتر الخاص بالـ Modal */
+    .modal-footer {
+        flex-direction: column-reverse; /* وضع الأزرار فوق بعضها */
+        align-items: stretch;
+    }
+    .modal-footer button {
+        width: 100%;
+        margin-right: 0 !important;
+        margin-left: 0 !important;
+    }
+} 
+   
+   
+    
+
+    
+/* ... أكواد CSS أخرى ... */
+    
+    
+        /* TailwindCSS Utility Class Placeholders (Copied for reference, not dynamically generated) */
+        *, ::before, ::after{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgb(59 130 246 / 0.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }::backdrop{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgb(59 130 246 / 0.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }
+        *,::after,::before{box-sizing:border-box;border-width:0;border-style:solid;border-color:#e5e7eb}::after,::before{--tw-content:''}
+        html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;tab-size:4;font-family:ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";font-feature-settings:normal;font-variation-settings:normal;-webkit-tap-highlight-color:transparent}
+        body{margin:0;line-height:inherit}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,pre,samp{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;font-feature-settings:normal;font-variation-settings:normal;font-size:1em}small{font-size:80%}sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}button,input,optgroup,select,textarea{font-family:inherit;font-feature-settings:inherit;font-variation-settings:inherit;font-size:100%;font-weight:inherit;line-height:inherit;letter-spacing:inherit;color:inherit;margin:0;padding:0}button,select{text-transform:none}button,input:where([type=button]),input:where([type=reset]),input:where([type=submit]){-webkit-appearance:button;background-color:transparent;background-image:none}:-moz-focusring{outline:auto}:-moz-ui-invalid{box-shadow:none}progress{vertical-align:baseline}::-webkit-inner-spin-button,::-webkit-outer-spin-button{height:auto}[type=search]{-webkit-appearance:textfield;outline-offset:-2px}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-file-upload-button{-webkit-appearance:button;font:inherit}summary{display:list-item}blockquote,dd,dl,figure,h1,h2,h3,h4,h5,h6,hr,p,pre{margin:0}fieldset{margin:0;padding:0}legend{padding:0}menu,ol,ul{list-style:none;margin:0;padding:0}dialog{padding:0}textarea{resize:vertical}input::placeholder,textarea::placeholder{opacity:1;color:#9ca3af}[role=button],button{cursor:pointer}:disabled{cursor:default; opacity: 0.7;}audio,canvas,embed,iframe,img,object,svg,video{display:block;vertical-align:middle}img,video{max-width:100%;height:auto}[hidden]{display:none} /* Simplified */
+        .col-span-full{grid-column:1 / -1}.mb-1{margin-bottom:0.25rem}.mb-2{margin-bottom:0.5rem}.mb-3{margin-bottom:0.75rem}.mb-4{margin-bottom:1rem}.mb-6{margin-bottom:1.5rem}.ml-2{margin-left:0.5rem}.mt-1{margin-top:0.25rem}.mt-10{margin-top:2.5rem}.mt-2{margin-top:0.5rem}.mt-3{margin-top:0.75rem}.mt-4{margin-top:1rem}.mt-6{margin-top:1.5rem}.mt-8{margin-top:2rem}.block{display:block}.flex{display:flex}.inline-flex{display:inline-flex}.grid{display:grid}.hidden{display:none}.max-h-\[50vh\]{max-height:50vh}.max-h-\[60vh\]{max-height:60vh}.w-52{width:13rem}.w-full{width:100%}.min-w-\[50px\]{min-width:50px}.min-w-full{min-width:100%}.flex-shrink-0{flex-shrink:0}.cursor-pointer{cursor:pointer}.list-disc{list-style-type:disc}.grid-cols-1{grid-template-columns:repeat(1, minmax(0, 1fr))}.flex-col{flex-direction:column}.flex-wrap{flex-wrap:wrap}.items-start{align-items:flex-start}.items-end{align-items:flex-end}.items-center{align-items:center}.justify-start{justify-content:flex-start}.justify-end{justify-content:flex-end}.justify-center{justify-content:center}.justify-between{justify-content:space-between}.gap-1{gap:0.25rem}.gap-2{gap:0.5rem}.gap-4{gap:1rem}.gap-6{gap:1.5rem}.space-y-2 > :not([hidden]) ~ :not([hidden]){--tw-space-y-reverse:0;margin-top:calc(0.5rem * calc(1 - var(--tw-space-y-reverse)));margin-bottom:calc(0.5rem * var(--tw-space-y-reverse))}.space-y-3 > :not([hidden]) ~ :not([hidden]){--tw-space-y-reverse:0;margin-top:calc(0.75rem * calc(1 - var(--tw-space-y-reverse)));margin-bottom:calc(0.75rem * var(--tw-space-y-reverse))}.overflow-hidden{overflow:hidden}.overflow-x-auto{overflow-x:auto}.overflow-y-auto{overflow-y:auto}.rounded{border-radius:0.25rem}.rounded-lg{border-radius:0.5rem}.rounded-md{border-radius:0.375rem}.border{border-width:1px}.border-b{border-bottom-width:1px}.border-l{border-left-width:1px}.border-t{border-top-width:1px}.border-blue-200{--tw-border-opacity:1;border-color:rgb(191 219 254 / var(--tw-border-opacity, 1))}.border-gray-200{--tw-border-opacity:1;border-color:rgb(229 231 235 / var(--tw-border-opacity, 1))}.border-gray-300{--tw-border-opacity:1;border-color:rgb(209 213 219 / var(--tw-border-opacity, 1))}.border-green-200{--tw-border-opacity:1;border-color:rgb(187 247 208 / var(--tw-border-opacity, 1))}.border-indigo-200{--tw-border-opacity:1;border-color:rgb(199 210 254 / var(--tw-border-opacity, 1))}.border-indigo-300{--tw-border-opacity:1;border-color:rgb(165 180 252 / var(--tw-border-opacity, 1))}.border-pink-200{--tw-border-opacity:1;border-color:rgb(251 207 232 / var(--tw-border-opacity, 1))}.border-purple-200{--tw-border-opacity:1;border-color:rgb(233 213 255 / var(--tw-border-opacity, 1))}.border-red-200{--tw-border-opacity:1;border-color:rgb(254 202 202 / var(--tw-border-opacity, 1))}.border-teal-200{--tw-border-opacity:1;border-color:rgb(153 246 228 / var(--tw-border-opacity, 1))}.border-yellow-200{--tw-border-opacity:1;border-color:rgb(254 240 138 / var(--tw-border-opacity, 1))}.border-gray-100{--tw-border-opacity:1;border-color:rgb(243 244 246 / var(--tw-border-opacity, 1))}.border-red-400{--tw-border-opacity:1;border-color:rgb(248 113 113 / var(--tw-border-opacity, 1))}.border-green-400{--tw-border-opacity:1;border-color:rgb(74 222 128 / var(--tw-border-opacity, 1))}.border-yellow-500{--tw-border-opacity:1;border-color:rgb(234 179 8 / var(--tw-border-opacity, 1))}.border-red-600{--tw-border-opacity:1;border-color:rgb(220 38 38 / var(--tw-border-opacity, 1))}.border-green-700{--tw-border-opacity:1;border-color:rgb(21 128 61 / var(--tw-border-opacity, 1))}.border-yellow-700{--tw-border-opacity:1;border-color:rgb(161 98 7 / var(--tw-border-opacity, 1))}.border-teal-600{--tw-border-opacity:1;border-color:rgb(13 148 136 / var(--tw-border-opacity, 1))}.bg-blue-50{--tw-bg-opacity:1;background-color:rgb(239 246 255 / var(--tw-bg-opacity, 1))}.bg-blue-500{--tw-bg-opacity:1;background-color:rgb(59 130 246 / var(--tw-bg-opacity, 1))}.bg-cyan-500{--tw-bg-opacity:1;background-color:rgb(6 182 212 / var(--tw-bg-opacity, 1))}.bg-gray-200{--tw-bg-opacity:1;background-color:rgb(229 231 235 / var(--tw-bg-opacity, 1))}.bg-gray-400{--tw-bg-opacity:1;background-color:rgb(156 163 175 / var(--tw-bg-opacity, 1))}.bg-gray-50{--tw-bg-opacity:1;background-color:rgb(249 250 251 / var(--tw-bg-opacity, 1))}.bg-green-50{--tw-bg-opacity:1;background-color:rgb(240 253 244 / var(--tw-bg-opacity, 1))}.bg-green-500{--tw-bg-opacity:1;background-color:rgb(34 197 94 / var(--tw-bg-opacity, 1))}.bg-indigo-50{--tw-bg-opacity:1;background-color:rgb(238 242 255 / var(--tw-bg-opacity, 1))}.bg-indigo-500{--tw-bg-opacity:1;background-color:rgb(99 102 241 / var(--tw-bg-opacity, 1))}.bg-orange-500{--tw-bg-opacity:1;background-color:rgb(249 115 22 / var(--tw-bg-opacity, 1))}.bg-pink-50{--tw-bg-opacity:1;background-color:rgb(253 242 248 / var(--tw-bg-opacity, 1))}.bg-purple-50{--tw-bg-opacity:1;background-color:rgb(250 245 255 / var(--tw-bg-opacity, 1))}.bg-purple-500{--tw-bg-opacity:1;background-color:rgb(168 85 247 / var(--tw-bg-opacity, 1))}.bg-red-50{--tw-bg-opacity:1;background-color:rgb(254 242 242 / var(--tw-bg-opacity, 1))}.bg-red-500{--tw-bg-opacity:1;background-color:rgb(239 68 68 / var(--tw-bg-opacity, 1))}.bg-rose-500{--tw-bg-opacity:1;background-color:rgb(244 63 94 / var(--tw-bg-opacity, 1))}.bg-teal-50{--tw-bg-opacity:1;background-color:rgb(240 253 250 / var(--tw-bg-opacity, 1))}.bg-teal-500{--tw-bg-opacity:1;background-color:rgb(20 184 166 / var(--tw-bg-opacity, 1))}.bg-yellow-50{--tw-bg-opacity:1;background-color:rgb(254 252 232 / var(--tw-bg-opacity, 1))}.bg-yellow-500{--tw-bg-opacity:1;background-color:rgb(234 179 8 / var(--tw-bg-opacity, 1))}.bg-white{--tw-bg-opacity:1;background-color:rgb(255 255 255 / var(--tw-bg-opacity, 1))}.bg-yellow-400{--tw-bg-opacity:1;background-color:rgb(250 204 21 / var(--tw-bg-opacity, 1))}.bg-red-100{--tw-bg-opacity:1;background-color:rgb(254 226 226 / var(--tw-bg-opacity, 1))}.bg-green-100{--tw-bg-opacity:1;background-color:rgb(220 252 231 / var(--tw-bg-opacity, 1))}.p-2{padding:0.5rem}.p-3{padding:0.75rem}.p-4{padding:1rem}.p-6{padding:1.5rem}.px-2{padding-left:0.5rem;padding-right:0.5rem}.px-3{padding-left:0.75rem;padding-right:0.75rem}.px-4{padding-left:1rem;padding-right:1rem}.py-1{padding-top:0.25rem;padding-bottom:0.25rem}.py-2{padding-top:0.5rem;padding-bottom:0.5rem}.py-4{padding-top:1rem;padding-bottom:1rem}.py-1\.5{padding-top:0.375rem;padding-bottom:0.375rem}.pb-4{padding-bottom:1rem}.pl-4{padding-left:1rem}.pl-5{padding-left:1.25rem}.pt-4{padding-top:1rem}.pt-6{padding-top:1.5rem}.pb-1{padding-bottom:0.25rem}.pt-2{padding-top:0.5rem}.pt-3{padding-top:0.75rem}.text-center{text-align:center}.text-right{text-align:right}.font-mono{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace}.text-2xl{font-size:1.5rem;line-height:2rem}.text-3xl{font-size:1.875rem;line-height:2.25rem}.text-lg{font-size:1.125rem;line-height:1.75rem}.text-sm{font-size:0.875rem;line-height:1.25rem}.text-xl{font-size:1.25rem;line-height:1.75rem}.text-xs{font-size:0.75rem;line-height:1rem}.font-bold{font-weight:700}.font-medium{font-weight:500}.font-semibold{font-weight:600}.text-blue-600{--tw-text-opacity:1;color:rgb(37 99 235 / var(--tw-text-opacity, 1))}.text-blue-700{--tw-text-opacity:1;color:rgb(29 78 216 / var(--tw-text-opacity, 1))}.text-blue-800{--tw-text-opacity:1;color:rgb(30 64 175 / var(--tw-text-opacity, 1))}.text-gray-500{--tw-text-opacity:1;color:rgb(107 114 128 / var(--tw-text-opacity, 1))}.text-gray-600{--tw-text-opacity:1;color:rgb(75 85 99 / var(--tw-text-opacity, 1))}.text-gray-700{--tw-text-opacity:1;color:rgb(55 65 81 / var(--tw-text-opacity, 1))}.text-green-600{--tw-text-opacity:1;color:rgb(22 163 74 / var(--tw-text-opacity, 1))}.text-green-700{--tw-text-opacity:1;color:rgb(21 128 61 / var(--tw-text-opacity, 1))}.text-green-800{--tw-text-opacity:1;color:rgb(22 101 52 / var(--tw-text-opacity, 1))}.text-indigo-600{--tw-text-opacity:1;color:rgb(79 70 229 / var(--tw-text-opacity, 1))}.text-indigo-700{--tw-text-opacity:1;color:rgb(67 56 202 / var(--tw-text-opacity, 1))}.text-indigo-800{--tw-text-opacity:1;color:rgb(55 48 163 / var(--tw-text-opacity, 1))}.text-pink-700{--tw-text-opacity:1;color:rgb(190 24 93 / var(--tw-text-opacity, 1))}.text-pink-800{--tw-text-opacity:1;color:rgb(157 23 77 / var(--tw-text-opacity, 1))}.text-purple-700{--tw-text-opacity:1;color:rgb(126 34 206 / var(--tw-text-opacity, 1))}.text-purple-800{--tw-text-opacity:1;color:rgb(107 33 168 / var(--tw-text-opacity, 1))}.text-red-700{--tw-text-opacity:1;color:rgb(185 28 28 / var(--tw-text-opacity, 1))}.text-red-600{--tw-text-opacity:1;color:rgb(220 38 38 / var(--tw-text-opacity, 1))}.text-red-800{--tw-text-opacity:1;color:rgb(153 27 27 / var(--tw-text-opacity, 1))}.text-teal-700{--tw-text-opacity:1;color:rgb(15 118 110 / var(--tw-text-opacity, 1))}.text-teal-800{--tw-text-opacity:1;color:rgb(17 94 89 / var(--tw-text-opacity, 1))}.text-white{--tw-text-opacity:1;color:rgb(255 255 255 / var(--tw-text-opacity, 1))}.text-yellow-600{--tw-text-opacity:1;color:rgb(202 138 4 / var(--tw-text-opacity, 1))}.text-yellow-700{--tw-text-opacity:1;color:rgb(161 98 7 / var(--tw-text-opacity, 1))}.text-yellow-800{--tw-text-opacity:1;color:rgb(133 77 14 / var(--tw-text-opacity, 1))}.text-blue-500{--tw-text-opacity:1;color:rgb(59 130 246 / var(--tw-text-opacity, 1))}.text-gray-400{--tw-text-opacity:1;color:rgb(156 163 175 / var(--tw-text-opacity, 1))}.text-gray-800{--tw-text-opacity:1;color:rgb(31 41 55 / var(--tw-text-opacity, 1))}.text-purple-500{--tw-text-opacity:1;color:rgb(168 85 247 / var(--tw-text-opacity, 1))}.text-yellow-900{--tw-text-opacity:1;color:rgb(113 63 18 / var(--tw-text-opacity, 1))}.text-teal-500{--tw-text-opacity:1;color:rgb(20 184 166 / var(--tw-bg-opacity, 1))}.text-cyan-600{--tw-text-opacity:1;color:rgb(8 145 178 / var(--tw-text-opacity, 1))}.shadow-sm{--tw-shadow:0 1px 2px 0 rgb(0 0 0 / 0.05);--tw-shadow-colored:0 1px 2px 0 var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow{--tw-shadow:0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);--tw-shadow-colored:0 1px 3px 0 var(--tw-shadow-color), 0 1px 2px -1px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.flex-grow{flex-grow:1}.hover\:bg-blue-600:hover{--tw-bg-opacity:1;background-color:rgb(37 99 235 / var(--tw-bg-opacity, 1))}.hover\:bg-cyan-600:hover{--tw-bg-opacity:1;background-color:rgb(8 145 178 / var(--tw-bg-opacity, 1))}.hover\:bg-gray-300:hover{--tw-bg-opacity:1;background-color:rgb(209 213 219 / var(--tw-bg-opacity, 1))}.hover\:bg-gray-500:hover{--tw-bg-opacity:1;background-color:rgb(107 114 128 / var(--tw-bg-opacity, 1))}.hover\:bg-green-600:hover{--tw-bg-opacity:1;background-color:rgb(22 163 74 / var(--tw-bg-opacity, 1))}.hover\:bg-indigo-600:hover{--tw-bg-opacity:1;background-color:rgb(79 70 229 / var(--tw-bg-opacity, 1))}.hover\:bg-orange-600:hover{--tw-bg-opacity:1;background-color:rgb(234 88 12 / var(--tw-bg-opacity, 1))}.hover\:bg-purple-600:hover{--tw-bg-opacity:1;background-color:rgb(147 51 234 / var(--tw-bg-opacity, 1))}.hover\:bg-red-600:hover{--tw-bg-opacity:1;background-color:rgb(220 38 38 / var(--tw-bg-opacity, 1))}.hover\:bg-rose-600:hover{--tw-bg-opacity:1;background-color:rgb(225 29 72 / var(--tw-bg-opacity, 1))}.hover\:bg-teal-600:hover{--tw-bg-opacity:1;background-color:rgb(13 148 136 / var(--tw-bg-opacity, 1))}.hover\:bg-yellow-600:hover{--tw-bg-opacity:1;background-color:rgb(202 138 4 / var(--tw-bg-opacity, 1))}.hover\:bg-gray-100:hover{--tw-bg-opacity:1;background-color:rgb(243 244 246 / var(--tw-bg-opacity, 1))}.hover\:bg-yellow-500:hover{--tw-bg-opacity:1;background-color:rgb(234 179 8 / var(--tw-bg-opacity, 1))}.hover\:underline:hover{-webkit-text-decoration-line:underline;text-decoration-line:underline}.focus\:border-blue-300:focus{--tw-border-opacity:1;border-color:rgb(147 197 253 / var(--tw-border-opacity, 1))}.focus\:border-indigo-300:focus{--tw-border-opacity:1;border-color:rgb(165 180 252 / var(--tw-border-opacity, 1))}.focus\:ring:focus{--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(3px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow, 0 0 #0000)}.focus\:ring-blue-200:focus{--tw-ring-opacity:1;--tw-ring-color:rgb(191 219 254 / var(--tw-ring-opacity, 1))}.focus\:ring-indigo-200:focus{--tw-ring-opacity:1;--tw-ring-color:rgb(199 210 254 / var(--tw-ring-opacity, 1))}.focus\:ring-opacity-50:focus{--tw-ring-opacity:0.5}.focus\:ring-offset-0:focus{--tw-ring-offset-width:0px}
+        @media (min-width: 640px){.sm\:w-auto{width:auto}.sm\:grid-cols-2{grid-template-columns:repeat(2, minmax(0, 1fr))}.sm\:flex-row{flex-direction:row}}
+        @media (min-width: 768px){.md\:col-span-1{grid-column:span 1 / span 1}.md\:col-start-1{grid-column-start:1}.md\:grid-cols-2{grid-template-columns:repeat(2, minmax(0, 1fr))}.md\:grid-cols-3{grid-template-columns:repeat(3, minmax(0, 1fr))}.md\:gap-4{gap:1rem}.md\:border-l-0{border-left-width:0px}.md\:border-r{border-right-width:1px}.md\:pl-0{padding-left:0px}.md\:pr-4{padding-right:1rem}}
+        @media (min-width: 1024px){.lg\:grid-cols-3{grid-template-columns:repeat(3, minmax(0, 1fr))}.lg\:grid-cols-4{grid-template-columns:repeat(4, minmax(0, 1fr))}}
