@@ -7421,13 +7421,15 @@ products.push({ id: uniqueProductCodeReturn, name: item.name, quantity: item.qua
 // 🌟 [تحديث د. ضياء النهائي الموحد]: دالة تأكيد استلام المرتجع المعلق بالـ ID الفريد
 // =====================================================================
 function handleConfirmReceipt(pendingId) {
-    saveStateToHistory();
-    
-    const returnIndex = pendingReturns.findIndex(r => r.id === pendingId);
+    // 1. تحقق من الوجود أولاً لتجنب مشاكل النقر المزدوج (Double-Click)
+    const returnIndex = pendingReturns.findIndex(r => String(r.id) === String(pendingId));
     if (returnIndex === -1) {
-        showGlobalMessage("خطأ: لم يتم العثور على المرتجع المعلق.", true);
+        // تم الاستلام بالفعل (ربما بسبب نقرة مزدوجة سريعة)، فلا داعي لإظهار خطأ أو أخذ لقطة جديدة
         return;
     }
+
+    // 2. احفظ الحالة فقط بعد التأكد من وجود المرتجع
+    if (typeof saveStateToHistory === 'function') saveStateToHistory();
 
     const ret = pendingReturns.splice(returnIndex, 1)[0];
 
