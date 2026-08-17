@@ -37,9 +37,9 @@
         }
     </script>
 
-    <link rel="stylesheet" href="finance.css">
+    <link rel="stylesheet" href="css/finance.css">
     
-            <link rel="stylesheet" href="finance2.css">
+            <link rel="stylesheet" href="css/finance2.css">
     <!-- Serials Tracker CSS -->
 </head><body class="p-6">
 <div id="auth-container" class="widget-card" style="max-width: 400px; margin: 5% auto;">
@@ -2144,15 +2144,15 @@
 <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-auth-compat.js"></script>
 <!-- ② Firebase init + session + shared utils (defer, ordered) -->
-<script src="finance-firebase.js" defer></script>
-<script src="session-guard.js" defer></script>
-<script src="finance-shared.js" defer></script>
-<script src="finance-sync.js" defer></script>
+<script src="js/finance-firebase.js" defer></script>
+<script src="js/session-guard.js" defer></script>
+<script src="js/finance-shared.js" defer></script>
+<script src="js/finance-sync.js" defer></script>
 <!-- ③ App logic (defer, depends on all above) -->
-<script src="finance-core.js" defer></script>
-<script src="finance2.js" defer></script>
-<script src="finance-pos.js" defer></script>
-<script src="serials.js" defer></script>
+<script src="js/finance-core.js" defer></script>
+<script src="js/finance2.js" defer></script>
+<script src="js/finance-pos.js" defer></script>
+<script src="js/serials.js" defer></script>
 <div id="refundModal" class="modal" style="display:none; z-index: 2100;">
     <div class="modal-content" style="max-width: 400px; border-top: 5px solid #e74c3c; padding: 20px; border-radius: 10px; background-color: #fff;">
         <h3 style="color: #e74c3c; margin-top: 0;">إرجاع العربون وإلغاء العملية</h3>
@@ -2850,6 +2850,73 @@
 
 
 
+
+
+<!-- Cancel Pending Sale Modal -->
+<div id="cancelPendingSaleModal" class="modal" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.6); z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
+    <div class="modal-content" style="background: white; border-radius: 16px; width: 100%; max-width: 480px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); overflow: hidden; animation: modalFadeIn 0.3s ease-out; margin: 20px;">
+        <div style="background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); padding: 20px 24px; display: flex; justify-content: space-between; align-items: center;">
+            <h2 style="color: white; margin: 0; font-size: 1.25rem; font-weight: 700; display: flex; align-items: center; gap: 10px;">
+                <i class="fas fa-undo-alt"></i> استرداد بيع مؤقت
+            </h2>
+            <button onclick="document.getElementById('cancelPendingSaleModal').style.display='none'" style="background: rgba(255,255,255,0.2); border: none; color: white; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div style="padding: 24px;">
+            <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 12px; margin-bottom: 20px;">
+                <p style="color: #991b1b; font-weight: 600; margin: 0; font-size: 0.95rem;">
+                    <i class="fas fa-info-circle mr-1" style="margin-left: 5px;"></i> سيتم تحويل كافة الأصناف (الرئيسية والملحقات) إلى قسم المرتجعات (قيد الاستلام) بانتظار وصولها الفعلي للمخزن.
+                </p>
+            </div>
+            
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
+                <h3 style="font-size: 0.9rem; color: #475569; margin-bottom: 10px; font-weight: 700; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">الأصناف المستردة:</h3>
+                <ul id="cancel-pending-items-list" style="list-style-type: none; padding: 0; margin: 0; font-size: 0.9rem; color: #334155; max-height: 120px; overflow-y: auto;">
+                    <!-- Items go here -->
+                </ul>
+            </div>
+
+            <div id="cancel-pending-deposit-section" class="hidden" style="border-top: 2px dashed #cbd5e1; padding-top: 20px; margin-top: 20px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; background: #f0fdf4; border: 1px solid #bbf7d0; padding: 12px; border-radius: 8px; margin-bottom: 16px;">
+                    <span style="color: #166534; font-weight: 600;">العربون المدفوع:</span>
+                    <div>
+                        <span style="color: #15803d; font-weight: 800; font-size: 1.2rem; font-family: monospace;" id="cancel-pending-deposit-amount">0</span>
+                        <span style="color: #166534; font-size: 0.9rem; font-weight: bold;">ج.م</span>
+                    </div>
+                </div>
+                
+                <div style="margin-bottom: 16px;">
+                    <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #334155; font-size: 0.95rem;">طريقة استرداد العربون:</label>
+                    <div style="display: flex; gap: 12px;">
+                        <label style="flex: 1; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.2s; background: white;" onmouseover="this.style.borderColor='#3b82f6'" onmouseout="this.style.borderColor='#cbd5e1'">
+                            <input type="radio" name="cancel-pending-financial" value="cash" checked onchange="document.getElementById('cancel-pending-account-group').style.display='block'">
+                            <span style="font-weight: 600; color: #1e293b;">دفع نقدي</span>
+                        </label>
+                        <label style="flex: 1; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.2s; background: white;" onmouseover="this.style.borderColor='#3b82f6'" onmouseout="this.style.borderColor='#cbd5e1'">
+                            <input type="radio" name="cancel-pending-financial" value="credit" onchange="document.getElementById('cancel-pending-account-group').style.display='none'">
+                            <span style="font-weight: 600; color: #1e293b;">إضافة لرصيد العميل</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <div id="cancel-pending-account-group" style="margin-bottom: 8px;">
+                    <label style="display: block; font-weight: 600; margin-bottom: 6px; color: #334155; font-size: 0.95rem;">خصم المبلغ من خزنة/حساب:</label>
+                    <select id="cancel-pending-account-select" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; outline: none; transition: border-color 0.2s; background: #fff;" onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#cbd5e1'"></select>
+                </div>
+            </div>
+        </div>
+        <div style="padding: 16px 24px; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 12px; border-bottom-left-radius: 16px; border-bottom-right-radius: 16px;">
+            <button class="modal-close-btn-footer" style="padding: 10px 20px; border-radius: 6px; border: 1px solid #cbd5e1; background: white; color: #475569; font-weight: 600; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='white'" onclick="document.getElementById('cancelPendingSaleModal').style.display='none'">
+                إغلاق
+            </button>
+            <button id="confirm-cancel-pending-btn" style="padding: 10px 24px; border-radius: 6px; border: none; background: #ef4444; color: white; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.2s; box-shadow: 0 4px 6px -1px rgba(239, 68, 68, 0.2);" onmouseover="this.style.background='#dc2626'; this.style.transform='translateY(-1px)'" onmouseout="this.style.background='#ef4444'; this.style.transform='none'">
+                <i class="fas fa-check"></i> تأكيد وتحويل للمرتجعات
+            </button>
+        </div>
+    </div>
+</div>
+<!-- End Modal -->
 
 </body>
     </html>
