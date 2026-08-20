@@ -985,6 +985,31 @@ function loadState(data, dateString) {
     // 🌟 السطر المحدث: تحميل الفواتير المعلقة لنظام الاستبدال ERP من البيانات
     window.pendingOrders = data.pendingOrders || [];
 
+    // Migration: If standaloneSerials is missing from the daily backup, try to load it from the old global document
+    if (typeof window.setStandaloneSerials === 'function') {
+        if (data.standaloneSerials && data.standaloneSerials.length > 0) {
+            window.setStandaloneSerials(data.standaloneSerials, true);
+        } else {
+            // Load from old global document as fallback
+            if (window.currentUser && window.db && window.doc && window.getDoc) {
+                window.getDoc(window.doc(window.db, 'users', window.currentUser.uid, 'standaloneSerials', 'main')).then(snap => {
+                    if (snap.exists() && snap.data().data && snap.data().data.length > 0) {
+                        console.log('Migrated standalone serials from old global doc');
+                        window.setStandaloneSerials(snap.data().data, true);
+                        if (typeof saveSystemToCloud === 'function') saveSystemToCloud();
+                    } else {
+                        window.setStandaloneSerials([], true);
+                    }
+                }).catch(e => {
+                    console.error('Error migrating serials:', e);
+                    window.setStandaloneSerials([], true);
+                });
+            } else {
+                window.setStandaloneSerials([], true);
+            }
+        }
+    }
+
     currentLoadedDate = dateString;
 
     // تصفير سجل التراجع/الإعادة لتجنب التداخل بين الأيام
@@ -2417,6 +2442,13 @@ function updatePendingSalesDisplay() {
         }
         
         let customerInfo = sale.customerName ? `<span class="block text-sm text-blue-600">العميل: ${sale.customerName}</span>` : '';
+        
+        let editBadge = '';
+        if (sale.editLog && sale.editLog.length > 0) {
+            let logDetails = sale.editLog.map(l => `[${new Date(l.date).toLocaleString('ar-EG')}] ${l.details}`).join('&#10;');
+            editBadge = `<span onclick="window.showEditLogModal('${sale.id}')" class="inline-block bg-purple-100 hover:bg-purple-200 text-purple-700 text-xs px-1.5 py-0.5 rounded ml-2 font-bold cursor-pointer border border-purple-200 shadow-sm transition-colors"><i class="fas fa-history"></i> مُعدّل (${sale.editLog.length})</span>`;
+        }
+
 
         // 3. حالة الدفع (عربون)
         const totalPaid = Number(sale.depositPaid) || 0;
@@ -2436,7 +2468,7 @@ function updatePendingSalesDisplay() {
                     <span class="block font-semibold text-blue-700 cursor-pointer hover:underline" onclick="window.showPendingSaleDetails('${sale.id}')" title="اضغط لعرض تفاصيل الربحية">
     ${itemsText} <i class="fas fa-info-circle text-xs ml-1"></i>
 </span>
-                    ${customerInfo}
+                    ${customerInfo} ${editBadge}
                     ${attachmentsHTML}
                     <div class="mt-1 text-sm text-gray-600">
                         <span>السعر: <b>${formatCurrency(sale.totalSellPrice)}</b></span> | 
@@ -3266,6 +3298,7 @@ async function saveCurrentStateByDate(dateString) {
         pendingReturns: pendingReturns || [],
         pendingReturnsValue: safePendingReturnsValue,
         pendingOrders: window.pendingOrders || [], // 👈 السطر الجديد لحفظ الفواتير المعلقة
+        standaloneSerials: typeof window.getStandaloneSerials === 'function' ? window.getStandaloneSerials() : [],
         savedAt: new Date().toISOString(),
         savedForDate: dateString
     };
@@ -3308,6 +3341,7 @@ async function saveCurrentStateByDate(dateString) {
             pendingReturns: pendingReturns || [],
             pendingReturnsValue: safePendingReturnsValue,
             pendingOrders: window.pendingOrders || [], // 👈 السطر الجديد في الملخص
+            standaloneSerials: typeof window.getStandaloneSerials === 'function' ? window.getStandaloneSerials() : [],
             summaryForDate: dateString,
             lastUpdated: new Date().toISOString()
         };
@@ -4683,7 +4717,7 @@ async function handleSaveInvoice(skipConfirmation = true) {
         const pendingInvoiceData = {
             id: (isInvoiceFromPending || isEditingPendingInvoice) && pendingSaleOriginData ? pendingSaleOriginData.id : `pending-inv-${Date.now()}`,
             createdAt: pendingSaleOriginData?.createdAt || new Date().toISOString(),
-            timestamp: new Date().toISOString(),
+            timestamp: (isInvoiceFromPending || isEditingPendingInvoice) && pendingSaleOriginData ? (pendingSaleOriginData.timestamp || pendingSaleOriginData.createdAt || new Date().toISOString()) : new Date().toISOString(),
             saleDate: pendingSaleOriginData?.saleDate || currentLoadedDate || new Date().toISOString().split('T')[0],
             customerName,
             customerAddress,
@@ -4772,9 +4806,9 @@ async function handleSaveInvoice(skipConfirmation = true) {
             id: isInvoiceFromPending && pendingSaleOriginData ? pendingSaleOriginData.id.replace('pending','inv') : `inv-${Date.now()}`,
             invoiceNumber: generatedInvoiceNumber,
             type: 'invoice',
-            timestamp: new Date().toISOString(),
+            timestamp: (isInvoiceFromPending || isEditingPendingInvoice) && pendingSaleOriginData ? (pendingSaleOriginData.timestamp || pendingSaleOriginData.createdAt || new Date().toISOString()) : new Date().toISOString(),
             confirmedAt: new Date().toISOString(),
-            createdAt: pendingSaleOriginData?.createdAt || new Date().toISOString(),
+            createdAt: (isInvoiceFromPending || isEditingPendingInvoice) && pendingSaleOriginData ? (pendingSaleOriginData.createdAt || pendingSaleOriginData.timestamp || new Date().toISOString()) : new Date().toISOString(),
             saleDate: originalSaleDate,
             customerName,
             customerAddress,
@@ -6212,15 +6246,7 @@ async function generateMonthlySalesReport() {
     };
 
     rawSalesList.forEach(sale => {
-        // أي فاتورة لها id فريد تُعتبر موجودة دائمًا
-        if (sale.id) {
-            if (seenIds.has(sale.id)) return;
-            seenIds.add(sale.id);
-            finalSalesList.push(sale);
-            return;
-        }
-
-        // Fallback: فقط للسجلات القديمة جدًا التي لا تملك id
+        // Fallback: جلب التاريخ
         let safeDate = "";
         if (sale.saleDate) safeDate = String(sale.saleDate).split('T')[0];
         else if (sale.timestamp) {
@@ -6229,13 +6255,31 @@ async function generateMonthlySalesReport() {
             else safeDate = String(sale.timestamp).split('T')[0];
         }
 
+        // استخراج الوقت بالدقيقة لمنع تكرار النقرات السريعة (Spam Clicks)
+        let exactMinute = safeDate;
+        if (sale.timestamp) {
+            let tStr = String(sale.timestamp);
+            if (tStr.includes('T')) {
+                exactMinute = tStr.substring(0, 16); // YYYY-MM-DDTHH:mm
+            }
+        }
+
         const amount = Math.round(Number(sale.grandTotal || sale.finalTotal || sale.totalSellPrice || 0)); 
         const cleanCustomer = normalizeText(sale.customerName || 'cash');
-        const fingerprint = `${safeDate}_${amount}_${cleanCustomer}`;
+        
+        // بصمة ذكية تعتمد على الدقيقة، لحذف التكرار الناتج عن النقر السريع، مع الحفاظ على المبيعات المتطابقة في أوقات مختلفة
+        const fingerprint = `${exactMinute}_${amount}_${cleanCustomer}`;
 
         if (!uniqueFingerprints.has(fingerprint)) {
             uniqueFingerprints.add(fingerprint);
+            
+            // إضافة للتحقق من ID لضمان عدم وجود خلل آخر
+            if (sale.id) seenIds.add(sale.id);
+            
             finalSalesList.push(sale);
+        } else {
+            // إذا كان له نفس البصمة (نفس العميل والمبلغ في نفس الدقيقة)، نعتبره تكراراً بالخطأ
+            console.log("Filtered duplicate sale by smart fingerprint:", sale.id, fingerprint);
         }
     });
 
@@ -9575,7 +9619,7 @@ if (addProductButton) {
                 modalText.innerHTML = `تنبيه: يوجد بالفعل منتج مسجل بنفس الاسم <strong>"${duplicateProduct.name}"</strong> في قسم <strong>"${duplicateProduct.category || 'عام'}"</strong>.<br><br>الكمية الحالية له: <strong>${duplicateProduct.quantity}</strong> قطعة بمتوسط تكلفة <strong>${formatCurrency(duplicateProduct.costPrice)}</strong>.`;
                 modal.style.display = "flex";
                 document.querySelector('input[name="duplicateAction"][value="merge"]').checked = true;
-                document.getElementById("renameInputContainer").classList.add('hidden');
+                document.getElementById("renameInputContainer").classList.add("hidden");
                 document.getElementById("newProductNameInput").value = name + " - جديد";
             }
             return; // 🛑 إيقاف الحفظ الفوري بانتظار قرارك من داخل المودال!
@@ -10422,6 +10466,20 @@ window.showPostSaleModal = function(type, isFromPending = false) {
 };
 
 function sellProduct(skipConfirmation = true) {
+    const btn = document.getElementById('quick-sell-button');
+    if (btn && btn.disabled) return;
+    if (btn) {
+        btn.disabled = true;
+        btn.dataset.originalText = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    }
+    const restoreBtn = () => {
+        if (btn) {
+            btn.disabled = false;
+            if (btn.dataset.originalText) btn.innerHTML = btn.dataset.originalText;
+        }
+    };
+
     const isPendingSale = sellPendingCheckbox.checked;
     const mainProductName = sellProductNameInput.value.trim();
     const customerName = d("sell-customer-name").value.trim();
@@ -10600,6 +10658,8 @@ function sellProduct(skipConfirmation = true) {
     updateUI();
     resetSellForm(); // تنظيف النموذج فوراً بعد البيع لمنع ظهور البيانات القديمة
     window.showPostSaleModal('quick');
+
+    restoreBtn();
 }
 function updatePendingSale(pendingId) {
     const saleIndex = pendingSales.findIndex(s => s.id === pendingId);
@@ -10733,21 +10793,68 @@ for (const checkbox of additionalCheckboxes) {
         }
     }
 
-    // التحديث النهائي للكائن
+    // --- بناء سجل التعديلات الديناميكي (لعرض التغييرات فقط) ---
+    let oldCustomer = originalSale.customerName || 'غير محدد';
+    let newCustomer = newCustomerName || 'غير محدد';
+    
+    let oldItem = originalSale.mainProduct ? originalSale.mainProduct.name : (originalSale.items && originalSale.items.length > 0 ? originalSale.items[0].name : 'غير محدد');
+    let newItem = displayName || 'غير محدد';
+    
+    let oldTotal = Number(originalSale.totalSellPrice) || 0;
+    let newTotal = Number(newTotalSellPrice) || 0;
+    
+    let beforeChanges = [];
+    let afterChanges = [];
+    
+    if (oldCustomer !== newCustomer) {
+        beforeChanges.push(`العميل: ${oldCustomer}`);
+        afterChanges.push(`العميل: ${newCustomer}`);
+    }
+    if (oldItem !== newItem) {
+        beforeChanges.push(`الصنف: ${oldItem}`);
+        afterChanges.push(`الصنف: ${newItem}`);
+    }
+    if (oldTotal !== newTotal) {
+        beforeChanges.push(`الإجمالي: ${oldTotal}`);
+        afterChanges.push(`الإجمالي: ${newTotal}`);
+    }
+    
+    let editDetailsHTML = "";
+    if (beforeChanges.length > 0) {
+        editDetailsHTML = `<div style="display:flex; flex-direction:column; gap:6px;">
+            <div style="background:#fff1f2; color:#be123c; border:1px solid #fecdd3; padding:8px; border-radius:6px; font-size:13px;">
+                <b><i class="fas fa-minus-circle"></i> قبل التعديل:</b><br>
+                ${beforeChanges.join(' | ')}
+            </div>
+            <div style="background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; padding:8px; border-radius:6px; font-size:13px;">
+                <b><i class="fas fa-plus-circle"></i> بعد التعديل:</b><br>
+                ${afterChanges.join(' | ')}
+            </div>
+        </div>`;
+    } else {
+        editDetailsHTML = `<div style="font-size:13px; color:#64748b; font-style:italic;">تم الحفظ بدون رصد تغييرات في (العميل، الصنف، السعر).</div>`;
+    }
+    // ------------------------------------
+
+    // التحديث النهائي للكائن مع الحفاظ على التاريخ الأصلي وإضافة سجل التعديل
     pendingSales[saleIndex] = {
         ...originalSale,
         customerName: newCustomerName,
         mainProduct: { 
             name: displayName, 
             quantity: newQuantitySold, 
-            // الآن هذا السطر آمن لأننا لم نحذف المنتج من المصفوفة
             costPrice: products[newMainIndex].costPrice, 
             supplierId: products[newMainIndex].supplierId 
         },
         additionalItems: newAdditionalItemsData,
         totalSellPrice: newTotalSellPrice,
         potentialProfit: newTotalSellPrice - newTotalCost,
-        timestamp: new Date().toISOString()
+        timestamp: originalSale.timestamp || new Date().toISOString(), // الحفاظ على التاريخ الأصلي
+        lastModified: new Date().toISOString(),
+        editLog: [...(originalSale.editLog || []), {
+            date: new Date().toISOString(),
+            details: editDetailsHTML
+        }]
     };
 
     logOperation("تعديل بيع مؤقت", `تم تحديث بيانات البيع للعميل: ${newCustomerName}.`);
@@ -12486,6 +12593,77 @@ window.addEventListener('click', (event) => {
 // ==========================================
 // دالة عرض تفاصيل الربحية (النسخة الذكية - تنشئ النافذة ذاتياً)
 // ==========================================
+window.deleteEditLogEntry = function(saleId, logIndex) {
+    if (!confirm('هل أنت متأكد من حذف هذا السجل بشكل نهائي؟')) return;
+    const sale = pendingSales.find(s => s.id === saleId);
+    if (!sale || !sale.editLog) return;
+    
+    sale.editLog.splice(logIndex, 1);
+    
+    // التحديث الفوري للواجهة بدون انتظار السحابة
+    updateUI(); 
+    
+    // إذا انتهت السجلات، أغلق النافذة، وإلا قم بتحديثها فوراً
+    if (sale.editLog.length === 0) {
+        const modal = document.getElementById('editLogModal');
+        if (modal) modal.style.display = 'none';
+    } else {
+        window.showEditLogModal(saleId);
+    }
+
+    // الحفظ يتم في الخلفية دون تعطيل المستخدم
+    if (typeof saveSystemToCloud === 'function') {
+        saveSystemToCloud().catch(e => console.error('Failed to save log deletion to cloud', e));
+    }
+};
+
+window.showEditLogModal = function(saleId) {
+    const sale = pendingSales.find(s => s.id === saleId);
+    if (!sale || !sale.editLog || sale.editLog.length === 0) return;
+
+    let modal = document.getElementById('editLogModal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'editLogModal';
+        modal.className = 'modal';
+        modal.style.cssText = "display:none; position:fixed; z-index:99999; left:0; top:0; width:100%; height:100%; background-color:rgba(0,0,0,0.5); backdrop-filter: blur(2px);";
+        
+        modal.innerHTML = `<div class="modal-content" style="background-color:#fff; margin:10% auto; padding:0; border-radius:12px; width:90%; max-width:500px; overflow:hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
+            <div style="background-color:#f3e8ff; color:#6b21a8; padding:15px 20px; font-weight:bold; font-size:18px; border-bottom:1px solid #e9d5ff; display:flex; justify-content:space-between; align-items:center;">
+                <span><i class="fas fa-history"></i> سجل تعديلات الفاتورة</span>
+                <span onclick="document.getElementById('editLogModal').style.display='none'" style="cursor:pointer; font-size:24px; line-height:1;">&times;</span>
+            </div>
+            <div id="editLogContent" style="padding:20px; max-height:400px; overflow-y:auto; background-color:#fafafa;">
+                <!-- Content here -->
+            </div>
+            <div style="padding:12px 20px; background-color:#f8fafc; border-top:1px solid #e2e8f0; text-align:left;">
+                <button onclick="document.getElementById('editLogModal').style.display='none'" style="background-color:#64748b; color:white; padding:8px 16px; border-radius:6px; font-weight:bold;">إغلاق</button>
+            </div>
+        </div>`;
+        document.body.appendChild(modal);
+    }
+
+    const contentDiv = document.getElementById('editLogContent');
+    
+    let html = `<div style="display:flex; flex-direction:column; gap:10px;">`;
+    sale.editLog.forEach((log, index) => {
+        const dateStr = new Date(log.date).toLocaleString('ar-EG', { dateStyle: 'full', timeStyle: 'short' });
+        html += `<div style="background:white; border:1px solid #e2e8f0; border-radius:8px; padding:12px; border-right:4px solid #a855f7; position:relative;">
+            <div style="font-size:12px; color:#64748b; margin-bottom:6px; font-weight:bold; display:flex; justify-content:space-between; align-items:center;">
+                <span><i class="far fa-clock"></i> ${dateStr}</span>
+                <button onclick="window.deleteEditLogEntry('${saleId}', ${index})" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:14px; padding:4px;" title="حذف هذا السجل نهائياً"><i class="fas fa-trash-alt"></i></button>
+            </div>
+            <div style="font-size:14px; color:#334155; line-height:1.5;">
+                ${log.details}
+            </div>
+        </div>`;
+    });
+    html += `</div>`;
+    
+    contentDiv.innerHTML = html;
+    modal.style.display = 'block';
+};
+
 window.showPendingSaleDetails = function(pendingId) {
     const sale = pendingSales.find(s => s.id === pendingId);
     if (!sale) return;
@@ -12781,6 +12959,26 @@ window.toggleConvertPendingDebtModes = function() {
 };
 
 window.confirmConvertPendingSaleToDebt = function() {
+    const btn = document.querySelector('#convertPendingToDebtModal .btn-primary, #convertPendingToDebtModal button[onclick*="confirmConvertPendingSaleToDebt"]');
+    if (btn && btn.disabled) return;
+    if (btn) {
+        btn.disabled = true;
+        btn.dataset.originalText = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    }
+    const restoreBtn = () => {
+        if (btn) {
+            btn.disabled = false;
+            if (btn.dataset.originalText) btn.innerHTML = btn.dataset.originalText;
+        }
+    };
+    
+    const originalShowMessage = (msg, isError) => {
+        restoreBtn();
+        if (typeof showGlobalMessage === 'function') showGlobalMessage(msg, isError);
+    };
+    
+    
     const pendingSaleId = document.getElementById('cpd_pending_id').value;
     const confirmSale = document.querySelector('input[name="cpd_confirm_sale"]:checked')?.value === 'yes';
     const debtMode = document.querySelector('input[name="cpd_debt_mode"]:checked')?.value || 'new';
@@ -13032,6 +13230,7 @@ async function saveSystemToCloud() {
         liquidityLog: liquidityLog || [],
         serialNumbersLog: serialNumbersLog || [],
         log: operationLog || [], // سجل العمليات
+        standaloneSerials: typeof window.getStandaloneSerials === 'function' ? window.getStandaloneSerials() : [], // السيريالات المستقلة
         
         savedAt: new Date().toISOString(),
         savedForDate: dateStr

@@ -40,10 +40,10 @@
 
     // Undo/Redo Integration
     window.getStandaloneSerials = () => standaloneSerials;
-    window.setStandaloneSerials = (data) => {
+    window.setStandaloneSerials = (data, skipSave = false) => {
         standaloneSerials = data || [];
         renderSerialsTable();
-        saveDataToFirebase();
+        if (!skipSave) saveDataToFirebase();
     };
 
     function takeSnapshot() {
@@ -73,62 +73,92 @@
 
     // Load from Firebase
     async function loadDataFromFirebase() {
-        if (!window.currentUser || !window.db || !window.doc || !window.getDoc) {
-            console.error('Firebase not fully initialized yet.');
-            return;
-        }
-        try {
-            const docRef = window.doc(window.db, 'users', window.currentUser.uid, 'standaloneSerials', 'main');
-            const snap = await window.getDoc(docRef);
-            if (snap.exists()) {
-                standaloneSerials = snap.data().data || [];
-            } else {
-                standaloneSerials = [];
-            }
-            isDataLoaded = true;
-            lastLoadedLength = standaloneSerials.length;
-            renderSerialsTable();
-        } catch (error) {
-            console.error('Error loading standalone serials:', error);
-            if (typeof showGlobalMessage === 'function') {
-                showGlobalMessage('حدث خطأ أثناء تحميل السيريالات.', true);
-            }
-        }
+        // No-op: Data is now loaded dynamically per day by finance-core.js via setStandaloneSerials
+        isDataLoaded = true;
+        renderSerialsTable(); // Remove the spinner and render data
     }
 
     // Save to Firebase
     async function saveDataToFirebase() {
-        if (!isDataLoaded) {
-            console.warn('تجاوز الحفظ: لم يتم تحميل السيريالات بعد');
-            return;
+        if (typeof window.saveSystemToCloud === 'function') {
+            console.log('Routing serials save to daily cloud backup...');
+            window.saveSystemToCloud();
         }
-        if (standaloneSerials.length === 0 && lastLoadedLength > 0) {
-            console.error('تجاوز الحفظ: مصفوفة السيريالات فارغة فجأة للحماية من فقدان البيانات');
-            if (typeof showGlobalMessage === 'function') {
-                showGlobalMessage('تم حظر حفظ سيريالات فارغة للحماية من فقدان البيانات. يرجى تحديث الصفحة.', true);
+    }
+
+    // Export Serials
+    const exportBtn = document.getElementById('export-serials-btn');
+    if (exportBtn) {
+        exportBtn.addEventListener('click', () => {
+            if (!standaloneSerials || standaloneSerials.length === 0) {
+                if (typeof showGlobalMessage === 'function') showGlobalMessage('لا يوجد سيريالات للتصدير.', true);
+                return;
             }
-            return;
-        }
-        
-        if (!window.FinanceSync || !window.doc) {
-            const error = new Error('Firebase sync is not ready');
-            console.error('Cannot save standalone serials:', error);
-            if (typeof showGlobalMessage === 'function') showGlobalMessage('تعذر حفظ السيريالات: المزامنة غير جاهزة.', true);
-            throw error;
-        }
-        try {
-            const docRef = window.doc(window.db, 'users', window.currentUser.uid, 'standaloneSerials', 'main');
-            await window.FinanceSync.safeSet(docRef, { data: standaloneSerials }, { merge: true }, 'saveStandaloneSerials');
-            lastLoadedLength = standaloneSerials.length;
-            console.log('Standalone serials saved to Firebase.');
-            return true;
-        } catch (error) {
-            console.error('Error saving standalone serials:', error);
-            if (typeof showGlobalMessage === 'function') {
-                showGlobalMessage('حدث خطأ أثناء حفظ السيريالات في السحابة. لم يتم تأكيد التغيير.', true);
-            }
-            throw error;
-        }
+            const dataStr = JSON.stringify(standaloneSerials, null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            const dateStr = new Date().toISOString().split('T')[0];
+            a.download = `serials_backup_${dateStr}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            if (typeof showGlobalMessage === 'function') showGlobalMessage('تم تصدير السيريالات بنجاح.');
+        });
+    }
+
+    // Import Serials
+    const importInput = document.getElementById('import-serials-file');
+    if (importInput) {
+        importInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const importedData = JSON.parse(event.target.result);
+                    if (Array.isArray(importedData)) {
+                        takeSnapshot(); // For undo
+                        const shouldReplace = confirm("هل تريد مسح السيريالات الحالية واستبدالها بالملف الجديد؟\n\n[OK] = مسح واستبدال\n[Cancel] = إضافة فوق السيريالات الموجودة");
+                        
+                        let newData = [];
+                        if (shouldReplace) {
+                            newData = importedData;
+                        } else {
+                            newData = [...standaloneSerials, ...importedData];
+                        }
+                        
+                        // Deduplicate by ID just in case
+                        const uniqueMap = new Map();
+                        newData.forEach(item => {
+                            if (!item.id) item.id = 'sn-' + Date.now() + '-' + Math.floor(Math.random() * 10000);
+                            uniqueMap.set(item.id, item);
+                        });
+                        
+                        const finalData = Array.from(uniqueMap.values());
+                        
+                        if (typeof window.setStandaloneSerials === 'function') {
+                            // Update system and force save to cloud
+                            window.setStandaloneSerials(finalData, true); // true to skip the internal save
+                            if (typeof window.saveSystemToCloud === 'function') {
+                                window.saveSystemToCloud();
+                            }
+                        }
+                        
+                        if (typeof showGlobalMessage === 'function') showGlobalMessage(`تم استيراد ${importedData.length} سيريال بنجاح.`);
+                    } else {
+                        if (typeof showGlobalMessage === 'function') showGlobalMessage('ملف الاستيراد غير صالح.', true);
+                    }
+                } catch (error) {
+                    console.error('Error importing JSON:', error);
+                    if (typeof showGlobalMessage === 'function') showGlobalMessage('حدث خطأ أثناء قراءة الملف.', true);
+                }
+                importInput.value = ''; // Reset
+            };
+            reader.readAsText(file);
+        });
     }
 
     // Listen for clicks on the nav button to load data if not loaded
