@@ -12958,7 +12958,7 @@ window.toggleConvertPendingDebtModes = function() {
     }
 };
 
-window.confirmConvertPendingSaleToDebt = function() {
+window.confirmConvertPendingSaleToDebt = async function() {
     const btn = document.querySelector('#convertPendingToDebtModal .btn-primary, #convertPendingToDebtModal button[onclick*="confirmConvertPendingSaleToDebt"]');
     if (btn && btn.disabled) return;
     if (btn) {
@@ -13010,8 +13010,12 @@ window.confirmConvertPendingSaleToDebt = function() {
         return;
     }
 
-    window.convertPendingSaleToDebt(pendingSaleId, debtMode, targetDebtId, confirmSale, accountId);
-    document.getElementById('convertPendingToDebtModal').style.display = 'none';
+        try {
+        await window.convertPendingSaleToDebt(pendingSaleId, debtMode, targetDebtId, confirmSale, accountId);
+    } finally {
+        if (typeof restoreBtn === 'function') restoreBtn();
+        document.getElementById('convertPendingToDebtModal').style.display = 'none';
+    }
 };
 async function syncLocalSalesToCloud() {
     if (!window.currentUser) {
