@@ -4926,7 +4926,8 @@ function printPendingSaleAsInvoice(pendingId) {
     // استدعاء دالة الطباعة الحالية مع البيانات المهيأة
     inv_printInvoice(invoiceDataForPrint); // مرر الكائن المنسق
 }
-            function inv_printInvoice(invoiceToPrint = null) { // Modified to accept an invoice object
+            window.inv_printInvoice = inv_printInvoice;
+function inv_printInvoice(invoiceToPrint = null) { // Modified to accept an invoice object
                  let customerName, customerAddress, phones, items, shippingCost, grandTotal, warranty, notes, invoiceNumber, timestamp;
                  let totalGoodsPriceForPrint;
                  if (invoiceToPrint) { // Printing a saved/searched invoice
@@ -6766,7 +6767,7 @@ if (button.classList.contains('convert-pending-to-debt')) {
 
      // 4. إذا وجدناها محلياً، اعرضها فوراً
      if (invoice) {
-         inv_printInvoice(invoice);
+         if(typeof openDualInvoiceModal === "function"){ openDualInvoiceModal(invoice); } else { window.inv_printInvoice(invoice); }
          return;
      }
 
@@ -6782,7 +6783,7 @@ if (button.classList.contains('convert-pending-to-debt')) {
              
              if (docSnap.exists()) {
                  invoice = docSnap.data();
-                 inv_printInvoice(invoice); // عرض الفاتورة
+                 if(typeof openDualInvoiceModal === "function"){ openDualInvoiceModal(invoice); } else { if(typeof openDualInvoiceModal === "function"){ openDualInvoiceModal(invoice); } else { inv_printInvoice(invoice); } } // عرض الفاتورة المزدوج
                  if(msgBox) showMessage(msgBox, ""); // إخفاء الرسالة
              } else {
                  alert("عذراً، لم يتم العثور على بيانات هذه الفاتورة في قاعدة البيانات.");
@@ -8458,9 +8459,11 @@ function resetAccountForm() {
  * @returns {boolean} True on success, false on failure.
  */
 function handleIncomeAddition() {
+    
     const accountId = d('income-safe-select').value;
     const category = d('income-category-select').value;
     const amount = parseInputNumber(d('income-amount-input'));
+    const details = d('income-details-input') ? d('income-details-input').value.trim() : '';
 
     if (!accountId || isNaN(amount) || amount <= 0) {
         alert("يرجى اختيار حساب وإدخال مبلغ إيراد صحيح.");
@@ -8475,15 +8478,17 @@ function handleIncomeAddition() {
     
     saveStateToHistory();
     account.balance += amount;
-    logOperation("إضافة إيراد", `إضافة ${formatCurrency(amount)} إلى حساب "${account.name}" تحت فئة "${category}".`);
+    logOperation("إضافة إيراد", `إضافة ${formatCurrency(amount)} إلى حساب "${account.name}" تحت فئة "${category}".` + (details ? ` [تفاصيل: ${details}]` : ``));
     // لاحقاً، سنضيف هذا لسجل السيولة المفصل
     return true;
 }
 
 function handleExpenseAddition() {
+    
     const accountId = d('expense-safe-select').value;
     const category = d('expense-category-select').value;
     const amount = parseInputNumber(d('expense-amount-input'));
+    const details = d('expense-details-input') ? d('expense-details-input').value.trim() : '';
 
     // 1. التحقق من المدخلات
     if (!accountId || isNaN(amount) || amount <= 0) {
@@ -8520,14 +8525,14 @@ function handleExpenseAddition() {
         timestamp: new Date().toISOString(),
         type: "remove", // نوع remove عشان يظهر باللون الأحمر كسحب
         amount: amount,
-        description: `صرف مصروف (${category}) من حساب "${account.name}"`,
+        description: `صرف مصروف (${category}) من حساب "${account.name}"` + (details ? ` - ${details}` : ``),
         currentBalance: newTotalLiquidity,
         accountId: accountId
     });
 
     // د) [تعديل هام] توحيد صيغة السجل لتظهر في تقرير المصروفات
     // تم تغيير النوع إلى "تسجيل مصروف" وإضافة كلمة "بقيمة" ليتمكن التقرير من قراءتها
-    logOperation("تسجيل مصروف", `بقيمة ${formatCurrency(amount)} - صرف من حساب "${account.name}" (فئة: ${category}).`);
+    logOperation("تسجيل مصروف", `بقيمة ${formatCurrency(amount)} - صرف من حساب "${account.name}" (فئة: ${category}).` + (details ? ` [تفاصيل: ${details}]` : ``));
     
     return true;
 }
@@ -8537,9 +8542,11 @@ function handleExpenseAddition() {
  * @returns {boolean} True on success, false on failure.
  */
 function handleTransfer() {
+    
     const fromId = d('transfer-from-select').value;
     const toId = d('transfer-to-select').value;
     const amount = parseInputNumber(d('transfer-amount-input'));
+    const details = d('transfer-details-input') ? d('transfer-details-input').value.trim() : '';
 
     if (!fromId || !toId || isNaN(amount) || amount <= 0) {
         alert("يرجى اختيار الحسابات وإدخال مبلغ صحيح للتحويل.");
@@ -8567,7 +8574,7 @@ function handleTransfer() {
     saveStateToHistory();
     fromAccount.balance -= amount;
     toAccount.balance += amount;
-    logOperation("تحويل بين الحسابات", `تم تحويل ${formatCurrency(amount)} من "${fromAccount.name}" إلى "${toAccount.name}".`);
+    logOperation("تحويل بين الحسابات", `تم تحويل ${formatCurrency(amount)} من "${fromAccount.name}" إلى "${toAccount.name}".` + (details ? ` [تفاصيل: ${details}]` : ``));
     return true;
 }
 
@@ -12001,6 +12008,7 @@ if (addIncomeBtn) {
         if (handleIncomeAddition()) {
             updateUI();
             d('income-amount-input').value = '';
+            if(d('income-details-input')) d('income-details-input').value = '';
         }
     });
 }
@@ -12009,6 +12017,7 @@ if (addExpenseBtn) {
         if (handleExpenseAddition()) {
             updateUI();
             d('expense-amount-input').value = '';
+            if(d('expense-details-input')) d('expense-details-input').value = '';
         }
     });
 }
@@ -12017,6 +12026,7 @@ if (transferBtn) {
         if (handleTransfer()) {
             updateUI();
             d('transfer-amount-input').value = '';
+            if(d('transfer-details-input')) d('transfer-details-input').value = '';
         }
     });
 }
@@ -14356,3 +14366,174 @@ document.addEventListener('click', function(e) {
 });
 }); // End DOMContentLoaded
 
+
+
+// ==========================================
+// DUAL INVOICE VIEW LOGIC (Customer / Admin)
+// ==========================================
+let currentViewedInvoice = null;
+
+function openDualInvoiceModal(invoice) {
+    if (!invoice) return;
+    currentViewedInvoice = invoice;
+    
+    const modal = document.getElementById('viewInvoiceModal');
+    if (!modal) {
+        // Fallback if HTML is not updated
+        inv_printInvoice(invoice);
+        return;
+    }
+    
+    // Setup Tabs Event Listeners (only once)
+    if (!modal.dataset.tabsInitialized) {
+        document.getElementById('vi_tabCustomer').addEventListener('click', () => {
+            document.getElementById('vi_tabCustomer').className = 'flex-1 py-4 text-center font-bold text-lg border-b-4 border-indigo-600 text-indigo-700 bg-indigo-50/30 transition-all';
+            document.getElementById('vi_tabAdmin').className = 'flex-1 py-4 text-center font-bold text-lg border-b-4 border-transparent text-gray-500 hover:bg-gray-50 transition-all';
+            document.getElementById('vi_contentCustomer').classList.remove('hidden');
+            document.getElementById('vi_contentAdmin').classList.add('hidden');
+        });
+        
+        document.getElementById('vi_tabAdmin').addEventListener('click', () => {
+            document.getElementById('vi_tabAdmin').className = 'flex-1 py-4 text-center font-bold text-lg border-b-4 border-indigo-600 text-indigo-700 bg-indigo-50/30 transition-all';
+            document.getElementById('vi_tabCustomer').className = 'flex-1 py-4 text-center font-bold text-lg border-b-4 border-transparent text-gray-500 hover:bg-gray-50 transition-all';
+            document.getElementById('vi_contentAdmin').classList.remove('hidden');
+            document.getElementById('vi_contentCustomer').classList.add('hidden');
+        });
+        
+        document.getElementById('vi_printBtn').addEventListener('click', () => {
+            if (currentViewedInvoice) window.inv_printInvoice(currentViewedInvoice);
+        });
+        
+        modal.dataset.tabsInitialized = "true";
+    }
+    
+    // Reset tabs to default (Customer)
+    document.getElementById('vi_tabCustomer').click();
+    
+    // Populate Data
+    const invoiceNumber = invoice.invoiceNumber || `INV-${invoice.id.slice(-6)}`;
+    document.getElementById('vi_invoiceTitle').textContent = invoiceNumber;
+    
+    populateCustomerView(invoice, invoiceNumber);
+    populateAdminView(invoice);
+    
+    modal.style.display = 'flex';
+}
+
+function populateCustomerView(invoice, invoiceNumber) {
+    const preview = document.getElementById('vi_customerPreview');
+    const items = invoice.items || [];
+    const dateStr = typeof formatDateForDisplay === 'function' ? formatDateForDisplay(invoice.timestamp || invoice.saleDate) : (invoice.timestamp || invoice.saleDate || '');
+    
+    let html = `
+        <div class="text-center mb-6 border-b pb-4">
+            <h2 class="text-2xl font-bold text-gray-800">فاتورة مبيعات</h2>
+            <p class="text-gray-500 text-sm">${invoiceNumber} | ${dateStr}</p>
+        </div>
+        
+        <div class="mb-4">
+            <p><strong>العميل:</strong> ${invoice.customerName || 'نقدي'}</p>
+            ${invoice.customerAddress ? `<p><strong>العنوان:</strong> ${invoice.customerAddress}</p>` : ''}
+        </div>
+        
+        <table class="min-w-full border-collapse border border-gray-200 mb-4 text-sm text-right">
+            <thead class="bg-gray-100">
+                <tr>
+                    <th class="border border-gray-300 p-2">المنتج</th>
+                    <th class="border border-gray-300 p-2 text-center">الكمية</th>
+                    <th class="border border-gray-300 p-2 text-center">السعر</th>
+                    <th class="border border-gray-300 p-2 text-center">الإجمالي</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+    
+    items.forEach(item => {
+        html += `
+            <tr>
+                <td class="border border-gray-300 p-2">${item.name}</td>
+                <td class="border border-gray-300 p-2 text-center">${item.quantity}</td>
+                <td class="border border-gray-300 p-2 text-center">${formatCurrency(item.unitPrice)}</td>
+                <td class="border border-gray-300 p-2 text-center">${formatCurrency(item.subtotal)}</td>
+            </tr>
+        `;
+    });
+    
+    html += `</tbody></table>`;
+    
+    if (invoice.discountAmount && Number(invoice.discountAmount) > 0) {
+        html += `<p class="text-left text-red-600"><strong>خصم:</strong> ${formatCurrency(invoice.discountAmount)}</p>`;
+    }
+    
+    html += `<div class="text-left mt-4 border-t pt-4">
+        <h3 class="text-xl font-bold">الإجمالي المطلوب: ${formatCurrency(invoice.grandTotal || invoice.finalTotal || invoice.totalSellPrice)}</h3>
+    </div>`;
+    
+    preview.innerHTML = html;
+}
+
+function populateAdminView(invoice) {
+    const items = invoice.items || [];
+    let totalCost = 0;
+    let totalRevenue = Number(invoice.grandTotal || invoice.finalTotal || invoice.totalSellPrice || 0);
+    
+    const tbody = document.getElementById('vi_adminProductsTable');
+    tbody.innerHTML = '';
+    
+    items.forEach(item => {
+        const qty = Number(item.quantity || 1);
+        const sellPrice = Number(item.unitPrice || 0);
+        const subtotalSell = Number(item.subtotal || (qty * sellPrice));
+        
+        // Find cost price: Try from item object, then search in products array
+        let costPrice = Number(item.costPrice || item.originalCostPrice || 0);
+        if (costPrice === 0 && typeof products !== 'undefined') {
+            const dbProduct = products.find(p => p.name === item.name);
+            if (dbProduct) costPrice = Number(dbProduct.costPrice || 0);
+        }
+        
+        const subtotalCost = qty * costPrice;
+        totalCost += subtotalCost;
+        
+        const itemProfit = sellPrice - costPrice;
+        const totalItemProfit = subtotalSell - subtotalCost;
+        
+        tbody.innerHTML += `
+            <tr class="hover:bg-slate-50 border-b border-gray-100">
+                <td class="p-3">${item.name}</td>
+                <td class="p-3 text-center font-bold">${qty}</td>
+                <td class="p-3 text-center text-red-600 font-mono">${formatCurrency(costPrice)}</td>
+                <td class="p-3 text-center text-blue-600 font-mono">${formatCurrency(sellPrice)}</td>
+                <td class="p-3 text-center ${itemProfit >= 0 ? 'text-green-600' : 'text-red-600'} font-bold">
+                    ${itemProfit >= 0 ? '+' : ''}${formatCurrency(itemProfit)}
+                </td>
+                <td class="p-3 text-center ${totalItemProfit >= 0 ? 'text-green-700' : 'text-red-700'} font-black text-lg bg-green-50/30">
+                    ${totalItemProfit >= 0 ? '+' : ''}${formatCurrency(totalItemProfit)}
+                </td>
+            </tr>
+        `;
+    });
+    
+    // Add extra costs if any (e.g. shipping)
+    const extraCosts = Number(invoice.shippingCost || 0);
+    if (extraCosts > 0) {
+         // Shipping cost usually adds to revenue if charged to customer, but we need to know if it cost the business
+         // Let's just track it as info for now.
+    }
+    
+    // Display dashboard
+    const netProfit = totalRevenue - totalCost;
+    const margin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
+    
+    document.getElementById('vi_adminTotalSales').textContent = formatCurrency(totalRevenue);
+    document.getElementById('vi_adminTotalCost').textContent = formatCurrency(totalCost);
+    document.getElementById('vi_adminNetProfit').textContent = formatCurrency(netProfit);
+    document.getElementById('vi_adminMargin').textContent = `هامش الربح: ${margin.toFixed(2)}%`;
+    
+    // Extra info
+    let extraInfo = `<strong>الحالة:</strong> ${invoice.isPending ? 'بيعة مؤقتة' : (invoice.convertedToDebt ? 'تحولت إلى دين' : 'مكتملة')}<br>`;
+    extraInfo += `<strong>البائع/المستخدم:</strong> ${invoice.salesman || 'غير محدد'}<br>`;
+    extraInfo += `<strong>المدفوع:</strong> ${formatCurrency(invoice.paidAmount || invoice.depositPaid || invoice.grandTotal)} | <strong>المتبقي:</strong> ${formatCurrency(invoice.remainingAmount || 0)}`;
+    
+    document.getElementById('vi_adminExtraInfo').innerHTML = extraInfo;
+}

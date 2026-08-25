@@ -764,6 +764,10 @@
                         <label for="income-amount-input">المبلغ:</label>
                         <input type="number" id="income-amount-input" placeholder="0.00">
                     </div>
+                    <div class="form-group" style="margin-top:10px;">
+                        <label for="income-details-input">تفاصيل إضافية (اختياري):</label>
+                        <input type="text" id="income-details-input" placeholder="مثال: دفعة من العميل فلان..." class="form-control" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
+                    </div>
                     <button id="add-income-btn" style="background-color: #22c55e;">إضافة الإيراد</button>
                 </div>
                 <div class="action-column" style="border-top: 4px solid #dc2626;">
@@ -787,6 +791,10 @@
                         <label for="expense-amount-input">المبلغ:</label>
                         <input type="number" id="expense-amount-input" placeholder="0.00">
                     </div>
+                    <div class="form-group" style="margin-top:10px;">
+                        <label for="expense-details-input">تفاصيل إضافية (اختياري):</label>
+                        <input type="text" id="expense-details-input" placeholder="مثال: صيانة جهاز، شراء مستلزمات..." class="form-control" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
+                    </div>
                     <button id="add-expense-btn" style="background-color: #ef4444;">صرف المبلغ</button>
                 </div>
                 <div class="action-column" style="border-top: 4px solid #f59e0b;">
@@ -802,6 +810,10 @@
                     <div class="form-group">
                         <label for="transfer-amount-input">المبلغ:</label>
                         <input type="number" id="transfer-amount-input" placeholder="0.00">
+                    </div>
+                    <div class="form-group" style="margin-top:10px;">
+                        <label for="transfer-details-input">تفاصيل إضافية (اختياري):</label>
+                        <input type="text" id="transfer-details-input" placeholder="سبب التحويل..." class="form-control" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
                     </div>
                     <button id="transfer-btn" style="background-color: #f97316;">تنفيذ التحويل</button>
                 </div>
@@ -2924,6 +2936,84 @@
 </div>
 <!-- End Modal -->
 
+<!-- Modal: View Invoice Details -->
+<div id="viewInvoiceModal" class="modal" style="display: none;">
+    <div class="modal-content flex flex-col" style="max-width: 64rem; width: 91%; max-height: 90vh; border-radius: 0.75rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); padding: 0; overflow: hidden; margin: 5vh auto;">
+        <!-- Header (Fixed) -->
+        <div class="modal-header bg-slate-800 text-white p-4 flex justify-between items-center shrink-0" style="margin:0; border-radius: 0.75rem 0.75rem 0 0;">
+            <h2 class="text-xl font-bold m-0"><i class="fas fa-file-invoice-dollar mr-2"></i> تفاصيل الفاتورة <span id="vi_invoiceTitle"></span></h2>
+            <span class="modal-close-btn" onclick="document.getElementById('viewInvoiceModal').style.display='none'" style="cursor: pointer; font-size: 1.5rem; color:white;">&times;</span>
+        </div>
+        
+        <!-- Body (Scrollable) -->
+        <div class="modal-body p-0 bg-slate-50 flex-1 relative" style="overflow-y: auto; max-height: none; padding: 0;">
+            <!-- Tabs Header (Sticky to top of body) -->
+            <div class="flex border-b border-gray-200 bg-white sticky top-0 z-30" style="position: sticky; top: 0; z-index: 30; background: white;">
+                <button id="vi_tabCustomer" class="flex-1 py-4 text-center font-bold text-lg border-b-4 border-indigo-600 text-indigo-700 bg-indigo-50/30 transition-all">
+                    <i class="fas fa-user-tie mr-1"></i> فاتورة العميل
+                </button>
+                <button id="vi_tabAdmin" class="flex-1 py-4 text-center font-bold text-lg border-b-4 border-transparent text-gray-500 hover:bg-gray-50 transition-all">
+                    <i class="fas fa-chart-line mr-1"></i> التحليل المالي للإدارة
+                </button>
+            </div>
+
+            <!-- Tab Content: Customer View -->
+            <div id="vi_contentCustomer" class="p-6">
+                <div class="flex justify-end mb-4">
+                    <button id="vi_printBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded shadow flex items-center gap-2">
+                        <i class="fas fa-print"></i> طباعة الفاتورة للعميل
+                    </button>
+                </div>
+                <div class="bg-white p-6 border rounded-lg shadow-sm" id="vi_customerPreview">
+                    <!-- Injected dynamically -->
+                </div>
+            </div>
+
+            <!-- Tab Content: Admin View -->
+            <div id="vi_contentAdmin" class="p-6 hidden">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div class="bg-white p-4 rounded-lg shadow-sm border-l-4 border-blue-500">
+                        <h4 class="text-xs text-gray-500 font-bold uppercase mb-1">إجمالي المبيعات (العميل)</h4>
+                        <div class="text-2xl font-black text-gray-800" id="vi_adminTotalSales">0.00</div>
+                    </div>
+                    <div class="bg-white p-4 rounded-lg shadow-sm border-l-4 border-red-500">
+                        <h4 class="text-xs text-gray-500 font-bold uppercase mb-1">إجمالي التكلفة (عليك)</h4>
+                        <div class="text-2xl font-black text-gray-800" id="vi_adminTotalCost">0.00</div>
+                    </div>
+                    <div class="bg-white p-4 rounded-lg shadow-sm border-l-4 border-green-500">
+                        <h4 class="text-xs text-gray-500 font-bold uppercase mb-1">صافي الربح الفعلي</h4>
+                        <div class="text-2xl font-black text-green-600" id="vi_adminNetProfit">0.00</div>
+                        <div class="text-xs text-gray-400 mt-1" id="vi_adminMargin">هامش: 0%</div>
+                    </div>
+                </div>
+
+                <h3 class="font-bold text-gray-700 mb-3 text-lg border-b pb-2"><i class="fas fa-boxes mr-1"></i> تشريح المنتجات المباعة</h3>
+                <div class="overflow-x-auto bg-white rounded-lg shadow-sm border">
+                    <table class="min-w-full text-right text-sm">
+                        <thead class="bg-slate-100 text-slate-600">
+                            <tr>
+                                <th class="p-3 border-b">المنتج</th>
+                                <th class="p-3 border-b text-center">الكمية</th>
+                                <th class="p-3 border-b text-center text-red-600">سعر التكلفة للقطعة</th>
+                                <th class="p-3 border-b text-center text-blue-600">سعر البيع للقطعة</th>
+                                <th class="p-3 border-b text-center text-green-600">ربح القطعة</th>
+                                <th class="p-3 border-b text-center font-bold">الربح الإجمالي (للكمية)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="vi_adminProductsTable">
+                            <!-- Injected dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="mt-4 bg-orange-50 p-4 border border-orange-200 rounded-lg">
+                    <h4 class="font-bold text-orange-800 text-sm mb-2"><i class="fas fa-info-circle mr-1"></i> معلومات إضافية وحالة الفاتورة</h4>
+                    <p class="text-sm text-gray-700" id="vi_adminExtraInfo"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 </body>
     </html>
     
