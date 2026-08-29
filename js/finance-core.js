@@ -3613,9 +3613,7 @@ async function loadDataForDate(dateString) {
                 }
 
                 if (!dataToMigrate) {
-                    const yesterday = new Date(dateString);
-                    yesterday.setDate(yesterday.getDate() - 1);
-                    const prevDateStr = getCairoDateString(yesterday);
+                    const prevDateStr = getPreviousDayString(dateString);
                     const prevDocRef = window.doc(window.db, "users", userId, "days", prevDateStr);
                     const prevSnap = await window.getDoc(prevDocRef);
                     if (prevSnap.exists()) {
@@ -9578,6 +9576,10 @@ if (resetButtonAlt) {
                // استبدل هذا الكود بالكامل داخل دالة initializeApp
 if (addProductButton) {
     addProductButton.addEventListener("click", () => {
+        if (window.isAddProductButtonProcessing) return;
+        window.isAddProductButtonProcessing = true;
+        setTimeout(() => window.isAddProductButtonProcessing = false, 1500);
+
         saveStateToHistory();
         let name = productNameInput.value.trim();
         const quantity = parseInputNumber(productQuantityInput);
@@ -10004,6 +10006,10 @@ document.querySelectorAll('input[name="decreaseAction"]').forEach(radio => {
 // زر تأكيد التسوية المحاسبية النهائية داخل المودال
 if (confirmDecreaseBtn) {
     confirmDecreaseBtn.addEventListener("click", () => {
+        if (window.isConfirmDecreaseBtnProcessing) return;
+        window.isConfirmDecreaseBtnProcessing = true;
+        setTimeout(() => window.isConfirmDecreaseBtnProcessing = false, 1500);
+
         if (!window.pendingProductEdit) return;
         
         const { productIndex, name, category, quantity, costPrice, supplierId, reducedQty, totalRefundValue } = window.pendingProductEdit;
@@ -10070,6 +10076,10 @@ document.querySelectorAll('input[name="duplicateAction"]').forEach(radio => {
 
 if (confirmDuplicateBtn) {
     confirmDuplicateBtn.addEventListener("click", () => {
+        if (window.isConfirmDuplicateBtnProcessing) return;
+        window.isConfirmDuplicateBtnProcessing = true;
+        setTimeout(() => window.isConfirmDuplicateBtnProcessing = false, 1500);
+
         const selectedAction = document.querySelector('input[name="duplicateAction"]:checked').value;
 
         // [الحالة الأولى]: المخزون والإضافة يدوياً
@@ -10338,6 +10348,10 @@ if (sellButton) {
     sellButton = newSellButton;
 
     sellButton.addEventListener("click", () => {
+        if (window.isSellButtonProcessing) return;
+        window.isSellButtonProcessing = true;
+        setTimeout(() => window.isSellButtonProcessing = false, 1500);
+
         saveStateToHistory(); // 1. حفظ نسخة احتياطية
 
         if (editingPendingSaleId) {
@@ -10935,15 +10949,27 @@ for (const checkbox of additionalCheckboxes) {
                  }
                  if(pendingSalesListContainer) { // Use event delegation for pending sale buttons
                      pendingSalesListContainer.addEventListener('click', handlePendingSaleActions); }
-                 if (addLiquidityButton) { addLiquidityButton.addEventListener("click", () => {saveStateToHistory();
+                 if (addLiquidityButton) { addLiquidityButton.addEventListener("click", () => {
+        if (window.isAddLiquidityButtonProcessing) return;
+        window.isAddLiquidityButtonProcessing = true;
+        setTimeout(() => window.isAddLiquidityButtonProcessing = false, 1500);
+saveStateToHistory();
                      const amount = parseInputNumber(addLiquidityAmountInput); const source = addLiquiditySourceInput.value.trim(); if (isNaN(amount) || amount <= 0) { showMessage(liquidityMessage, "يرجى إدخال مبلغ صحيح (> 0) للإضافة.", true); return; } if (!source) { showMessage(liquidityMessage, "يرجى إدخال مصدر السيولة.", true); return; } liquidity += amount; const logEntry = { id: `liq-${Date.now()}`, timestamp: new Date().toISOString(), type: "add", amount: amount, description: source, currentBalance: liquidity }; liquidityLog.push(logEntry); logOperation("إضافة سيولة", `إضافة ${formatCurrency(amount)} من "${source}". الرصيد الحالي: ${formatCurrency(liquidity)}`); updateUI(); addLiquidityAmountInput.value = "0"; addLiquiditySourceInput.value = ""; addLiquiditySourceInput.focus(); // Focus source for next entry
                      showMessage(liquidityMessage, `تمت إضافة ${formatCurrency(amount)} من "${source}".`); }); }
                  if (removeLiquidityButton) { removeLiquidityButton.addEventListener("click", () => {
+        if (window.isRemoveLiquidityButtonProcessing) return;
+        window.isRemoveLiquidityButtonProcessing = true;
+        setTimeout(() => window.isRemoveLiquidityButtonProcessing = false, 1500);
+
                     saveStateToHistory();
                      const amount = parseInputNumber(removeLiquidityAmountInput); const reason = removeLiquidityReasonInput.value.trim(); if (isNaN(amount) || amount <= 0) { showMessage(liquidityMessage, "يرجى إدخال مبلغ صحيح (> 0) للسحب.", true); return; } if (!reason) { showMessage(liquidityMessage, "يرجى إدخال سبب السحب.", true); return; } if (amount > liquidity) { showMessage(liquidityMessage, `المبلغ المطلوب (${formatCurrency(amount)}) أكبر من السيولة المتاحة (${formatCurrency(liquidity)}).`, true); return; } liquidity -= amount; const logEntry = { id: `liq-${Date.now()}`, timestamp: new Date().toISOString(), type: "remove", amount: amount, description: reason, currentBalance: liquidity }; liquidityLog.push(logEntry); logOperation("سحب سيولة", `سحب ${formatCurrency(amount)} بسبب "${reason}". الرصيد الحالي: ${formatCurrency(liquidity)}`); updateUI(); removeLiquidityAmountInput.value = "0"; removeLiquidityReasonInput.value = ""; removeLiquidityReasonInput.focus(); showMessage(liquidityMessage, `تم سحب ${formatCurrency(amount)} بسبب "${reason}".`); }); }
                  // <<< جديد: مستمع حدث لزر تعديل السيولة >>>
                 if (adjustLiquidityButton) {
     adjustLiquidityButton.addEventListener('click', () => {
+        if (window.isAdjustLiquidityButtonProcessing) return;
+        window.isAdjustLiquidityButtonProcessing = true;
+        setTimeout(() => window.isAdjustLiquidityButtonProcessing = false, 1500);
+
         saveStateToHistory(); // <-- أضف هذا السطر
         adjustLiquidityManually();
     });
@@ -10951,6 +10977,10 @@ for (const checkbox of additionalCheckboxes) {
                // استبدل هذا الكود بالكامل داخل دالة initializeApp
 if (addExpenseButton) {
     addExpenseButton.addEventListener("click", () => {
+        if (window.isAddExpenseButtonProcessing) return;
+        window.isAddExpenseButtonProcessing = true;
+        setTimeout(() => window.isAddExpenseButtonProcessing = false, 1500);
+
         const amount = parseInputNumber(addExpenseInput);
         const selectedAccountId = d('expense-payment-account').value;
         const account = accounts.find(acc => acc.id === selectedAccountId);
@@ -10998,6 +11028,10 @@ if (addExpenseButton) {
                // استبدل هذا الكود بالكامل داخل دالة initializeApp
 if (removeExpenseButton) {
     removeExpenseButton.addEventListener("click", () => {
+        if (window.isRemoveExpenseButtonProcessing) return;
+        window.isRemoveExpenseButtonProcessing = true;
+        setTimeout(() => window.isRemoveExpenseButtonProcessing = false, 1500);
+
         const amount = parseInputNumber(removeExpenseInput);
         const selectedAccountId = d('expense-refund-account').value;
         const account = accounts.find(acc => acc.id === selectedAccountId);
@@ -11044,7 +11078,11 @@ if (removeExpenseButton) {
 }
 
 if (addDebtButton) {
+    let isAddingDebt = false;
     addDebtButton.addEventListener("click", async () => {
+        if (isAddingDebt) return;
+        isAddingDebt = true;
+        setTimeout(() => isAddingDebt = false, 1500);
         
         const name = debtorNameInput.value.trim();
         const reason = addDebtReasonInput.value.trim() || 'دين عام';
@@ -11171,7 +11209,11 @@ if (debtsSortSelect) {
 
 
 if (receivePaymentButton) {
+    let isReceivingPayment = false;
     receivePaymentButton.addEventListener("click", () => {
+        if (isReceivingPayment) return;
+        isReceivingPayment = true;
+        setTimeout(() => isReceivingPayment = false, 1500);
         // منع النقر المزدوج
         receivePaymentButton.disabled = true;
         setTimeout(() => { receivePaymentButton.disabled = false; }, 1000);
@@ -11236,7 +11278,11 @@ if (liabilityReceivedCashCheckbox) {
 
 // 2. تحديث منطق زر إضافة الالتزام
 if (addLiabilityButton) {
+    let isAddingLiability = false;
     addLiabilityButton.addEventListener("click", async () => {
+        if (isAddingLiability) return;
+        isAddingLiability = true;
+        setTimeout(() => isAddingLiability = false, 1500);
         
         const name = creditorNameInput.value.trim();
         const amount = parseInputNumber(addLiabilityAmountInput);
@@ -11384,7 +11430,11 @@ if (toggleAllLiabilitiesCheckbox) {
 // END: NEW LOGIC FOR "SELECT ALL" CHECKBOXES
 // =======================================================
 
+    let isPayingLiabilityLocal = false;
     payLiabilityButton.addEventListener("click", () => {
+        if (isPayingLiabilityLocal) return;
+        isPayingLiabilityLocal = true;
+        setTimeout(() => { isPayingLiabilityLocal = false; }, 1500);
         // منع النقر المزدوج
         payLiabilityButton.disabled = true;
         setTimeout(() => { payLiabilityButton.disabled = false; }, 1000);
@@ -11454,6 +11504,10 @@ if (toggleAllLiabilitiesCheckbox) {
 }
                  if (performTwoPartyOffsetButton) { 
     performTwoPartyOffsetButton.addEventListener("click", () => {
+        if (window.isPerformTwoPartyOffsetButtonProcessing) return;
+        window.isPerformTwoPartyOffsetButtonProcessing = true;
+        setTimeout(() => window.isPerformTwoPartyOffsetButtonProcessing = false, 1500);
+
         saveStateToHistory(); // <-- أضف هذا السطر
         performTwoPartyOffset()
     }); 
@@ -11461,6 +11515,10 @@ if (toggleAllLiabilitiesCheckbox) {
 // --- Financial Center Buttons Listener ---
 if (fc_execute_debt_btn) {
     fc_execute_debt_btn.addEventListener('click', () => {
+        if (window.isFc_execute_debt_btnProcessing) return;
+        window.isFc_execute_debt_btnProcessing = true;
+        setTimeout(() => window.isFc_execute_debt_btnProcessing = false, 1500);
+
         saveStateToHistory(); // لحفظ الحالة قبل التنفيذ
         fc_execute_debt_treatment();
     });
@@ -11468,6 +11526,10 @@ if (fc_execute_debt_btn) {
 
 if (fc_execute_dist_btn) {
     fc_execute_dist_btn.addEventListener('click', () => {
+        if (window.isFc_execute_dist_btnProcessing) return;
+        window.isFc_execute_dist_btnProcessing = true;
+        setTimeout(() => window.isFc_execute_dist_btnProcessing = false, 1500);
+
         saveStateToHistory(); // لحفظ الحالة قبل التنفيذ
         fc_execute_cost_distribution();
     });
@@ -11477,6 +11539,10 @@ const ppConfirmBtn = d('pp-confirm-payment-btn');
 const ppCancelBtn = d('pp-cancel-payment-btn');
 if (ppConfirmBtn) {
     ppConfirmBtn.addEventListener('click', async () => {
+        if (window.isPpConfirmBtnProcessing) return;
+        window.isPpConfirmBtnProcessing = true;
+        setTimeout(() => window.isPpConfirmBtnProcessing = false, 1500);
+
         const pendingId = ppConfirmBtn.dataset.pendingId;
         const purchaseIndex = pendingPurchases.findIndex(p => p.id === pendingId);
         
@@ -11625,7 +11691,13 @@ if (returnProductSelect) {
 
 
 if (confirmManualReturnBtn) {
-    confirmManualReturnBtn.addEventListener('click', handleManualReturn);
+    let isManualReturnProcessing = false;
+    confirmManualReturnBtn.addEventListener('click', () => {
+        if (isManualReturnProcessing) return;
+        isManualReturnProcessing = true;
+        setTimeout(() => isManualReturnProcessing = false, 1500);
+        handleManualReturn();
+    });
 }
 // أضف هذا الكود داخل دالة initializeApp
 if (d('return-type-selector')) {
@@ -11659,6 +11731,10 @@ if (pendingReceiptList) {
                  if (d('generate-exp-report-button')) { d('generate-exp-report-button').addEventListener('click', generateExpensesReport); }
                  if (addSupplierButton) { 
     addSupplierButton.addEventListener("click", () => {
+        if (window.isAddSupplierButtonProcessing) return;
+        window.isAddSupplierButtonProcessing = true;
+        setTimeout(() => window.isAddSupplierButtonProcessing = false, 1500);
+
         saveStateToHistory(); // <-- أضف هذا السطر
         addOrUpdateSupplier();
     }); 
@@ -12004,7 +12080,11 @@ const transferBtn = d('transfer-btn');
 const adjustBalanceBtn = d('adjust-balance-btn');
 
 if (addIncomeBtn) {
+    let isAddingIncome = false;
     addIncomeBtn.addEventListener('click', () => {
+        if (isAddingIncome) return;
+        isAddingIncome = true;
+        setTimeout(() => isAddingIncome = false, 1000);
         if (handleIncomeAddition()) {
             updateUI();
             d('income-amount-input').value = '';
@@ -12013,7 +12093,11 @@ if (addIncomeBtn) {
     });
 }
 if (addExpenseBtn) {
+    let isAddingExpense = false;
     addExpenseBtn.addEventListener('click', () => {
+        if (isAddingExpense) return;
+        isAddingExpense = true;
+        setTimeout(() => isAddingExpense = false, 1000);
         if (handleExpenseAddition()) {
             updateUI();
             d('expense-amount-input').value = '';
@@ -12022,7 +12106,11 @@ if (addExpenseBtn) {
     });
 }
 if (transferBtn) {
+    let isTransferring = false;
     transferBtn.addEventListener('click', () => {
+        if (isTransferring) return;
+        isTransferring = true;
+        setTimeout(() => isTransferring = false, 1000);
         if (handleTransfer()) {
             updateUI();
             d('transfer-amount-input').value = '';
@@ -12032,6 +12120,10 @@ if (transferBtn) {
 }
 if (adjustBalanceBtn) {
     adjustBalanceBtn.addEventListener('click', () => {
+        if (window.isAdjustBalanceBtnProcessing) return;
+        window.isAdjustBalanceBtnProcessing = true;
+        setTimeout(() => window.isAdjustBalanceBtnProcessing = false, 1500);
+
         if (handleBalanceAdjustment()) {
             updateUI();
             d('adjust-amount-input').value = '';
@@ -12071,7 +12163,13 @@ if (returnProductSelect) {
 
 
 if (confirmManualReturnBtn) {
-    confirmManualReturnBtn.addEventListener('click', handleManualReturn);
+    let isManualReturnProcessing = false;
+    confirmManualReturnBtn.addEventListener('click', () => {
+        if (isManualReturnProcessing) return;
+        isManualReturnProcessing = true;
+        setTimeout(() => isManualReturnProcessing = false, 1500);
+        handleManualReturn();
+    });
 }
 // =======================================================
 // END: Returns Section Event Listeners
@@ -12160,7 +12258,13 @@ if (piClearFormBtn) {
     piClearFormBtn.addEventListener('click', pi_clearForm);
 }
 if (piConfirmBtn) {
-    piConfirmBtn.addEventListener('click', pi_confirmPurchaseInvoice);
+    let isPiConfirmProcessing = false;
+    piConfirmBtn.addEventListener('click', async () => {
+        if (isPiConfirmProcessing) return;
+        isPiConfirmProcessing = true;
+        setTimeout(() => isPiConfirmProcessing = false, 1500);
+        await pi_confirmPurchaseInvoice();
+    });
 }
 if (d('pending-purchases-container')) {
     d('pending-purchases-container').addEventListener('click', handlePendingPurchaseActions);
@@ -12257,25 +12361,203 @@ if (d('liabilities-list-container')) {
     const authError = d('auth-error');
 
     // 2. ربط أزرار المصادقة بوظائفها
+    // === AUTH PROFILES & ENHANCED LOGIN LOGIC ===
+    const savedProfilesKey = 'finance_saved_profiles';
+    let savedProfiles = JSON.parse(localStorage.getItem(savedProfilesKey) || '[]');
+    
+    function saveProfile(email, password) {
+        if (!d('auth-save-profile').checked) return;
+        const exists = savedProfiles.find(p => p.email === email);
+        if (!exists) {
+            savedProfiles.push({
+                id: 'prof_' + Date.now(),
+                email: email,
+                token: btoa(password), // Simple base64 for obfuscation
+                name: email.split('@')[0]
+            });
+            localStorage.setItem(savedProfilesKey, JSON.stringify(savedProfiles));
+        }
+    }
+
+    function renderProfiles() {
+        const list = d('profiles-list');
+        const manualSection = d('manual-login-section');
+        const profilesSection = d('saved-profiles-section');
+        const backBtn = d('back-to-profiles-btn');
+        
+        if (!list || !manualSection || !profilesSection) return;
+        
+        list.innerHTML = '';
+        if (savedProfiles.length > 0) {
+            manualSection.style.display = 'none';
+            profilesSection.style.display = 'block';
+            backBtn.style.display = 'block';
+            
+            savedProfiles.forEach(prof => {
+                const btn = document.createElement('div');
+                btn.className = 'bg-white border border-gray-200 hover:border-blue-500 hover:shadow-md p-3 rounded-lg cursor-pointer transition-all flex justify-between items-center group';
+                btn.innerHTML = `
+                    <div class="flex items-center gap-3 flex-1">
+                        <div class="bg-blue-100 text-blue-600 rounded-full w-10 h-10 flex items-center justify-center font-bold text-lg">
+                            ${prof.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div class="text-left">
+                            <div class="font-bold text-gray-800">${prof.name}</div>
+                            <div class="text-xs text-gray-500">${prof.email}</div>
+                        </div>
+                    </div>
+                    <button class="delete-profile-btn text-red-400 hover:text-red-600 p-2 rounded-full hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100" title="إزالة الحساب">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                `;
+                
+                // Login action
+                btn.addEventListener('click', (e) => {
+                    if (e.target.closest('.delete-profile-btn')) return;
+                    
+                    const icon = btn.querySelector('.bg-blue-100');
+                    icon.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                    
+                    window.signInWithEmailAndPassword(window.auth, prof.email, atob(prof.token))
+                        .catch(error => { 
+                            showMessage(d('auth-error'), "فشل تسجيل الدخول: " + error.message, true); 
+                            icon.innerHTML = prof.name.charAt(0).toUpperCase();
+                        });
+                });
+                
+                // Delete action
+                const delBtn = btn.querySelector('.delete-profile-btn');
+                delBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if(confirm('هل أنت متأكد من إزالة هذا الحساب من هذا الجهاز؟')) {
+                        savedProfiles = savedProfiles.filter(p => p.id !== prof.id);
+                        localStorage.setItem(savedProfilesKey, JSON.stringify(savedProfiles));
+                        renderProfiles();
+                    }
+                });
+                
+                list.appendChild(btn);
+            });
+        } else {
+            manualSection.style.display = 'block';
+            profilesSection.style.display = 'none';
+            backBtn.style.display = 'none';
+        }
+    }
+
+    if (d('show-manual-login-btn')) {
+        d('show-manual-login-btn').addEventListener('click', () => {
+            d('saved-profiles-section').style.display = 'none';
+            d('manual-login-section').style.display = 'block';
+            d('auth-email').focus();
+        });
+    }
+
+    if (d('back-to-profiles-btn')) {
+        d('back-to-profiles-btn').addEventListener('click', () => {
+            renderProfiles();
+        });
+    }
+    
+    // Toggle Password
+    const toggleBtn = d('toggle-password-btn');
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', () => {
+            const passInput = d('auth-password');
+            const icon = d('toggle-password-icon');
+            if (passInput.type === 'password') {
+                passInput.type = 'text';
+                icon.classList.replace('fa-eye', 'fa-eye-slash');
+            } else {
+                passInput.type = 'password';
+                icon.classList.replace('fa-eye-slash', 'fa-eye');
+            }
+        });
+    }
+
+    // Enter Key Support
+    const passInput = d('auth-password');
+    if (passInput) {
+        passInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                d('login-btn').click();
+            }
+        });
+    }
+
+    // Initialize Profiles UI
+    renderProfiles();
+
     if (loginBtn) {
+        let isLoginProcessing = false;
         loginBtn.addEventListener('click', () => {
+            if (isLoginProcessing) return;
+            const authError = d('auth-error');
             if(!authError) return;
-            const email = d('auth-email').value;
+            
+            const email = d('auth-email').value.trim();
             const password = d('auth-password').value;
+            if (!email || !password) {
+                showMessage(authError, "يرجى كتابة البريد الإلكتروني وكلمة المرور", true);
+                return;
+            }
+
+            isLoginProcessing = true;
+            const originalText = loginBtn.innerHTML;
+            loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الدخول...';
+
             window.signInWithEmailAndPassword(window.auth, email, password)
-                .catch(error => { showMessage(authError, "فشل تسجيل الدخول: " + error.message, true); });
+                .then(() => {
+                    saveProfile(email, password);
+                })
+                .catch(error => { 
+                    showMessage(authError, "فشل تسجيل الدخول: تأكد من صحة البيانات.", true); 
+                    loginBtn.innerHTML = originalText;
+                    isLoginProcessing = false;
+                });
         });
     }
+    
     if (registerBtn) {
+        let isRegisterProcessing = false;
         registerBtn.addEventListener('click', () => {
+            if (isRegisterProcessing) return;
+            const authError = d('auth-error');
             if(!authError) return;
-            const email = d('auth-email').value;
+            
+            const email = d('auth-email').value.trim();
             const password = d('auth-password').value;
+            
+            if (!email || !password) {
+                showMessage(authError, "يرجى كتابة البريد الإلكتروني وكلمة المرور", true);
+                return;
+            }
+            if (password.length < 6) {
+                showMessage(authError, "يجب أن تكون كلمة المرور 6 أحرف على الأقل", true);
+                return;
+            }
+
+            isRegisterProcessing = true;
+            const originalText = registerBtn.innerHTML;
+            registerBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري التسجيل...';
+
             window.createUserWithEmailAndPassword(window.auth, email, password)
-                .catch(error => { showMessage(authError, "فشل التسجيل: " + error.message, true); });
+                .then(() => {
+                    saveProfile(email, password);
+                    isRegisterProcessing = false;
+                    registerBtn.innerHTML = originalText;
+                })
+                .catch(error => { 
+                    showMessage(authError, "فشل التسجيل: " + error.message, true); 
+                    registerBtn.innerHTML = originalText;
+                    isRegisterProcessing = false;
+                });
         });
     }
-  if (logoutBtn) {
+    
+    // ============================================
+    if (logoutBtn) {
     logoutBtn.addEventListener('click', async () => {
         await window.SessionGuard.stop();
         await window.signOut(window.auth);

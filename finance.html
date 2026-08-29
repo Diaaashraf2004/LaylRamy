@@ -42,22 +42,53 @@
             <link rel="stylesheet" href="css/finance2.css">
     <!-- Serials Tracker CSS -->
 </head><body class="p-6">
-<div id="auth-container" class="widget-card" style="max-width: 400px; margin: 5% auto;">
-    <h2 id="auth-title">تسجيل الدخول</h2>
-    <div id="auth-error" class="section-message error" style="display:none;"></div>
+<div id="auth-container" class="widget-card shadow-lg border-t-4 border-blue-500" style="max-width: 420px; margin: 8% auto; border-radius: 0.75rem;">
+    <h2 id="auth-title" class="text-center text-2xl font-black text-gray-800 mb-6"><i class="fas fa-user-circle text-blue-500 mr-2"></i> تسجيل الدخول</h2>
+    <div id="auth-error" class="section-message error mb-4"></div>
 
-    <div class="form-group mb-4">
-        <label for="auth-email">البريد الإلكتروني:</label>
-        <input type="email" id="auth-email" class="fc-form-input">
-    </div>
-    <div class="form-group mb-4">
-        <label for="auth-password">كلمة المرور:</label>
-        <input type="password" id="auth-password" class="fc-form-input">
+    <!-- Saved Profiles Section -->
+    <div id="saved-profiles-section" style="display: none;">
+        <p class="text-center text-gray-500 mb-4 text-sm font-bold">الحسابات المحفوظة على هذا الجهاز</p>
+        <div id="profiles-list" class="flex flex-col gap-3 mb-6">
+            <!-- Profiles injected here by JS -->
+        </div>
+        <hr class="my-4 border-gray-200">
+        <button id="show-manual-login-btn" class="text-blue-600 hover:text-blue-800 w-full text-center font-bold text-sm bg-blue-50 py-2 rounded-lg transition-colors">
+            <i class="fas fa-plus"></i> الدخول بحساب آخر
+        </button>
     </div>
 
-    <div class="flex gap-4">
-        <button id="login-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded w-full">دخول</button>
-        <button id="register-btn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded w-full"  title="يتطلب صلاحيات المسؤول">تسجيل جديد</button>
+    <!-- Manual Login Section -->
+    <div id="manual-login-section">
+        <div class="form-group mb-4">
+            <label for="auth-email" class="font-bold text-gray-700"><i class="fas fa-envelope text-gray-400 mr-1"></i> البريد الإلكتروني:</label>
+            <input type="email" id="auth-email" class="fc-form-input text-left" dir="ltr" autocomplete="username" placeholder="admin@example.com">
+        </div>
+        <div class="form-group mb-4 relative">
+            <label for="auth-password" class="font-bold text-gray-700"><i class="fas fa-lock text-gray-400 mr-1"></i> كلمة المرور:</label>
+            <input type="password" id="auth-password" class="fc-form-input text-left" dir="ltr" autocomplete="current-password" style="padding-left: 2.5rem;" placeholder="••••••••">
+            <span id="toggle-password-btn" class="absolute left-3 top-9 cursor-pointer text-gray-400 hover:text-gray-600 transition-colors p-1" style="z-index:10;">
+                <i class="fas fa-eye" id="toggle-password-icon"></i>
+            </span>
+        </div>
+
+        <div class="form-group mb-6 flex items-center gap-2 bg-gray-50 p-3 rounded-lg border border-gray-200">
+            <input type="checkbox" id="auth-save-profile" checked style="width:1.2rem; height:1.2rem; margin:0; cursor:pointer; accent-color: #3b82f6;">
+            <label for="auth-save-profile" style="margin:0; cursor:pointer;" class="text-sm font-bold text-gray-700 select-none">حفظ الحساب للوصول السريع لاحقاً 🚀</label>
+        </div>
+
+        <div class="flex flex-col gap-3">
+            <button id="login-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg w-full flex items-center justify-center gap-2 transition-colors shadow-sm">
+                <i class="fas fa-sign-in-alt"></i> دخول آمن
+            </button>
+            <button id="register-btn" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-2 px-4 rounded-lg w-full transition-colors text-sm" title="يتطلب صلاحيات المسؤول">
+                <i class="fas fa-user-plus"></i> تسجيل جديد
+            </button>
+            
+            <button id="back-to-profiles-btn" class="text-gray-500 hover:text-gray-800 w-full text-center font-bold mt-2 text-sm" style="display:none;">
+                <i class="fas fa-arrow-right"></i> العودة للحسابات المحفوظة
+            </button>
+        </div>
     </div>
 </div>
 
@@ -2158,10 +2189,10 @@
 <!-- ② Firebase init + session + shared utils (defer, ordered) -->
 <script src="js/finance-firebase.js" defer></script>
 <script src="js/session-guard.js" defer></script>
-<script src="js/finance-shared.js" defer></script>
-<script src="js/finance-sync.js" defer></script>
+<script src="js/finance-shared.js?v=1788024958900" defer></script>
+<script src="js/finance-sync.js?v=1788024958900" defer></script>
 <!-- ③ App logic (defer, depends on all above) -->
-<script src="js/finance-core.js" defer></script>
+<script src="js/finance-core.js?v=1788024958900" defer></script>
 <script src="js/finance2.js" defer></script>
 <script src="js/finance-pos.js" defer></script>
 <script src="js/serials.js" defer></script>
