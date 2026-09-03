@@ -41,6 +41,9 @@
     
             <link rel="stylesheet" href="css/finance2.css">
     <!-- Serials Tracker CSS -->
+
+
+
 </head><body class="p-6">
 <div id="auth-container" class="widget-card shadow-lg border-t-4 border-blue-500" style="max-width: 420px; margin: 8% auto; border-radius: 0.75rem;">
     <h2 id="auth-title" class="text-center text-2xl font-black text-gray-800 mb-6"><i class="fas fa-user-circle text-blue-500 mr-2"></i> تسجيل الدخول</h2>
@@ -96,6 +99,9 @@
         <h1 class="text-3xl font-semibold text-center text-blue-600 mb-4">برنامج إدارة البضائع</h1>
         <p class="text-center text-sm text-gray-500 mb-2">البيانات المعروضة حاليًا لتاريخ: <span id="current-data-date" class="font-semibold"></span></p>
         <div id="global-message" class="section-message"></div>
+        
+        
+        
         <div id="main-nav" class="flex flex-wrap justify-center gap-2 mb-6 border-b pb-4">
             <button class="nav-button active" data-target="summary-section">الملخص</button>
             <button class="nav-button" data-target="inventory-section">المخزون والإضافة</button>
@@ -104,7 +110,8 @@
             <button class="nav-button" data-target="purchases-section">إدارة المشتريات</button>
             <button class="nav-button" data-target="returns-section">إدارة المرتجعات</button>
             <button class="nav-button" data-target="sell-product">بيع بضاعة / فاتورة</button>
-           <button class="nav-button" data-target="liquidity-section">الخزينة والمركز المالي</button>
+            
+            <button class="nav-button" data-target="liquidity-section">الخزينة والمركز المالي</button>
             <button class="nav-button" data-target="debts-section">الديون (لك)</button>
             <button class="nav-button" data-target="liabilities-section">الالتزامات (عليك)</button>
             <button class="nav-button" data-target="offsetting-section">المقاصة</button>
@@ -435,7 +442,10 @@
             <!-- ======================================================= -->
 <!-- START: Purchases Section -->
 <!-- ======================================================= -->
+
+
 <section id="purchases-section" class="widget-card content-section hidden">
+    <h2 class="text-2xl font-bold mb-4 text-gray-800"><i class="fas fa-cart-arrow-down text-blue-600 mr-2"></i> إدارة المشتريات</h2>
     <h2>إدارة المشتريات (فواتير الشراء)</h2>
     <p class="text-sm text-gray-500 mb-4">
         استخدم هذا القسم لتسجيل فواتير الشراء الجديدة. عند تأكيد الفاتورة، سيتم تحديث المخزون والالتزامات والسيولة تلقائياً.
@@ -1541,7 +1551,7 @@
 
                         <div>
                             <span class="text-xs text-slate-500 font-bold block mb-1.5">البيان والتفاصيل الكاملة</span>
-                            <div id="modal-details" class="p-4 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 leading-relaxed font-semibold text-sm">
+                            <div id="modal-details" class="p-4 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 leading-relaxed font-semibold text-sm whitespace-pre-wrap">
                             </div>
                         </div>
 
@@ -1932,8 +1942,19 @@
        <!-- ======================================================= -->
 <!-- START: Returns Section -->
 <!-- ======================================================= -->
+</section>
 <section id="returns-section" class="widget-card content-section hidden">
-    <div class="section-header">
+    
+    <!-- Sub-tabs for Purchases -->
+    <div class="flex justify-center gap-4 mb-6 border-b pb-4">
+        <button onclick="document.querySelectorAll('.content-section').forEach(s => s.classList.add('hidden')); document.getElementById('purchases-section').classList.remove('hidden');" class="px-6 py-2 rounded-lg font-bold shadow transition-colors" style="background-color: #2563eb; color: white;">
+            <i class="fas fa-plus-circle mr-1"></i> إنشاء فاتورة شراء جديدة
+        </button>
+        <button onclick="document.querySelectorAll('.content-section').forEach(s => s.classList.add('hidden')); document.getElementById('supplier-returns-section').classList.remove('hidden');" class="px-6 py-2 rounded-lg font-bold shadow transition-colors bg-gray-200 text-gray-700 hover:bg-gray-300">
+            <i class="fas fa-undo-alt mr-1"></i> تعديل ومرتجع فواتير سابقة
+        </button>
+    </div>
+<div class="section-header">
         <i class="fas fa-undo-alt icon"></i>
         <h2>إدارة المرتجعات</h2>
     </div>
@@ -3045,6 +3066,226 @@
         </div>
     </div>
 </div>
+
+<!-- Purchase Return Modal -->
+<div id="purchaseReturnModal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 z-50 flex items-center justify-center p-4" dir="rtl">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+        <div class="p-4 border-b bg-gray-50 flex justify-between items-center">
+            <h3 class="text-xl font-bold text-gray-800"><i class="fas fa-undo-alt text-red-500 mr-2"></i> عمل مرتجع لمشتريات</h3>
+            <button id="closePurchaseReturnModal" class="text-gray-500 hover:text-gray-800"><i class="fas fa-times text-xl"></i></button>
+        </div>
+        <div class="p-4 overflow-y-auto flex-grow" id="purchaseReturnModalBody">
+            <div class="mb-4 bg-blue-50 p-3 rounded border border-blue-100 flex justify-between items-center">
+                <div>
+                    <span class="font-bold">رقم الفاتورة:</span> <span id="pr-invoice-num" class="font-mono"></span>
+                </div>
+                <div>
+                    <span class="font-bold">المورد:</span> <span id="pr-supplier-name"></span>
+                </div>
+            </div>
+            
+            <table class="w-full text-sm border-collapse mb-4">
+                <thead>
+                    <tr class="bg-gray-100 border-b">
+                        <th class="p-2 text-right">المنتج</th>
+                        <th class="p-2 text-center">الكمية المشتراة</th>
+                        <th class="p-2 text-center">المرتجع سابقاً</th>
+                        <th class="p-2 text-center">تكلفة الوحدة</th>
+                        <th class="p-2 text-center bg-red-50 text-red-700">الكمية المرتجعة الآن</th>
+                        <th class="p-2 text-center">الإجمالي</th>
+                    </tr>
+                </thead>
+                <tbody id="pr-items-body">
+                    <!-- Items injected here -->
+                </tbody>
+            </table>
+            
+            <div class="bg-gray-50 p-4 rounded border">
+                <div class="flex justify-between items-center mb-4">
+                    <span class="font-bold text-lg">إجمالي المرتجع:</span>
+                    <span id="pr-total-return-val" class="font-bold text-lg text-red-600 font-mono">0 EGP</span>
+                </div>
+                
+                <hr class="mb-4">
+                
+                <h4 class="font-bold mb-2">طريقة تسوية المرتجع:</h4>
+                <div id="pr-settlement-info" class="text-sm text-gray-600 mb-3 bg-yellow-50 p-2 rounded border border-yellow-200">
+                    جاري حساب التسوية...
+                </div>
+                
+                <div id="pr-cash-options" class="hidden mb-3">
+                    <label class="block text-sm font-bold mb-1">كيف استلمت باقي المبلغ النقدي؟</label>
+                    <select id="pr-refund-method" class="w-full p-2 border rounded">
+                        <option value="safe">استرداد نقدي (دخول للخزينة)</option>
+                        <option value="debt">رصيد مدين عند المورد (أجل)</option>
+                    </select>
+                </div>
+                
+                <div id="pr-account-selection" class="hidden">
+                    <label class="block text-sm font-bold mb-1">اختر حساب الخزينة لاستلام المبلغ:</label>
+                    <select id="pr-refund-account" class="w-full p-2 border rounded"></select>
+                </div>
+            </div>
+            
+            <input type="hidden" id="pr-invoice-id">
+        </div>
+        <div class="p-4 border-t bg-gray-50 text-left">
+            <button id="cancelPurchaseReturnBtn" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded mr-2">إلغاء</button>
+            <button id="confirmPurchaseReturnBtn" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded font-bold"><i class="fas fa-check-circle mr-1"></i> تأكيد المرتجع</button>
+        </div>
+    </div>
+</div>
+
+
+<!-- ============================================== -->
+<!-- SECTION: SUPPLIER RETURNS AND EDITS            -->
+<!-- ============================================== -->
+<section id="supplier-returns-section" class="widget-card content-section hidden">
+    
+    <!-- Sub-tabs for Supplier Returns -->
+    <div class="flex justify-center gap-4 mb-6 border-b pb-4">
+        <button onclick="document.querySelectorAll('.content-section').forEach(s => s.classList.add('hidden')); document.getElementById('purchases-section').classList.remove('hidden');" class="px-6 py-2 rounded-lg font-bold shadow transition-colors bg-gray-200 text-gray-700 hover:bg-gray-300">
+            <i class="fas fa-plus-circle mr-1"></i> إنشاء فاتورة شراء جديدة
+        </button>
+        <button onclick="document.querySelectorAll('.content-section').forEach(s => s.classList.add('hidden')); document.getElementById('supplier-returns-section').classList.remove('hidden');" class="px-6 py-2 rounded-lg font-bold shadow transition-colors" style="background-color: #2563eb; color: white;">
+            <i class="fas fa-undo-alt mr-1"></i> تعديل ومرتجع فواتير سابقة
+        </button>
+    </div>
+<div class="section-header border-b pb-3 mb-4 flex justify-between items-center">
+        <div class="flex items-center">
+            <i class="fas fa-undo-alt icon text-red-600 text-2xl mr-2"></i>
+            <h2 class="text-2xl font-bold text-gray-800 m-0">تعديل ومرتجعات فواتير الموردين</h2>
+        </div>
+    </div>
+
+    <!-- View 1: Search and List -->
+    <div id="sr-search-view">
+        <div class="bg-gray-50 p-4 rounded-lg border border-gray-200 mb-6 flex flex-col md:flex-row gap-4 items-end">
+            <div class="flex-grow">
+                <label class="block font-bold text-gray-700 mb-2">اختر المورد للبحث في أرشيف فواتيره:</label>
+                <select id="sr-supplier-select" class="fc-form-input w-full">
+                    <option value="">-- يرجى اختيار المورد --</option>
+                </select>
+            </div>
+            <button id="btn-fetch-sr-archive" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded shadow">
+                <i class="fas fa-search mr-1"></i> جلب الفواتير
+            </button>
+        </div>
+
+        <div id="sr-archive-results" class="hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm text-right border-collapse">
+                    <thead>
+                        <tr class="bg-gray-200 text-gray-700 border-b border-gray-300">
+                            <th class="p-2">التاريخ</th>
+                            <th class="p-2">رقم الفاتورة</th>
+                            <th class="p-2 text-center">الإجمالي</th>
+                            <th class="p-2 text-center">المدفوع</th>
+                            <th class="p-2 text-center">الالتزام</th>
+                            <th class="p-2 text-center">إجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody id="sr-archive-tbody">
+                        <!-- Injected by JS -->
+                    </tbody>
+                </table>
+            </div>
+            <div id="sr-archive-loading" class="hidden text-center p-4 text-blue-600 font-bold">
+                <i class="fas fa-spinner fa-spin mr-1"></i> جاري جلب البيانات من السحابة...
+            </div>
+        </div>
+    </div>
+
+    <!-- View 2: Full Edit Form (The Re-issue Form) -->
+    <div id="sr-edit-view" class="hidden">
+        <div class="flex justify-between items-center bg-yellow-100 border border-yellow-300 p-3 rounded mb-4">
+            <div class="font-bold text-yellow-800"><i class="fas fa-edit mr-1"></i> وضع التعديل الشامل للفاتورة: <span id="sr-editing-invoice-num" class="font-mono bg-white px-2 rounded"></span></div>
+            <button onclick="document.getElementById('sr-edit-view').classList.add('hidden'); document.getElementById('sr-search-view').classList.remove('hidden');" class="bg-gray-500 text-white px-3 py-1 rounded text-sm hover:bg-gray-600">إلغاء والعودة</button>
+        </div>
+
+        <div class="form-grid mb-4">
+            <div class="form-group">
+                <label>رقم الفاتورة</label>
+                <input type="text" id="sr-invoice-num" class="fc-form-input w-full">
+            </div>
+            <div class="form-group">
+                <label>تاريخ الفاتورة</label>
+                <input type="date" id="sr-invoice-date" class="fc-form-input w-full">
+            </div>
+            <div class="form-group">
+                <label>المورد (لا يمكن تغييره هنا)</label>
+                <input type="text" id="sr-supplier-name-display" class="fc-form-input w-full bg-gray-200" disabled>
+                <input type="hidden" id="sr-supplier-id">
+                <input type="hidden" id="sr-original-invoice-id">
+            </div>
+        </div>
+
+        <div class="mb-4 border p-3 rounded bg-gray-50">
+            <h4 class="font-bold text-gray-700 mb-2 border-b pb-1">إضافة/تعديل الأصناف</h4>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-2 mb-2 items-end">
+                <div class="md:col-span-2">
+                    <label class="text-xs">اسم المنتج</label>
+                    <input type="text" id="sr-item-name" class="fc-form-input w-full" placeholder="ابحث أو اكتب اسم منتج جديد">
+                </div>
+                <div>
+                    <label class="text-xs">الكمية</label>
+                    <input type="number" id="sr-item-qty" class="fc-form-input w-full" min="1" value="1">
+                </div>
+                <div>
+                    <label class="text-xs">التكلفة</label>
+                    <input type="number" id="sr-item-cost" class="fc-form-input w-full" min="0" step="0.01">
+                </div>
+            </div>
+            <button id="sr-add-item-btn" class="bg-blue-600 text-white px-4 py-2 rounded text-sm w-full"><i class="fas fa-plus mr-1"></i> إضافة الصنف للفاتورة</button>
+        </div>
+
+        <table class="fc-table w-full mb-4 text-sm">
+            <thead>
+                <tr>
+                    <th>المنتج</th>
+                    <th class="text-center">الكمية</th>
+                    <th class="text-center">التكلفة</th>
+                    <th class="text-center">الإجمالي</th>
+                    <th class="text-center">حذف</th>
+                </tr>
+            </thead>
+            <tbody id="sr-items-list"></tbody>
+        </table>
+
+        <!-- Extra Costs Section -->
+        <div class="mb-4 border p-3 rounded bg-purple-50">
+            <h4 class="font-bold text-purple-800 mb-2 border-b pb-1">تكاليف إضافية (نقل، مشال، الخ)</h4>
+            <div id="sr-extra-costs-container"></div>
+            <button id="sr-add-extra-cost-btn" class="mt-2 bg-purple-600 text-white px-3 py-1 rounded text-sm"><i class="fas fa-plus mr-1"></i> إضافة تكلفة أخرى</button>
+        </div>
+
+        <div class="bg-blue-50 p-4 rounded-lg border border-blue-200 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <h3 class="text-xl font-bold text-gray-800">إجمالي الفاتورة: <span id="sr-grand-total" class="text-blue-700">0 ج.م</span></h3>
+                <div class="mt-4">
+                    <label class="block font-bold mb-1">المبلغ المدفوع (كاش)</label>
+                    <input type="number" id="sr-paid-amount" class="fc-form-input w-full font-bold text-lg" min="0" step="0.01" value="0">
+                </div>
+                <div class="mt-3 flex items-center gap-2">
+                    <input type="checkbox" id="sr-deduct-liquidity" class="w-5 h-5 text-blue-600 rounded border-gray-300" checked>
+                    <label for="sr-deduct-liquidity" class="font-bold text-gray-700">تعديل الخصم من الخزينة</label>
+                </div>
+                <div class="mt-2" id="sr-account-container">
+                    <select id="sr-account-select" class="fc-form-input w-full text-sm">
+                        <!-- Populated by JS -->
+                    </select>
+                </div>
+                <div class="mt-2 text-sm text-gray-600">المبلغ المتبقي سيتم تسجيله كـ (التزام) على المحل.</div>
+            </div>
+            <div class="flex flex-col justify-end">
+                <button id="sr-save-btn" class="bg-green-600 hover:bg-green-700 text-white text-lg font-bold py-3 px-4 rounded shadow-lg">
+                    <i class="fas fa-save mr-2"></i> حفظ التعديلات
+                </button>
+            </div>
+        </div>
+    </div>
+</section>
+
 </body>
     </html>
     

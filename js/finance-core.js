@@ -82,7 +82,8 @@ let piSupplierSelect, piInvoiceNumberInput, piDateInput, piItemsBody,
     piRecentPurchasesList;
         let inboxTasks = [];
         let currentMonthlySalesData = []; // لتخزين بيانات التقرير التي تم جلبها
-        let purchaseInvoices = []; // لتخزين فواتير الشراء لليوم الحالي
+        let purchaseInvoices = [];
+        let purchaseReturns = []; // لتخزين مرتجعات الموردين // لتخزين فواتير الشراء لليوم الحالي
         let pendingPurchases = [];
         let completedReturns = []; // <-- ✅ السطر الأول
 let pendingReturns = [];   // <-- ✅ السطر الثاني
@@ -299,6 +300,312 @@ function resetAllData() {
         function formatDateForDisplay(dateString) { if (!dateString || typeof dateString !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(dateString)) return 'غير محدد'; try { const date = new Date(dateString + 'T00:00:00'); const options = { timeZone: 'Africa/Cairo', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }; return date.toLocaleDateString('ar-EG', options); } catch (e) { console.error("Error formatting date:", dateString, e); return dateString; } }
         function fetchData(key, defaultValue){ const data = localStorage.getItem(key); try { if(data === null || data === undefined) return defaultValue; const parsed = JSON.parse(data); return parsed } catch(e) { console.error(`Error parsing data for key "${key}":`, e); localStorage.removeItem(key); return defaultValue } }
         // دالة جديدة لجلب بيانات يوم واحد من Firebase
+// ==========================================
+// [Purchase Returns System]
+// ==========================================
+
+let currentReturnInvoiceId = null;
+let currentReturnInvoice = null;
+let pr_totalReturnAmount = 0;
+
+window.openPurchaseReturnModal = function(invoiceId) {
+    currentReturnInvoiceId = invoiceId;
+    currentReturnInvoice = purchaseInvoices.find(inv => inv.id === invoiceId);
+    
+    if (!currentReturnInvoice) {
+        alert("لم يتم العثور على الفاتورة!");
+        return;
+    }
+    
+    const supplier = suppliers.find(s => s.id === currentReturnInvoice.supplierId);
+    d('pr-invoice-num').textContent = currentReturnInvoice.invoiceNumber || currentReturnInvoice.id;
+    d('pr-supplier-name').textContent = supplier ? supplier.name : 'غير محدد';
+    d('pr-invoice-id').value = invoiceId;
+    
+    const tbody = d('pr-items-body');
+    tbody.innerHTML = '';
+    
+    currentReturnInvoice.items.forEach((item, index) => {
+        // Calculate how much was already returned previously
+        const previouslyReturned = item.returnedQuantity || 0;
+        const availableToReturn = item.quantity - previouslyReturned;
+        
+        // Find current stock
+        const currentStockProd = products.find(p => p.name.toLowerCase() === item.name.toLowerCase());
+        const currentStock = currentStockProd ? currentStockProd.quantity : 0;
+        
+        const maxReturn = Math.min(availableToReturn, currentStock);
+        
+        const tr = document.createElement('tr');
+        tr.className = 'border-b border-gray-100';
+        tr.innerHTML = `
+            <td class="p-2">${item.name}</td>
+            <td class="p-2 text-center font-mono">${item.quantity}</td>
+            <td class="p-2 text-center text-red-500 font-mono">${previouslyReturned}</td>
+            <td class="p-2 text-center font-mono">${formatCurrency(item.cost)}</td>
+            <td class="p-2 text-center">
+                <input type="number" min="0" max="${maxReturn}" value="0" 
+                    class="pr-return-qty-input border rounded p-1 w-20 text-center"
+                    data-index="${index}" data-cost="${item.cost}"
+                    ${maxReturn <= 0 ? 'disabled' : ''}>
+                <div class="text-[10px] text-gray-500 mt-1">المتاح بالمخزن: ${currentStock}</div>
+            </td>
+            <td class="p-2 text-center font-mono pr-item-total">0</td>
+        `;
+        tbody.appendChild(tr);
+    });
+    
+    // Add event listeners to calculate totals
+    const inputs = tbody.querySelectorAll('.pr-return-qty-input');
+    inputs.forEach(input => {
+        input.addEventListener('input', (e) => {
+            const val = parseInt(e.target.value) || 0;
+            const max = parseInt(e.target.max) || 0;
+            if (val > max) e.target.value = max;
+            if (val < 0) e.target.value = 0;
+            
+            calculatePrTotal();
+        });
+    });
+    
+    // Populate Treasury Accounts
+    const accSelect = d('pr-refund-account');
+    accSelect.innerHTML = '';
+    accounts.forEach(acc => {
+        const opt = document.createElement('option');
+        opt.value = acc.id;
+        opt.textContent = `${acc.name} (${formatCurrency(acc.balance)})`;
+        accSelect.appendChild(opt);
+    });
+    
+    calculatePrTotal();
+    d('purchaseReturnModal').classList.remove('hidden');
+};
+
+function calculatePrTotal() {
+    let total = 0;
+    const tbody = d('pr-items-body');
+    const inputs = tbody.querySelectorAll('.pr-return-qty-input');
+    
+    inputs.forEach(input => {
+        const qty = parseInt(input.value) || 0;
+        const cost = parseFloat(input.dataset.cost) || 0;
+        const rowTotal = qty * cost;
+        input.closest('tr').querySelector('.pr-item-total').textContent = formatCurrency(rowTotal);
+        total += rowTotal;
+    });
+    
+    pr_totalReturnAmount = total;
+    d('pr-total-return-val').textContent = formatCurrency(total) + " EGP";
+    
+    evaluatePrSettlement(total);
+}
+
+function evaluatePrSettlement(total) {
+    const settlementInfo = d('pr-settlement-info');
+    const cashOptions = d('pr-cash-options');
+    const accountSelect = d('pr-account-selection');
+    
+    if (total <= 0) {
+        settlementInfo.innerHTML = "يرجى اختيار كميات لعمل مرتجع.";
+        settlementInfo.className = "text-sm text-gray-600 mb-3 bg-yellow-50 p-2 rounded border border-yellow-200";
+        cashOptions.classList.add('hidden');
+        accountSelect.classList.add('hidden');
+        return;
+    }
+    
+    // Search for active liability for this invoice
+    const relatedLiability = liabilities.find(l => l.purchaseInvoiceId === currentReturnInvoiceId);
+    const liabilityDebt = relatedLiability ? relatedLiability.amount : 0;
+    
+    if (liabilityDebt > 0) {
+        if (total <= liabilityDebt) {
+            settlementInfo.innerHTML = `سيتم خصم كامل مبلغ المرتجع (${formatCurrency(total)}) من الدين المتبقي للفاتورة (${formatCurrency(liabilityDebt)}).`;
+            settlementInfo.className = "text-sm text-green-700 mb-3 bg-green-50 p-2 rounded border border-green-200 font-bold";
+            cashOptions.classList.add('hidden');
+            accountSelect.classList.add('hidden');
+        } else {
+            const extra = total - liabilityDebt;
+            settlementInfo.innerHTML = `سيتم خصم (${formatCurrency(liabilityDebt)}) لإسقاط دين الفاتورة بالكامل.<br>والمتبقي (${formatCurrency(extra)}) سيعود إليك.`;
+            settlementInfo.className = "text-sm text-blue-700 mb-3 bg-blue-50 p-2 rounded border border-blue-200 font-bold";
+            cashOptions.classList.remove('hidden');
+            if (d('pr-refund-method').value === 'safe') {
+                accountSelect.classList.remove('hidden');
+            } else {
+                accountSelect.classList.add('hidden');
+            }
+        }
+    } else {
+        settlementInfo.innerHTML = `الفاتورة مدفوعة بالكامل. إجمالي المرتجع (${formatCurrency(total)}) سيعود إليك.`;
+        settlementInfo.className = "text-sm text-blue-700 mb-3 bg-blue-50 p-2 rounded border border-blue-200 font-bold";
+        cashOptions.classList.remove('hidden');
+        if (d('pr-refund-method').value === 'safe') {
+            accountSelect.classList.remove('hidden');
+        } else {
+            accountSelect.classList.add('hidden');
+        }
+    }
+}
+
+const prRefundMethodSelect = d('pr-refund-method');
+if (prRefundMethodSelect) {
+    prRefundMethodSelect.addEventListener('change', (e) => {
+        if (e.target.value === 'safe') {
+            d('pr-account-selection').classList.remove('hidden');
+        } else {
+            d('pr-account-selection').classList.add('hidden');
+        }
+    });
+}
+
+const confirmPurchaseReturnBtn = d('confirmPurchaseReturnBtn');
+const closePurchaseReturnModalBtn = d('closePurchaseReturnModal');
+const cancelPurchaseReturnBtn = d('cancelPurchaseReturnBtn');
+
+function closePrModal() {
+    d('purchaseReturnModal').classList.add('hidden');
+    currentReturnInvoiceId = null;
+    currentReturnInvoice = null;
+}
+
+if (closePurchaseReturnModalBtn) closePurchaseReturnModalBtn.addEventListener('click', closePrModal);
+if (cancelPurchaseReturnBtn) cancelPurchaseReturnBtn.addEventListener('click', closePrModal);
+
+let isPrConfirming = false;
+if (confirmPurchaseReturnBtn) {
+    confirmPurchaseReturnBtn.addEventListener('click', () => {
+        if (isPrConfirming) return;
+        if (pr_totalReturnAmount <= 0) {
+            alert("يرجى إدخال كميات المرتجع.");
+            return;
+        }
+        
+        isPrConfirming = true;
+        confirmPurchaseReturnBtn.disabled = true;
+        confirmPurchaseReturnBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> جاري المعالجة...';
+        
+        setTimeout(() => {
+            try {
+                executePurchaseReturn();
+            } catch (e) {
+                console.error(e);
+                alert("حدث خطأ أثناء معالجة المرتجع!");
+            }
+            isPrConfirming = false;
+            confirmPurchaseReturnBtn.disabled = false;
+            confirmPurchaseReturnBtn.innerHTML = '<i class="fas fa-check-circle mr-1"></i> تأكيد المرتجع';
+        }, 100);
+    });
+}
+
+function executePurchaseReturn() {
+    saveStateToHistory();
+    
+    const inputs = d('pr-items-body').querySelectorAll('.pr-return-qty-input');
+    const returnDetails = [];
+    let totalItemsReturned = 0;
+    
+    // 1. Deduct Inventory & Update Invoice Items
+    inputs.forEach(input => {
+        const qtyToReturn = parseInt(input.value) || 0;
+        if (qtyToReturn > 0) {
+            const index = parseInt(input.dataset.index);
+            const item = currentReturnInvoice.items[index];
+            
+            // Update stock
+            const product = products.find(p => p.name.toLowerCase() === item.name.toLowerCase());
+            if (product) {
+                product.quantity -= qtyToReturn;
+            }
+            
+            // Update invoice memory
+            item.returnedQuantity = (item.returnedQuantity || 0) + qtyToReturn;
+            
+            returnDetails.push({
+                name: item.name,
+                returnedQty: qtyToReturn,
+                cost: item.cost,
+                total: qtyToReturn * item.cost
+            });
+            totalItemsReturned += qtyToReturn;
+        }
+    });
+    
+    // 2. Financial Settlement
+    let amountToRefundToUs = pr_totalReturnAmount;
+    
+    const relatedLiability = liabilities.find(l => l.purchaseInvoiceId === currentReturnInvoiceId);
+    let liabilityDeduction = 0;
+    
+    if (relatedLiability) {
+        if (amountToRefundToUs >= relatedLiability.amount) {
+            liabilityDeduction = relatedLiability.amount;
+            amountToRefundToUs -= relatedLiability.amount;
+            // Liability is completely paid off by return
+            liabilities = liabilities.filter(l => l.id !== relatedLiability.id);
+            logOperation("إسقاط التزام بمرتجع", `تم إسقاط الالتزام (${formatCurrency(liabilityDeduction)}) للفاتورة ${currentReturnInvoice.invoiceNumber || currentReturnInvoiceId} بسبب المرتجع.`);
+        } else {
+            liabilityDeduction = amountToRefundToUs;
+            relatedLiability.amount -= amountToRefundToUs;
+            amountToRefundToUs = 0;
+            logOperation("تخفيض التزام بمرتجع", `تم تخفيض الالتزام بمقدار (${formatCurrency(liabilityDeduction)}) للفاتورة ${currentReturnInvoice.invoiceNumber || currentReturnInvoiceId} بسبب المرتجع.`);
+        }
+    }
+    
+    if (amountToRefundToUs > 0) {
+        const refundMethod = d('pr-refund-method').value;
+        const supplier = suppliers.find(s => s.id === currentReturnInvoice.supplierId);
+        
+        if (refundMethod === 'safe') {
+            const accId = d('pr-refund-account').value;
+            const account = accounts.find(a => a.id === accId);
+            if (account) {
+                account.balance += amountToRefundToUs;
+                logOperation("استرداد نقدي لمرتجع مشتريات", `تم استرداد ${formatCurrency(amountToRefundToUs)} إلى حساب ${account.name} لمرتجع فاتورة المورد ${supplier ? supplier.name : '-'}.`);
+            }
+        } else if (refundMethod === 'debt') {
+            debts.push({
+                id: generateId('debt'),
+                name: `رصيد دائن من مرتجع فاتورة ${currentReturnInvoice.invoiceNumber || currentReturnInvoiceId}`,
+                amount: amountToRefundToUs,
+                date: new Date().toISOString().split('T')[0],
+                customerId: currentReturnInvoice.supplierId, // We use supplierId here, the system treats Debts abstractly
+                type: 'supplier_refund'
+            });
+            logOperation("تسجيل دين على مورد", `تم تسجيل رصيد مدين بقيمة ${formatCurrency(amountToRefundToUs)} على المورد ${supplier ? supplier.name : '-'} بسبب مرتجع فاتورة.`);
+        }
+    }
+    
+    // 3. Mark invoice if fully returned
+    let isFullyReturned = true;
+    currentReturnInvoice.items.forEach(item => {
+        if ((item.returnedQuantity || 0) < item.quantity) {
+            isFullyReturned = false;
+        }
+    });
+    if (isFullyReturned) currentReturnInvoice.isFullyReturned = true;
+    
+    // 4. Save Return Record
+    purchaseReturns.push({
+        id: generateId('pr'),
+        purchaseInvoiceId: currentReturnInvoiceId,
+        date: new Date().toISOString(),
+        supplierId: currentReturnInvoice.supplierId,
+        items: returnDetails,
+        totalAmount: pr_totalReturnAmount,
+        settlement: {
+            liabilityDeducted: liabilityDeduction,
+            amountRefunded: amountToRefundToUs,
+            refundMethod: amountToRefundToUs > 0 ? d('pr-refund-method').value : null
+        }
+    });
+    
+    showGlobalMessage("تم تنفيذ المرتجع وتسوية الحسابات بنجاح!", false);
+    closePrModal();
+    updateUI();
+}
+// ==========================================
+
 async function fetchOnlineDataForDate(dateString) {
     if (!window.currentUser) {
         console.error("Cannot fetch report data. No user logged in.");
@@ -976,7 +1283,8 @@ function loadState(data, dateString) {
     serialNumbersLog = data.serialNumbersLog || [];
 
     // الأسطر الخاصة بالاستيراد والمشتريات
-    purchaseInvoices = data.purchaseInvoices || []; 
+    purchaseInvoices = data.purchaseInvoices || [];
+    purchaseReturns = data.purchaseReturns || []; 
     pendingPurchases = data.pendingPurchases || [];
     completedReturns = data.completedReturns || [];
     pendingReturns = data.pendingReturns || [];
@@ -1391,7 +1699,9 @@ function updateLogDisplay() {
                         <span>${log.type}</span>
                     </span>
                 </td>
-                <td class="px-4 py-3.5 text-slate-700 font-semibold leading-relaxed">${log.details}</td>
+                <td class="px-4 py-3.5 text-slate-700 font-semibold leading-relaxed">
+                    ${log.details.replace(/\n/g, ' ').length > 60 ? log.details.replace(/\n/g, ' ').substring(0, 60) + ' <span class="text-blue-500 text-xs cursor-pointer" onclick="openDetailModal(' + index + ')">(المزيد...)</span>' : log.details.replace(/\n/g, ' ')}
+                </td>
                 <td class="px-4 py-3.5 text-center">
                     <button onclick="openDetailModal(${index})" class="text-xs bg-slate-100 hover:bg-slate-200/80 text-slate-600 p-2 px-3 rounded-lg transition-all font-bold">
                         <i class="fas fa-eye text-blue-600"></i>
@@ -2524,7 +2834,434 @@ function updatePendingSalesDisplay() {
 
        
 // =======================================================
+
+// =========================================================
+// [Supplier Returns & Edits - Void & Re-issue System]
+// =========================================================
+
+let srFetchedInvoices = [];
+let srOriginalInvoice = null;
+let srNewItems = [];
+let srNewExtraCosts = [];
+
+function initSupplierReturnsSystem() {
+    const suppSelect = d('sr-supplier-select');
+    if (suppSelect) {
+        suppSelect.innerHTML = '<option value="">-- يرجى اختيار المورد --</option>';
+        suppliers.forEach(s => {
+            suppSelect.innerHTML += `<option value="${s.id}">${s.name}</option>`;
+        });
+    }
+}
+
+const btnFetchSr = d('btn-fetch-sr-archive');
+if (btnFetchSr) {
+    btnFetchSr.addEventListener('click', async () => {
+        const suppId = d('sr-supplier-select').value;
+        if (!suppId) {
+            alert("يرجى اختيار المورد أولاً.");
+            return;
+        }
+        
+        d('sr-archive-results').classList.remove('hidden');
+        d('sr-archive-tbody').innerHTML = '';
+        d('sr-archive-loading').classList.remove('hidden');
+        
+        if (!window.currentUser) {
+            alert("يرجى تسجيل الدخول.");
+            d('sr-archive-loading').classList.add('hidden');
+            return;
+        }
+        
+        try {
+            const uid = window.currentUser.uid;
+            const colRef = window.collection(window.db, "users", uid, "purchase_archives");
+            const snapshot = await window.getDocs(colRef);
+            
+            srFetchedInvoices = [];
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                if (data.supplierId === suppId) {
+                    srFetchedInvoices.push(data);
+                }
+            });
+            
+            srFetchedInvoices.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+            d('sr-archive-loading').classList.add('hidden');
+            
+            const tbody = d('sr-archive-tbody');
+            if (srFetchedInvoices.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center p-4 text-gray-500">لا توجد فواتير سابقة لهذا المورد.</td></tr>';
+                return;
+            }
+            
+            srFetchedInvoices.forEach(inv => {
+                const relatedLiability = liabilities.find(l => l.purchaseInvoiceId === inv.id);
+                const currentDebt = relatedLiability ? relatedLiability.amount : 0;
+                
+                const tr = document.createElement('tr');
+                tr.className = 'border-b hover:bg-gray-50';
+                tr.innerHTML = `
+                    <td class="p-2">${inv.date}</td>
+                    <td class="p-2 font-mono text-blue-700 font-bold">${inv.invoiceNumber || inv.id}</td>
+                    <td class="p-2 text-center font-bold">${formatCurrency(inv.grandTotal)}</td>
+                    <td class="p-2 text-center text-green-600">${formatCurrency(inv.paidAmount)}</td>
+                    <td class="p-2 text-center text-red-600 font-bold">${formatCurrency(currentDebt)}</td>
+                    <td class="p-2 text-center">
+                        <button onclick="window.startFullInvoiceEdit('${inv.id}')" class="bg-yellow-500 hover:bg-yellow-600 text-white text-xs px-3 py-1 rounded shadow mx-1"><i class="fas fa-edit mr-1"></i> تعديل كامل</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+            
+        } catch (e) {
+            console.error(e);
+            alert("حدث خطأ أثناء جلب الفواتير.");
+            d('sr-archive-loading').classList.add('hidden');
+        }
+    });
+}
+
+window.startFullInvoiceEdit = function(invoiceId) {
+    srOriginalInvoice = srFetchedInvoices.find(i => i.id === invoiceId);
+    if (!srOriginalInvoice) return;
+    
+    // Switch Views
+    d('sr-search-view').classList.add('hidden');
+    d('sr-edit-view').classList.remove('hidden');
+    
+    // Populate Header
+    d('sr-editing-invoice-num').textContent = srOriginalInvoice.invoiceNumber || srOriginalInvoice.id;
+    d('sr-invoice-num').value = srOriginalInvoice.invoiceNumber || srOriginalInvoice.id;
+    d('sr-invoice-date').value = srOriginalInvoice.date || new Date().toISOString().split('T')[0];
+    d('sr-original-invoice-id').value = invoiceId;
+    
+    const supplier = suppliers.find(s => s.id === srOriginalInvoice.supplierId);
+    d('sr-supplier-name-display').value = supplier ? supplier.name : 'مورد غير معروف';
+    d('sr-supplier-id').value = srOriginalInvoice.supplierId;
+    
+    // Populate Items
+    srNewItems = JSON.parse(JSON.stringify(srOriginalInvoice.items));
+    renderSrItems();
+    
+    // Populate Extra Costs
+    srNewExtraCosts = srOriginalInvoice.extraCosts ? JSON.parse(JSON.stringify(srOriginalInvoice.extraCosts)) : [];
+    renderSrExtraCosts();
+    
+    // Populate Paid Amount
+    d('sr-paid-amount').value = srOriginalInvoice.paidAmount || 0;
+    
+    // Populate Accounts
+    const accSelect = d('sr-account-select');
+    if (accSelect) {
+        accSelect.innerHTML = '';
+        accounts.forEach(acc => {
+            accSelect.innerHTML += `<option value="${acc.id}">${acc.name} (الرصيد: ${formatCurrency(acc.balance)})</option>`;
+        });
+        if (srOriginalInvoice.paidFromAccountId) {
+            accSelect.value = srOriginalInvoice.paidFromAccountId;
+        }
+    }
+    
+    const deductChk = d('sr-deduct-liquidity');
+    if (deductChk) deductChk.checked = srOriginalInvoice.deductedFromLiquidity !== false;
+
+    
+    calculateSrGrandTotal();
+};
+
+function renderSrItems() {
+    const list = d('sr-items-list');
+    list.innerHTML = '';
+    srNewItems.forEach((item, index) => {
+        const tr = document.createElement('tr');
+        tr.className = 'border-b';
+        tr.innerHTML = `
+            <td class="p-2">${item.name}</td>
+            <td class="p-2 text-center"><input type="number" class="fc-form-input w-20 text-center mx-auto block sr-qty-inp" data-idx="${index}" value="${item.quantity}" min="1"></td>
+            <td class="p-2 text-center"><input type="number" class="fc-form-input w-24 text-center mx-auto block sr-cost-inp" data-idx="${index}" value="${item.cost}" min="0" step="0.01"></td>
+            <td class="p-2 text-center font-bold font-mono">${formatCurrency(item.quantity * item.cost)}</td>
+            <td class="p-2 text-center"><button class="text-red-500 hover:text-red-700" onclick="window.removeSrItem(${index})"><i class="fas fa-trash"></i></button></td>
+        `;
+        list.appendChild(tr);
+    });
+    
+    list.querySelectorAll('.sr-qty-inp, .sr-cost-inp').forEach(inp => {
+        inp.addEventListener('change', (e) => {
+            const idx = parseInt(e.target.dataset.idx);
+            if (e.target.classList.contains('sr-qty-inp')) srNewItems[idx].quantity = parseInt(e.target.value) || 1;
+            if (e.target.classList.contains('sr-cost-inp')) srNewItems[idx].cost = parseFloat(e.target.value) || 0;
+            renderSrItems();
+            calculateSrGrandTotal();
+        });
+    });
+}
+
+const srAddItemBtn = d('sr-add-item-btn');
+if (srAddItemBtn) {
+    srAddItemBtn.addEventListener('click', () => {
+        const name = d('sr-item-name').value.trim();
+        const qty = parseInt(d('sr-item-qty').value) || 1;
+        const cost = parseFloat(d('sr-item-cost').value) || 0;
+        
+        if (!name) { alert("أدخل اسم الصنف"); return; }
+        
+        srNewItems.push({ name, quantity: qty, cost, category: '', serials: [] });
+        d('sr-item-name').value = '';
+        d('sr-item-qty').value = '1';
+        d('sr-item-cost').value = '';
+        
+        renderSrItems();
+        calculateSrGrandTotal();
+    });
+}
+
+window.removeSrItem = function(index) {
+    srNewItems.splice(index, 1);
+    renderSrItems();
+    calculateSrGrandTotal();
+};
+
+function renderSrExtraCosts() {
+    const container = d('sr-extra-costs-container');
+    container.innerHTML = '';
+    srNewExtraCosts.forEach((cost, idx) => {
+        const div = document.createElement('div');
+        div.className = 'flex gap-2 items-center mb-2';
+        div.innerHTML = `
+            <input type="text" class="fc-form-input flex-grow sr-ec-name" data-idx="${idx}" value="${cost.name}" placeholder="وصف التكلفة">
+            <input type="number" class="fc-form-input w-32 sr-ec-amount" data-idx="${idx}" value="${cost.amount}" placeholder="المبلغ">
+            <button class="text-red-500 hover:text-red-700" onclick="window.removeSrExtraCost(${idx})"><i class="fas fa-times"></i></button>
+        `;
+        container.appendChild(div);
+    });
+    
+    container.querySelectorAll('.sr-ec-name, .sr-ec-amount').forEach(inp => {
+        inp.addEventListener('change', (e) => {
+            const idx = parseInt(e.target.dataset.idx);
+            if (e.target.classList.contains('sr-ec-name')) srNewExtraCosts[idx].name = e.target.value.trim();
+            if (e.target.classList.contains('sr-ec-amount')) srNewExtraCosts[idx].amount = parseFloat(e.target.value) || 0;
+            calculateSrGrandTotal();
+        });
+    });
+}
+
+const srAddExtraCostBtn = d('sr-add-extra-cost-btn');
+if (srAddExtraCostBtn) {
+    srAddExtraCostBtn.addEventListener('click', () => {
+        srNewExtraCosts.push({ name: '', amount: 0, isLiability: false });
+        renderSrExtraCosts();
+    });
+}
+
+window.removeSrExtraCost = function(index) {
+    srNewExtraCosts.splice(index, 1);
+    renderSrExtraCosts();
+    calculateSrGrandTotal();
+};
+
+let srFinalGrandTotal = 0;
+function calculateSrGrandTotal() {
+    let subtotal = 0;
+    srNewItems.forEach(i => subtotal += (i.quantity * i.cost));
+    let extra = 0;
+    srNewExtraCosts.forEach(c => extra += c.amount);
+    
+    srFinalGrandTotal = subtotal + extra;
+    d('sr-grand-total').textContent = formatCurrency(srFinalGrandTotal);
+}
+
+const srSaveBtn = d('sr-save-btn');
+if (srSaveBtn) {
+    srSaveBtn.addEventListener('click', async () => {
+        if (!srOriginalInvoice) return;
+        
+        const newPaidAmount = parseFloat(d('sr-paid-amount').value) || 0;
+        
+        // --- 1. Stock Constraint Validation (The Void Simulation) ---
+        let isValid = true;
+        let errorMessage = "";
+        
+        // Check every old item: if we remove oldQty and add newQty, does it drop below 0?
+        for (let oldItem of srOriginalInvoice.items) {
+            const product = products.find(p => p.name.toLowerCase() === oldItem.name.toLowerCase());
+            const currentStock = product ? (parseFloat(product.quantity) || 0) : 0;
+            
+            // Find this item in the new items list
+            const newItem = srNewItems.find(i => i.name.toLowerCase() === oldItem.name.toLowerCase());
+            const newQty = newItem ? newItem.quantity : 0;
+            
+            // Formula: Stock After Edit = Current Stock - Old Qty + New Qty
+            const simulatedStock = currentStock - oldItem.quantity + newQty;
+            
+            if (simulatedStock < 0) {
+                isValid = false;
+                errorMessage = `لا يمكنك تعديل الكمية للصنف (${oldItem.name}) لهذا الحد. لقد قمت ببيع جزء منه مسبقاً، وإذا تم التعديل سيصبح رصيده بالسالب!`;
+                break;
+            }
+        }
+        
+        if (!isValid) {
+            alert(errorMessage);
+            return;
+        }
+        
+        // --- 2. EXECUTE VOID & RE-ISSUE (Mathematical Delta) ---
+        
+        // A. Adjust Stock (Delta)
+        // Deduct old
+        srOriginalInvoice.items.forEach(oldItem => {
+            const product = products.find(p => p.name.toLowerCase() === oldItem.name.toLowerCase());
+            if (product) product.quantity -= oldItem.quantity;
+        });
+        // Add new
+        srNewItems.forEach(newItem => {
+            let product = products.find(p => p.name.toLowerCase() === newItem.name.toLowerCase());
+            if (product) {
+                product.quantity += newItem.quantity;
+                // Cost recalibration skipped in this basic editor to avoid cascading errors,
+                // but usually the cost remains the same for edits unless strictly needed.
+            } else {
+                // If they added a totally new item during edit
+                products.push({
+                    id: "code_" + Date.now() + "_" + Math.floor(Math.random() * 1000),
+                    name: newItem.name,
+                    quantity: newItem.quantity,
+                    costPrice: newItem.cost,
+                    sellingPrice: newItem.cost * 1.2,
+                    wholesalePrice: newItem.cost * 1.1,
+                    minimumStock: 5,
+                    category: 'عام',
+                    serialNumbers: []
+                });
+            }
+        });
+        
+        // B. Adjust Liabilities (Safe Delta calculation)
+        const oldInitialDebt = (srOriginalInvoice.grandTotal || 0) - (srOriginalInvoice.paidAmount || 0);
+        let oldLiability = liabilities.find(l => l.purchaseInvoiceId === srOriginalInvoice.id);
+        let subsequentPayments = 0;
+        if (oldLiability && oldInitialDebt > 0) {
+            subsequentPayments = Math.max(0, oldInitialDebt - oldLiability.amount);
+        }
+        
+        const newDebt = srFinalGrandTotal - newPaidAmount;
+        const finalLiabilityAmount = Math.max(0, newDebt - subsequentPayments);
+        
+        if (oldLiability) {
+            if (finalLiabilityAmount > 0) {
+                oldLiability.amount = finalLiabilityAmount;
+                const supplier = suppliers.find(s => s.id === srOriginalInvoice.supplierId);
+                oldLiability.name = `متبقي فاتورة (مُعدلة) لـ: ${supplier?.name || '-'}`;
+            } else {
+                liabilities = liabilities.filter(l => l.id !== oldLiability.id);
+            }
+        } else if (finalLiabilityAmount > 0) {
+            const supplier = suppliers.find(s => s.id === srOriginalInvoice.supplierId);
+            liabilities.push({
+                id: generateId('liab'),
+                purchaseInvoiceId: srOriginalInvoice.id,
+                name: `متبقي فاتورة (مُعدلة) لـ: ${supplier?.name || '-'}`,
+                amount: finalLiabilityAmount,
+                date: d('sr-invoice-date').value,
+                supplierId: srOriginalInvoice.supplierId,
+                type: "supplier"
+            });
+        }
+
+        // C. Adjust Cash (Treasury Delta)
+        const oldDeducted = srOriginalInvoice.deductedFromLiquidity;
+        const oldPaidAmount = oldDeducted ? (srOriginalInvoice.paidAmount || 0) : 0;
+        const oldAccId = srOriginalInvoice.paidFromAccountId || (accounts[0] ? accounts[0].id : null);
+        
+        const deductLiquidityChecked = d('sr-deduct-liquidity').checked;
+        const newPaidAmountToDeduct = deductLiquidityChecked ? newPaidAmount : 0;
+        const newAccId = d('sr-account-select').value || (accounts[0] ? accounts[0].id : null);
+        
+        let cashMsg = "لم يتم تعديل الخزينة.";
+        
+        if (oldPaidAmount > 0) {
+            const oldAcc = accounts.find(a => a.id === oldAccId) || accounts[0];
+            if (oldAcc) oldAcc.balance += oldPaidAmount; // Refund old
+        }
+        
+        if (newPaidAmountToDeduct > 0) {
+            const newAcc = accounts.find(a => a.id === newAccId) || accounts[0];
+            if (newAcc) newAcc.balance -= newPaidAmountToDeduct; // Deduct new
+        }
+
+        if (oldPaidAmount !== newPaidAmountToDeduct || oldAccId !== newAccId) {
+            cashMsg = `تم تسوية الخزينة (إلغاء خصم القديم وخصم الجديد إن وجد).`;
+        }
+
+
+        // Generate Detailed Log
+        const supplierName = suppliers.find(s => s.id === srOriginalInvoice.supplierId)?.name || 'غير معروف';
+        const invNum = srOriginalInvoice.invoiceNumber || srOriginalInvoice.id;
+        const oldTotal = formatCurrency(srOriginalInvoice.grandTotal);
+        const newTotal = formatCurrency(srFinalGrandTotal);
+        
+        const oldDebtVal = srOriginalInvoice.grandTotal - oldPaidAmount;
+        const oldDebt = formatCurrency(oldDebtVal > 0 ? oldDebtVal : 0);
+        const newDebtStr = formatCurrency(newDebt > 0 ? newDebt : 0);
+
+        let details = `تم تعديل الفاتورة رقم (${invNum}) للمورد "${supplierName}". 
+`;
+        details += `• الإجمالي: كان ${oldTotal} وأصبح ${newTotal}.
+`;
+        details += `• الالتزام (الدين): كان ${oldDebt} وأصبح ${newDebtStr}.
+`;
+        details += `• النقدية: ${cashMsg}
+`;
+        details += `• المخزون: تم تحديث كميات الأصناف لتطابق التعديل.`;
+
+        logOperation("تعديل فاتورة مشتريات", details);
+        
+        // --- 3. Save to Cloud ---
+        srSaveBtn.disabled = true;
+        srSaveBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> جاري حفظ التعديل...';
+        
+        // Construct New Invoice Object
+        const updatedInvoice = {
+            ...srOriginalInvoice,
+            invoiceNumber: d('sr-invoice-num').value.trim(),
+            date: d('sr-invoice-date').value,
+            items: srNewItems,
+            extraCosts: srNewExtraCosts,
+            grandTotal: srFinalGrandTotal,
+            paidAmount: newPaidAmount,
+            remainingBalance: newDebt
+        };
+        
+        try {
+            if (window.currentUser) {
+                const uid = window.currentUser.uid;
+                const docRef = window.doc(window.db, "users", uid, "purchase_archives", updatedInvoice.id);
+                await window.setDoc(docRef, updatedInvoice);
+            }
+            saveStateToHistory();
+            updateUI();
+            alert("تم حفظ التعديلات بنجاح!");
+            
+            // Return to search view
+            d('sr-edit-view').classList.add('hidden');
+            d('sr-search-view').classList.remove('hidden');
+            
+            // Auto-refresh the list
+            d('btn-fetch-sr-archive').click();
+            
+        } catch (e) {
+            console.error(e);
+            alert("خطأ في الحفظ السحابي!");
+        } finally {
+            srSaveBtn.disabled = false;
+            srSaveBtn.innerHTML = '<i class="fas fa-save mr-2"></i> حفظ التعديلات وإعادة التوجيه';
+        }
+    });
+}
+
 function updateUI() {
+    initSupplierReturnsSystem();
     console.log("updateUI called. Current loaded date:", currentLoadedDate);
     const { 
         totalInventoryValue, 
@@ -3293,6 +4030,7 @@ async function saveCurrentStateByDate(dateString) {
         serialNumbersLog: serialNumbersLog || [],
         inboxTasks: inboxTasks || [],
         purchaseInvoices: purchaseInvoices || [],
+        purchaseReturns: purchaseReturns || [],
         pendingPurchases: pendingPurchases || [],
         completedReturns: completedReturns || [],
         pendingReturns: pendingReturns || [],
@@ -3480,8 +4218,9 @@ document.addEventListener('click', async function(e) {
     if (e.target.classList.contains('restore-backup-btn-action')) {
         const btn = e.target;
         const key = btn.dataset.backupKey;
-        
-        if (confirm("هل أنت متأكد من استعادة هذه النسخة؟\nسيتم استبدال البيانات الحالية.")) {
+        if (!key) return;
+
+        if (confirm("هل أنت متأكد من استعادة هذه النسخة المحلية؟\nسيتم استبدال البيانات المعروضة حالياً بهذه النسخة.")) {
             try {
                 const raw = localStorage.getItem(key);
                 if (raw) {
@@ -3499,7 +4238,9 @@ document.addEventListener('click', async function(e) {
                     document.getElementById('backupHistoryModal').style.display = 'none';
                     
                     // حفظ لتثبيت الحالة
-                    await saveCurrentStateByDate(dateStr);
+                    if (typeof saveCurrentStateByDate === 'function') {
+                        await saveCurrentStateByDate(dateStr);
+                    }
                     
                     alert("تمت الاستعادة بنجاح!");
                 }
@@ -3508,7 +4249,6 @@ document.addEventListener('click', async function(e) {
             }
         }
     }
-
     // ب: التعامل مع فتح النافذة
     if (e.target.id === 'open-backup-history-button') {
         openBackupHistoryModal();
@@ -5789,6 +6529,7 @@ window.removeSaleFromReportOnly = async function(saleId) {
         if (window.db && window.currentUser) {
             const uid = window.currentUser.uid;
             try { await window.deleteDoc(window.doc(window.db, "users", uid, "salesToday", saleId)); } catch(e) {}
+            logOperation("حذف مبيعات", `تم حذف عملية بيع من السجلات (رقم: ${saleId}).`);
             try { await window.deleteDoc(window.doc(window.db, "users", uid, "sales", saleId)); } catch(e) {}
             try { 
                 await window.deleteDoc(window.doc(window.db, "users", uid, "invoices", saleId)); 
@@ -6205,8 +6946,8 @@ async function generateMonthlySalesReport() {
             }
             if (!sDate) sDate = tDate || cDate;
             
-            // إذا كانت الفاتورة تنتمي لليوم المفتوح حالياً (سواء بتاريخ البيع أو بتاريخ الإنشاء الفعلي أو التأكيد)
-            if (sDate === activeDateForFilter || tDate === activeDateForFilter || cDate === activeDateForFilter) {
+            // 🌟 إصلاح: تطبيق فلتر التراجع (Undo) فقط على الفواتير التي ينتمي تاريخها (saleDate) لليوم الحالي
+            if (sDate === activeDateForFilter) {
                 // يجب أن تكون موجودة في الذاكرة المحلية (حتى لو كانت مخفية عن العرض اليومي)
                 const existsLocally = salesToday.some(local => local.id === id);
                 
@@ -10929,17 +11670,6 @@ for (const checkbox of additionalCheckboxes) {
 
                  if(sellProductNameInput) { // Update checkboxes when main product changes
                      sellProductNameInput.addEventListener('input', updateAdditionalCostsCheckboxes); 
-                     sellProductNameInput.addEventListener('change', updateAdditionalCostsCheckboxes); 
-                     sellProductNameInput.addEventListener('input', calculateQuickSellProfit);
-                     sellProductNameInput.addEventListener('change', calculateQuickSellProfit);
-                 }
-                 if(sellQuantityInput) {
-                     sellQuantityInput.addEventListener('input', calculateQuickSellProfit);
-                 }
-                 if(sellPriceInput) {
-                     sellPriceInput.addEventListener('input', calculateQuickSellProfit);
-                 }
-                 if(additionalCostsContainer) {
                      additionalCostsContainer.addEventListener('change', calculateQuickSellProfit);
                      additionalCostsContainer.addEventListener('input', calculateQuickSellProfit);
                  }
@@ -11935,7 +12665,9 @@ if (smartSearchInput) {
                         backupHistoryModal.style.display = 'none';
                         
                         // 🔥 خطوة ذكية: حفظ النسخة المستعادة فوراً للسحابة لتثبيتها 🔥
-                        await saveCurrentStateByDate(dateStr);
+                        if (typeof saveCurrentStateByDate === 'function') {
+                            await saveCurrentStateByDate(dateStr);
+                        }
                         
                         alert("تمت الاستعادة بنجاح! وتمت مزامنة البيانات المستعادة مع السحابة.");
                     }
@@ -11946,7 +12678,6 @@ if (smartSearchInput) {
             }
         });
     }
-
 // إسناد متغيرات عناصر البحث
 reportSearchInput = d('report-search-input');
 reportClearSearchBtn = d('report-clear-search-btn');
@@ -13128,7 +13859,7 @@ window.openConvertPendingSaleToDebtDialog = function(pendingSaleId) {
                         </label>
                     </div>
 
-                    <div id="cpd_account_section" style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:12px; padding:14px; margin-bottom:16px;">
+                    <div id="cpd_account_section" style="display:none;">
                         <div style="font-weight:700; color:#15803d; margin-bottom:10px;">2) حساب الإيداع عند تأكيد البيعة</div>
                         <label style="display:block; font-weight:600; margin-bottom:6px;">اختر الحساب / الخزنة</label>
                         <select id="cpd_account_id" style="width:100%; border:1px solid #cbd5e1; border-radius:10px; padding:10px;"></select>
@@ -13275,7 +14006,10 @@ window.confirmConvertPendingSaleToDebt = async function() {
     const confirmSale = document.querySelector('input[name="cpd_confirm_sale"]:checked')?.value === 'yes';
     const debtMode = document.querySelector('input[name="cpd_debt_mode"]:checked')?.value || 'new';
     const targetDebtId = document.getElementById('cpd_existing_debt_id').value || null;
-    const accountId = document.getElementById('cpd_account_id').value || null;
+    let accountId = document.getElementById('cpd_account_id').value || null;
+    if (!accountId && typeof accounts !== 'undefined' && accounts.length > 0) {
+        accountId = accounts[0].id;
+    }
 
     const sale = pendingSales.find(s => s.id === pendingSaleId);
     if (!sale) {
@@ -13544,13 +14278,19 @@ async function saveSystemToCloud() {
     lastUpdated: new Date().toISOString()
 };
 
-if (isStateMeaningful(latestBalancesData)) {
-    await window.setDoc(
-        window.doc(window.db, "users", userId, "summaries", "latestBalances"),
-        latestBalancesData
-    );
+// 🌟 حماية ضد ترحيل الأيام السابقة وتدمير البيانات الحديثة 🌟
+const todayActualDate = (typeof getTodayDateString === 'function') ? getTodayDateString() : new Date().toISOString().split('T')[0];
+if (dateStr === todayActualDate) {
+    if (isStateMeaningful(latestBalancesData)) {
+        await window.setDoc(
+            window.doc(window.db, "users", userId, "summaries", "latestBalances"),
+            latestBalancesData
+        );
+    } else {
+        console.log("تم تجاهل تحديث latestBalances لأن البيانات الحالية فارغة أو مصفرة.");
+    }
 } else {
-    console.log("تم تجاهل تحديث latestBalances لأن البيانات الحالية فارغة أو مصفرة.");
+    console.log("⚠️ تم تجاهل تحديث latestBalances لأنك تقوم بتعديل تاريخ قديم (" + dateStr + "). تم حفظ اليوم القديم فقط.");
 }
 
         console.log("✅ تمت المزامنة السحابية بنجاح.");

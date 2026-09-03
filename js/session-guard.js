@@ -38,7 +38,7 @@
   }
 
   function isLockActive(data) {
-    if (!data || !data.sessionId || !data.lastHeartbeat) return false;
+    if (!data || !data.sessionId || !data.lastHeartbeat || data.status !== 'active') return false;
     const last = new Date(data.lastHeartbeat).getTime();
     if (isNaN(last)) return false;
     return (Date.now() - last) < STALE_MS;
