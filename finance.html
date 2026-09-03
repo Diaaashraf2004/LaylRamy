@@ -1593,7 +1593,7 @@
                 <div class="invoice-modal-content modal-content">
                     <div class="invoice-modal-header modal-header">
                         <span class="invoice-close-btn modal-close-btn no-print">&times;</span>
-                        <h2>إنشاء فاتورة جديدة</h2>
+                        <h2>إنشاء فاتورة جديدة <button type="button" onclick="loadInvoiceDraft()" class="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded border border-yellow-300 hover:bg-yellow-200 ml-3 transition" title="استعادة المسودة السابقة"><i class="fas fa-folder-open"></i> مسودة</button></h2>
                     </div>
                     <div class="invoice-modal-body modal-body" id="invoicePrintArea">
                         <form id="invoiceForm" autocomplete="off">
@@ -2487,7 +2487,7 @@
         <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e5e7eb; padding-bottom: 12px; margin-bottom: 15px;">
             <h2 style="margin: 0; font-size: 1.25rem; color: #1e3a8a;" class="font-bold flex items-center gap-2">
                 <i class="fas fa-bolt text-blue-500"></i> بيع بضاعة (سريع / مؤقت)
-            </h2>
+             <button type="button" onclick="loadQuickSellDraft()" class="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded border border-yellow-300 hover:bg-yellow-200 ml-3 transition" title="استعادة المسودة السابقة"><i class="fas fa-folder-open"></i> مسودة</button></h2>
             <span class="modal-close-btn" onclick="window.closeQuickSellModal()" style="cursor: pointer; font-size: 28px; font-weight: bold; color: #9ca3af; transition: color 0.2s;" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#9ca3af'">&times;</span>
         </div>
 
@@ -2585,6 +2585,7 @@
         <!-- أزرار التحكم السفلية داخل المودل -->
         <div class="modal-footer pt-3 border-t flex gap-2 justify-end" style="margin-top: 15px;">
             <button id="sell-button" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-5 rounded transition">بيع البضاعة (سريع/مؤقت)</button>
+            <button type="button" onclick="saveQuickSellDraft()" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-5 rounded transition ml-2" title="حفظ الفاتورة كمسودة للرجوع إليها لاحقاً"><i class="fas fa-save"></i> مسودة</button>
             <button id="cancel-edit-pending-button" class="bg-gray-400 hover:bg-gray-500 text-white font-bold py-2 px-5 rounded transition hidden">إلغاء التعديل</button>
             <button type="button" onclick="window.closeQuickSellModal()" class="bg-gray-300 hover:bg-gray-400 text-gray-700 font-semibold py-2 px-5 rounded transition">تراجع</button>
         </div>

@@ -4582,7 +4582,7 @@ async function loadDataForDate(dateString) {
 }
 
         // --- تقرير الطباعة العام ---
-        function generateReportHTML(){ const {totalInventoryValue, totalCapital, totalDebtsValue, totalLiabilitiesValue} = calculateTotals(); const now = new Date(); const reportDate = currentLoadedDate ? formatDateForDisplay(currentLoadedDate) : "بيانات حالية غير محفوظة"; const printDateTime = now.toLocaleString('ar-EG', {timeZone: 'Africa/Cairo', dateStyle: 'full', timeStyle: 'medium'}); let productsTable = '<p>لا توجد منتجات في المخزون.</p>'; if(products.length > 0){ productsTable = `<table border="1" style="width:100%;border-collapse:collapse;margin-top:10px;font-size:.9em"><thead><tr style="background-color:#f2f2f2"><th style="padding:5px">اسم البضاعة</th><th style="padding:5px">الكمية</th><th style="padding:5px">المورد</th><th style="padding:5px">متوسط التكلفة</th><th style="padding:5px">إجمالي التكلفة</th></tr></thead><tbody>${[...products].sort((a, b) => a.name.localeCompare(b.name, 'ar')).map(p => { const supplier = suppliers.find(s => s.id === p.supplierId); return `<tr><td style="padding:5px">${p.name || 'غير مسمى'}</td><td style="padding:5px;text-align:center;">${Number(p.quantity) || 0}</td><td style="padding:5px">${supplier ? supplier.name : '-'}</td><td style="padding:5px;text-align:center;">${formatCurrency(p.costPrice)}</td><td style="padding:5px;text-align:center;">${formatCurrency((Number(p.quantity) || 0) * (Number(p.costPrice) || 0))}</td></tr>` }).join('')}</tbody><tfoot><tr style="background-color:#f2f2f2;font-weight:bold;"><td colspan="4" style="padding:5px;text-align:left;">إجمالي قيمة المخزون:</td><td style="padding:5px;text-align:center;">${formatCurrency(totalInventoryValue)}</td></tr></tfoot></table>` } let logList = '<p>لا توجد عمليات مسجلة.</p>'; if(operationLog.length > 0){ logList = `<ul style="list-style:none;padding-right:0;margin-top:10px;font-size:.85em">${[...operationLog].reverse().map(log => `<li style="border-bottom:1px dotted #ccc;margin-bottom:5px;padding-bottom:5px"><strong style="color:#333;">${log.type}:</strong> ${log.details}<br><small style="color:#555">${formatDateTime(log.timestamp)}</small></li>`).join('')}</ul>` } let debtorsTable = '<p>لا توجد ديون مستحقة.</p>'; if(debtors.length > 0){ const groupedDebtsForPrint = debtors.reduce((acc, debt) => { const name = debt.name; if (!acc[name]) acc[name] = { total: 0, items: [] }; const amount = Number(debt.amount) || 0; if(amount > 0.001){ acc[name].total += amount; acc[name].items.push({ reason: debt.reason || '-', amount: amount }); } return acc; }, {}); const sortedDebtorNames = Object.keys(groupedDebtsForPrint).filter(name => groupedDebtsForPrint[name].total > 0.001).sort((a, b) => a.localeCompare(b, 'ar')); if(sortedDebtorNames.length > 0) { debtorsTable = `<table border="1" style="width:100%;border-collapse:collapse;margin-top:10px;font-size:.9em"><thead><tr style="background-color:#f2f2f2"><th style="padding:5px">اسم المدين</th><th style="padding:5px">السبب</th><th style="padding:5px">المبلغ المستحق</th></tr></thead><tbody>`; sortedDebtorNames.forEach(name => { const data = groupedDebtsForPrint[name]; debtorsTable += `<tr style="background-color:#f9f9f9;"><td style="padding:5px; font-weight:bold;" colspan="2">${name} (الإجمالي)</td><td style="padding:5px; font-weight:bold;text-align:center;">${formatCurrency(data.total)}</td></tr>`; data.items.sort((a,b) => a.reason.localeCompare(b.reason, 'ar')).forEach(item => { debtorsTable += `<tr><td style="padding:5px; padding-right: 15px;"></td><td style="padding:5px;">${item.reason}</td><td style="padding:5px;text-align:center;">${formatCurrency(item.amount)}</td></tr>`; }); }); debtorsTable += `</tbody><tfoot><tr style="background-color:#f2f2f2;font-weight:bold;"><td colspan="2" style="padding:5px;text-align:left;">إجمالي الديون (لك):</td><td style="padding:5px;text-align:center;">${formatCurrency(totalDebtsValue)}</td></tr></tfoot></table>`; } } let liabilitiesTable = '<p>لا توجد التزامات مستحقة.</p>'; const validLiabilities = liabilities.filter(l => !l.isHidden && (Number(l.amount) || 0) > 0.001); if(validLiabilities.length > 0){ liabilitiesTable = `<table border="1" style="width:100%;border-collapse:collapse;margin-top:10px;font-size:.9em"><thead><tr style="background-color:#f2f2f2"><th style="padding:5px">اسم الدائن</th><th style="padding:5px">المبلغ المستحق</th></tr></thead><tbody>${[...validLiabilities].sort((a, b) => a.name.localeCompare(b.name, 'ar')).map(l => `<tr><td style="padding:5px">${l.name}</td><td style="padding:5px;text-align:center;">${formatCurrency(l.amount)}</td></tr>`).join('')}</tbody><tfoot><tr style="background-color:#f2f2f2;font-weight:bold;"><td style="padding:5px;text-align:left;">إجمالي الالتزامات (عليك):</td><td style="padding:5px;text-align:center;">${formatCurrency(totalLiabilitiesValue)}</td></tr></tfoot></table>` } let suppliersTable = '<p>لا يوجد موردين مسجلين.</p>'; if(suppliers.length > 0){ suppliersTable = `<table border="1" style="width:100%;border-collapse:collapse;margin-top:10px;font-size:.9em"><thead><tr style="background-color:#f2f2f2"><th style="padding:5px">اسم المورد</th><th style="padding:5px">الاتصال</th><th style="padding:5px">العنوان</th></tr></thead><tbody>${[...suppliers].sort((a, b) => a.name.localeCompare(b.name, 'ar')).map(s => `<tr><td style="padding:5px">${s.name}</td><td style="padding:5px">${s.contact || '-'}</td><td style="padding:5px">${s.address || '-'}</td></tr>`).join('')}</tbody></table>` } return `<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>تقرير العمليات - ${reportDate}</title><style>body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;margin:20px; line-height: 1.4;}h1,h2{color:#333;border-bottom:1px solid #ccc;padding-bottom:5px;margin-bottom:15px}h1{text-align:center;font-size:1.4em}h2{font-size:1.1em;margin-top:25px;margin-bottom:10px;}p{margin:5px 0;}table{width:100%;border-collapse:collapse;margin-top:10px;font-size:.9em}th,td{border:1px solid #ddd;padding:6px;text-align:right; vertical-align:top;}th{background-color:#f2f2f2;font-weight:bold;}.summary p{font-size:1em;margin:5px 0; padding-right: 10px;}.print-info{text-align:center;font-size:.8em;color:#666;margin-bottom:20px}ul{list-style:none; padding-right:0;} tfoot td {font-weight:bold;} @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } h2 { page-break-before: auto; page-break-after: avoid; } table { page-break-inside: auto; } tr { page-break-inside: avoid; page-break-after: auto; } thead { display: table-header-group; } tfoot { display: table-footer-group; } } </style></head><body><h1>تقرير العمليات</h1><p class="print-info">تاريخ بيانات التقرير: ${reportDate}<br>تاريخ ووقت الطباعة: ${printDateTime}</p><div class="summary"><h2>الملخص المالي</h2><p><strong>السيولة المتاحة:</strong> ${formatCurrency(liquidity)}</p><p><strong>إجمالي قيمة المخزون:</strong> ${formatCurrency(totalInventoryValue)}</p><p><strong>قيمة البضاعة المؤقتة:</strong> ${formatCurrency(goodsOnConsignmentValue)}</p><p><strong>إجمالي الديون المستحقة للشركة:</strong> ${formatCurrency(totalDebtsValue)}</p><p><strong>إجمالي الالتزامات المستحقة على الشركة:</strong> ${formatCurrency(totalLiabilitiesValue)}</p><p><strong>إجمالي المصروفات المسجلة:</strong> ${formatCurrency(expenses)}</p><p><strong>إجمالي الربح المحقق:</strong> ${formatCurrency(totalProfit)}</p><p><strong>رأس المال الحالي:</strong> ${formatCurrency(totalCapital)}</p></div><h2>تفاصيل الالتزامات المستحقة على الشركة</h2>${liabilitiesTable}<h2>تفاصيل الديون المستحقة للشركة</h2>${debtorsTable}<h2>تفاصيل المخزون</h2>${productsTable}<h2>تفاصيل الموردين</h2>${suppliersTable}<h2>سجل العمليات</h2>${logList}</body></html>` }
+        function generateReportHTML(){ const {totalInventoryValue, totalCapital, totalDebtsValue, totalLiabilitiesValue} = calculateTotals(); const totalLiquidity = accounts.reduce((sum, acc) => sum + (acc.balance || 0), 0); const now = new Date(); const reportDate = currentLoadedDate ? formatDateForDisplay(currentLoadedDate) : "بيانات حالية غير محفوظة"; const printDateTime = now.toLocaleString('ar-EG', {timeZone: 'Africa/Cairo', dateStyle: 'full', timeStyle: 'medium'}); let productsTable = '<p>لا توجد منتجات في المخزون.</p>'; if(products.length > 0){ productsTable = `<table border="1" style="width:100%;border-collapse:collapse;margin-top:10px;font-size:.9em"><thead><tr style="background-color:#f2f2f2"><th style="padding:5px">اسم البضاعة</th><th style="padding:5px">الكمية</th><th style="padding:5px">المورد</th><th style="padding:5px">متوسط التكلفة</th><th style="padding:5px">إجمالي التكلفة</th></tr></thead><tbody>${[...products].sort((a, b) => a.name.localeCompare(b.name, 'ar')).map(p => { const supplier = suppliers.find(s => s.id === p.supplierId); return `<tr><td style="padding:5px">${p.name || 'غير مسمى'}</td><td style="padding:5px;text-align:center;">${Number(p.quantity) || 0}</td><td style="padding:5px">${supplier ? supplier.name : '-'}</td><td style="padding:5px;text-align:center;">${formatCurrency(p.costPrice)}</td><td style="padding:5px;text-align:center;">${formatCurrency((Number(p.quantity) || 0) * (Number(p.costPrice) || 0))}</td></tr>` }).join('')}</tbody><tfoot><tr style="background-color:#f2f2f2;font-weight:bold;"><td colspan="4" style="padding:5px;text-align:left;">إجمالي قيمة المخزون:</td><td style="padding:5px;text-align:center;">${formatCurrency(totalInventoryValue)}</td></tr></tfoot></table>` } let logList = '<p>لا توجد عمليات مسجلة.</p>'; if(operationLog.length > 0){ logList = `<ul style="list-style:none;padding-right:0;margin-top:10px;font-size:.85em">${[...operationLog].reverse().map(log => `<li style="border-bottom:1px dotted #ccc;margin-bottom:5px;padding-bottom:5px"><strong style="color:#333;">${log.type}:</strong> ${log.details}<br><small style="color:#555">${formatDateTime(log.timestamp)}</small></li>`).join('')}</ul>` } let debtorsTable = '<p>لا توجد ديون مستحقة.</p>'; if(debtors.length > 0){ const groupedDebtsForPrint = debtors.reduce((acc, debt) => { const name = debt.name; if (!acc[name]) acc[name] = { total: 0, items: [] }; const amount = Number(debt.amount) || 0; if(amount > 0.001){ acc[name].total += amount; acc[name].items.push({ reason: debt.reason || '-', amount: amount }); } return acc; }, {}); const sortedDebtorNames = Object.keys(groupedDebtsForPrint).filter(name => groupedDebtsForPrint[name].total > 0.001).sort((a, b) => a.localeCompare(b, 'ar')); if(sortedDebtorNames.length > 0) { debtorsTable = `<table border="1" style="width:100%;border-collapse:collapse;margin-top:10px;font-size:.9em"><thead><tr style="background-color:#f2f2f2"><th style="padding:5px">اسم المدين</th><th style="padding:5px">السبب</th><th style="padding:5px">المبلغ المستحق</th></tr></thead><tbody>`; sortedDebtorNames.forEach(name => { const data = groupedDebtsForPrint[name]; debtorsTable += `<tr style="background-color:#f9f9f9;"><td style="padding:5px; font-weight:bold;" colspan="2">${name} (الإجمالي)</td><td style="padding:5px; font-weight:bold;text-align:center;">${formatCurrency(data.total)}</td></tr>`; data.items.sort((a,b) => a.reason.localeCompare(b.reason, 'ar')).forEach(item => { debtorsTable += `<tr><td style="padding:5px; padding-right: 15px;"></td><td style="padding:5px;">${item.reason}</td><td style="padding:5px;text-align:center;">${formatCurrency(item.amount)}</td></tr>`; }); }); debtorsTable += `</tbody><tfoot><tr style="background-color:#f2f2f2;font-weight:bold;"><td colspan="2" style="padding:5px;text-align:left;">إجمالي الديون (لك):</td><td style="padding:5px;text-align:center;">${formatCurrency(totalDebtsValue)}</td></tr></tfoot></table>`; } } let liabilitiesTable = '<p>لا توجد التزامات مستحقة.</p>'; const validLiabilities = liabilities.filter(l => !l.isHidden && (Number(l.amount) || 0) > 0.001); if(validLiabilities.length > 0){ liabilitiesTable = `<table border="1" style="width:100%;border-collapse:collapse;margin-top:10px;font-size:.9em"><thead><tr style="background-color:#f2f2f2"><th style="padding:5px">اسم الدائن</th><th style="padding:5px">المبلغ المستحق</th></tr></thead><tbody>${[...validLiabilities].sort((a, b) => a.name.localeCompare(b.name, 'ar')).map(l => `<tr><td style="padding:5px">${l.name}</td><td style="padding:5px;text-align:center;">${formatCurrency(l.amount)}</td></tr>`).join('')}</tbody><tfoot><tr style="background-color:#f2f2f2;font-weight:bold;"><td style="padding:5px;text-align:left;">إجمالي الالتزامات (عليك):</td><td style="padding:5px;text-align:center;">${formatCurrency(totalLiabilitiesValue)}</td></tr></tfoot></table>` } let suppliersTable = '<p>لا يوجد موردين مسجلين.</p>'; if(suppliers.length > 0){ suppliersTable = `<table border="1" style="width:100%;border-collapse:collapse;margin-top:10px;font-size:.9em"><thead><tr style="background-color:#f2f2f2"><th style="padding:5px">اسم المورد</th><th style="padding:5px">الاتصال</th><th style="padding:5px">العنوان</th></tr></thead><tbody>${[...suppliers].sort((a, b) => a.name.localeCompare(b.name, 'ar')).map(s => `<tr><td style="padding:5px">${s.name}</td><td style="padding:5px">${s.contact || '-'}</td><td style="padding:5px">${s.address || '-'}</td></tr>`).join('')}</tbody></table>` } return `<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>تقرير العمليات - ${reportDate}</title><style>body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;margin:20px; line-height: 1.4;}h1,h2{color:#333;border-bottom:1px solid #ccc;padding-bottom:5px;margin-bottom:15px}h1{text-align:center;font-size:1.4em}h2{font-size:1.1em;margin-top:25px;margin-bottom:10px;}p{margin:5px 0;}table{width:100%;border-collapse:collapse;margin-top:10px;font-size:.9em}th,td{border:1px solid #ddd;padding:6px;text-align:right; vertical-align:top;}th{background-color:#f2f2f2;font-weight:bold;}.summary p{font-size:1em;margin:5px 0; padding-right: 10px;}.print-info{text-align:center;font-size:.8em;color:#666;margin-bottom:20px}ul{list-style:none; padding-right:0;} tfoot td {font-weight:bold;} @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } h2 { page-break-before: auto; page-break-after: avoid; } table { page-break-inside: auto; } tr { page-break-inside: avoid; page-break-after: auto; } thead { display: table-header-group; } tfoot { display: table-footer-group; } } </style></head><body><h1>تقرير العمليات</h1><p class="print-info">تاريخ بيانات التقرير: ${reportDate}<br>تاريخ ووقت الطباعة: ${printDateTime}</p><div class="summary"><h2>الملخص المالي</h2><p><strong>السيولة المتاحة:</strong> ${formatCurrency(totalLiquidity)}</p><p><strong>إجمالي قيمة المخزون:</strong> ${formatCurrency(totalInventoryValue)}</p><p><strong>قيمة البضاعة المؤقتة:</strong> ${formatCurrency(goodsOnConsignmentValue)}</p><p><strong>إجمالي الديون المستحقة للشركة:</strong> ${formatCurrency(totalDebtsValue)}</p><p><strong>إجمالي الالتزامات المستحقة على الشركة:</strong> ${formatCurrency(totalLiabilitiesValue)}</p><p><strong>إجمالي المصروفات المسجلة:</strong> ${formatCurrency(expenses)}</p><p><strong>إجمالي الربح المحقق:</strong> ${formatCurrency(totalProfit)}</p><p><strong>رأس المال الحالي:</strong> ${formatCurrency(totalCapital)}</p></div><h2>تفاصيل الالتزامات المستحقة على الشركة</h2>${liabilitiesTable}<h2>تفاصيل الديون المستحقة للشركة</h2>${debtorsTable}<h2>تفاصيل المخزون</h2>${productsTable}<h2>تفاصيل الموردين</h2>${suppliersTable}<h2>سجل العمليات</h2>${logList}</body></html>` }
         // =======================================================
 // START: Monthly Liabilities Functions
 // =======================================================
@@ -8124,7 +8124,11 @@ async function handleInvoiceSearchForReturn() {
                 </tr></thead>
                 <tbody>${itemsHTML}</tbody>
             </table>
-            <div class="my-4">
+                        <div class="my-4">
+                <label class="block font-semibold mb-2 text-sm">اختر الحساب الذي سيتم خصم مبلغ المرتجع منه:</label>
+                <select id="return-invoice-account-select" class="w-full border rounded p-2 text-sm mb-3">
+                    ${(typeof accounts !== 'undefined' ? accounts : []).map(acc => `<option value="${acc.id}">${acc.name} - الرصيد: ${formatCurrency(acc.balance || 0)}</option>`).join('')}
+                </select>
                 <label for="return-invoice-receive-now" class="inline-flex items-center cursor-pointer font-semibold">
                     <input type="checkbox" id="return-invoice-receive-now" checked>
                     <span class="text-sm">استلام البضاعة في المخزن الآن؟</span>
@@ -8163,8 +8167,16 @@ function handleInvoiceReturnConfirmation(invoiceId, invoiceNumber) {
         return;
     }
 
-    if (totalReturnValue > liquidity) {
-        showMessage(returnMessage, `السيولة غير كافية (${formatCurrency(liquidity)}) لإرجاع هذا المبلغ (${formatCurrency(totalReturnValue)}).`, true);
+        const accountId = d('return-invoice-account-select') ? d('return-invoice-account-select').value : (typeof accounts !== 'undefined' && accounts[0] ? accounts[0].id : null);
+    const account = typeof accounts !== 'undefined' ? accounts.find(a => a.id === accountId) : null;
+    
+    if (!account) {
+        showMessage(returnMessage, 'يرجى اختيار الحساب أولاً.', true);
+        return;
+    }
+
+    if (totalReturnValue > account.balance) {
+        showMessage(returnMessage, `السيولة غير كافية في الحساب (${formatCurrency(account.balance)}) لإرجاع هذا المبلغ (${formatCurrency(totalReturnValue)}).`, true);
         return;
     }
 
@@ -8172,7 +8184,7 @@ function handleInvoiceReturnConfirmation(invoiceId, invoiceNumber) {
     const customerName = invoiceSearchResults.querySelector('p > strong').nextSibling.textContent.trim();
 
     // Process the return
-    liquidity -= totalReturnValue;
+    account.balance -= totalReturnValue;
     const profitToReverse = totalReturnValue - totalCostOfReturn;
 
     if(receiveNow) {
@@ -8194,7 +8206,8 @@ products.push({ id: uniqueProductCodeReturn, name: item.name, quantity: item.qua
         logOperation("مرتجع معلق من فاتورة", `إرجاع مبلغ ${formatCurrency(totalReturnValue)} للعميل من فاتورة ${invoiceNumber}. البضاعة قيد الاستلام.`);
     }
 
-    liquidityLog.push({ id: `liq-${Date.now()}`, type: "remove", amount: totalReturnValue, description: `مرتجع من فاتورة ${invoiceNumber}`, currentBalance: liquidity });
+    const newTotalLiquidity = accounts.reduce((sum, acc) => sum + (Number(acc.balance) || 0), 0);
+    liquidityLog.push({ id: `liq-${Date.now()}`, type: "remove", amount: totalReturnValue, description: `مرتجع من فاتورة ${invoiceNumber} (من حساب ${account.name})`, currentBalance: newTotalLiquidity });
 
     showMessage(returnMessage, "تم تسجيل عملية الإرجاع من الفاتورة بنجاح.", false);
     invoiceSearchResults.innerHTML = '';
@@ -11668,10 +11681,25 @@ for (const checkbox of additionalCheckboxes) {
                  }
                  window.calculateQuickSellProfit = calculateQuickSellProfit;
 
-                 if(sellProductNameInput) { // Update checkboxes when main product changes
+                                  if(sellProductNameInput) { // Update checkboxes when main product changes
                      sellProductNameInput.addEventListener('input', updateAdditionalCostsCheckboxes); 
+                     sellProductNameInput.addEventListener('change', calculateQuickSellProfit);
+                     sellProductNameInput.addEventListener('input', calculateQuickSellProfit);
                      additionalCostsContainer.addEventListener('change', calculateQuickSellProfit);
                      additionalCostsContainer.addEventListener('input', calculateQuickSellProfit);
+                 }
+                 if(sellQuantityInput) {
+                     sellQuantityInput.addEventListener('input', calculateQuickSellProfit);
+                     sellQuantityInput.addEventListener('change', calculateQuickSellProfit);
+                 }
+                 if(sellPriceInput) {
+                     sellPriceInput.addEventListener('input', calculateQuickSellProfit);
+                     sellPriceInput.addEventListener('change', calculateQuickSellProfit);
+                 }
+                 const sellSerialInputEl = document.getElementById('sell-serial-input');
+                 if (sellSerialInputEl) {
+                     sellSerialInputEl.addEventListener('input', calculateQuickSellProfit);
+                     sellSerialInputEl.addEventListener('change', calculateQuickSellProfit);
                  }
                  // <<< جديد: مستمع حدث لبحث المبيعات المؤقتة >>>
                  if(pendingSalesSearchInput) {
@@ -14013,7 +14041,7 @@ window.confirmConvertPendingSaleToDebt = async function() {
 
     const sale = pendingSales.find(s => s.id === pendingSaleId);
     if (!sale) {
-        showGlobalMessage("لم يتم العثور على البيعة المؤقتة.", true);
+        originalShowMessage("لم يتم العثور على البيعة المؤقتة.", true);
         return;
     }
 
@@ -14022,17 +14050,17 @@ window.confirmConvertPendingSaleToDebt = async function() {
     const remainingAmount = Math.max(0, totalAmount - paidAmount);
 
     if (remainingAmount <= 0) {
-        showGlobalMessage("لا يوجد مبلغ متبقٍ لتحويله إلى دين.", true);
+        originalShowMessage("لا يوجد مبلغ متبقٍ لتحويله إلى دين.", true);
         return;
     }
 
     if (confirmSale && !accountId) {
-        showGlobalMessage("يجب اختيار حساب الإيداع عند تأكيد البيعة.", true);
+        originalShowMessage("يجب اختيار حساب الإيداع عند تأكيد البيعة.", true);
         return;
     }
 
     if (debtMode === 'existing' && !targetDebtId) {
-        showGlobalMessage("يجب اختيار الدين القديم أولاً.", true);
+        originalShowMessage("يجب اختيار الدين القديم أولاً.", true);
         return;
     }
 
@@ -15559,3 +15587,144 @@ function populateAdminView(invoice) {
     
     document.getElementById('vi_adminExtraInfo').innerHTML = extraInfo;
 }
+
+
+// --- نظام المسودات ---
+window.saveQuickSellDraft = function() {
+    const draft = {
+        type: 'quick',
+        productName: document.getElementById('sell-product-name')?.value || '',
+        customerName: document.getElementById('sell-customer-name')?.value || '',
+        quantity: document.getElementById('sell-quantity')?.value || '1',
+        price: document.getElementById('sell-price')?.value || '0',
+        serial: document.getElementById('sell-serial-input')?.value || '',
+        timestamp: new Date().toISOString()
+    };
+    if(window.pos_selectedProductQuick) {
+        draft.posSelected = window.pos_selectedProductQuick;
+    }
+    localStorage.setItem('quickSellDraft', JSON.stringify(draft));
+    showMessage(document.getElementById('sell-message'), 'تم حفظ البيانات كمسودة بنجاح.', false);
+    setTimeout(() => {
+        window.closeQuickSellModal();
+    }, 1000);
+};
+
+window.loadQuickSellDraft = function() {
+    const saved = localStorage.getItem('quickSellDraft');
+    if(!saved) {
+        alert('لا توجد مسودة محفوظة.');
+        return;
+    }
+    const draft = JSON.parse(saved);
+    if(document.getElementById('sell-product-name')) document.getElementById('sell-product-name').value = draft.productName;
+    if(document.getElementById('sell-customer-name')) document.getElementById('sell-customer-name').value = draft.customerName;
+    if(document.getElementById('sell-quantity')) document.getElementById('sell-quantity').value = draft.quantity;
+    if(document.getElementById('sell-price')) document.getElementById('sell-price').value = draft.price;
+    if(document.getElementById('sell-serial-input')) document.getElementById('sell-serial-input').value = draft.serial;
+    
+    if(draft.posSelected && window.selectPOSProductQuick) {
+        window.selectPOSProductQuick(draft.posSelected);
+    }
+    
+    if (typeof calculateQuickSellProfit === 'function') calculateQuickSellProfit();
+    
+    showMessage(document.getElementById('sell-message'), 'تم استعادة المسودة بنجاح.', false);
+};
+
+window.saveInvoiceDraft = function() {
+    const items = [];
+    document.querySelectorAll('#inv_invoiceItemsBody .invoice-item-row').forEach(row => {
+        items.push({
+            name: row.querySelector('.row-name-input')?.value || '',
+            qty: row.querySelector('.row-qty-input')?.value || '1',
+            price: row.querySelector('.row-price-input')?.value || '0',
+            serial: row.querySelector('.row-serial-input')?.value || ''
+        });
+    });
+    
+    const phones = [];
+    document.querySelectorAll('input[name="phone[]"]').forEach(p => {
+        if(p.value.trim()) phones.push(p.value.trim());
+    });
+    
+    const draft = {
+        type: 'detailed',
+        customerName: document.getElementById('inv_customerName')?.value || '',
+        phones: phones,
+        items: items,
+        discount: document.getElementById('inv_discount')?.value || '0',
+        discountType: document.getElementById('inv_discountType')?.value || 'amount',
+        paid: document.getElementById('inv_paidAmount')?.value || '0',
+        notes: document.getElementById('inv_notes')?.value || '',
+        timestamp: new Date().toISOString()
+    };
+    
+    localStorage.setItem('detailedInvoiceDraft', JSON.stringify(draft));
+    if(document.getElementById('inv_validationErrorDiv')) {
+        document.getElementById('inv_validationErrorDiv').textContent = 'تم حفظ الفاتورة كمسودة بنجاح.';
+        document.getElementById('inv_validationErrorDiv').className = 'section-message visible';
+        document.getElementById('inv_validationErrorDiv').style.backgroundColor = '#d1fae5';
+        document.getElementById('inv_validationErrorDiv').style.color = '#065f46';
+    }
+    setTimeout(() => {
+        if(typeof inv_closeModal === 'function') inv_closeModal();
+    }, 1000);
+};
+
+window.loadInvoiceDraft = function() {
+    const saved = localStorage.getItem('detailedInvoiceDraft');
+    if(!saved) {
+        alert('لا توجد مسودة محفوظة.');
+        return;
+    }
+    const draft = JSON.parse(saved);
+    
+    if(document.getElementById('inv_customerName')) document.getElementById('inv_customerName').value = draft.customerName;
+    
+    if(inv_phoneNumbersContainer) {
+        inv_phoneNumbersContainer.innerHTML = '';
+        if(draft.phones.length === 0) {
+            draft.phones.push('');
+        }
+        draft.phones.forEach((p, idx) => {
+            const count = idx + 1;
+            inv_phoneCounter = count;
+            const newPhoneEntry = document.createElement('div');
+            newPhoneEntry.classList.add('form-row', 'inv-phone-entry');
+            newPhoneEntry.innerHTML = `<div class="form-group"><label for="inv_phone${count}">رقم هاتف ${count}:</label><input type="tel" id="inv_phone${count}" name="phone[]" value="${p}" placeholder="رقم الهاتف"></div><button type="button" class="remove-phone-btn no-print" title="حذف الرقم">×</button>`;
+            inv_phoneNumbersContainer.appendChild(newPhoneEntry);
+        });
+    }
+    
+    if(inv_invoiceItemsBody) {
+        inv_invoiceItemsBody.innerHTML = '';
+        draft.items.forEach(item => {
+            const row = document.createElement('tr');
+            row.classList.add('invoice-item-row');
+            row.innerHTML = `
+                <td><input type="text" class="row-name-input fc-form-input" value="${item.name}" placeholder="اسم الصنف"></td>
+                <td><input type="number" class="row-qty-input fc-form-input" min="1" value="${item.qty}"></td>
+                <td><input type="number" class="row-price-input fc-form-input" min="0" step="0.01" value="${item.price}"></td>
+                <td><input type="text" class="row-serial-input fc-form-input" placeholder="السيريال" value="${item.serial}"></td>
+                <td class="row-total">0</td>
+                <td class="no-print"><button type="button" class="remove-item-btn">حذف</button></td>
+            `;
+            inv_invoiceItemsBody.appendChild(row);
+        });
+    }
+    
+    if(document.getElementById('inv_discount')) document.getElementById('inv_discount').value = draft.discount;
+    if(document.getElementById('inv_discountType')) document.getElementById('inv_discountType').value = draft.discountType;
+    if(document.getElementById('inv_paidAmount')) document.getElementById('inv_paidAmount').value = draft.paid;
+    if(document.getElementById('inv_notes')) document.getElementById('inv_notes').value = draft.notes;
+    
+    if(typeof inv_calculateTotals === 'function') inv_calculateTotals();
+    
+    if(document.getElementById('inv_validationErrorDiv')) {
+        document.getElementById('inv_validationErrorDiv').textContent = 'تم استعادة المسودة بنجاح.';
+        document.getElementById('inv_validationErrorDiv').className = 'section-message visible';
+        document.getElementById('inv_validationErrorDiv').style.backgroundColor = '#d1fae5';
+        document.getElementById('inv_validationErrorDiv').style.color = '#065f46';
+    }
+};
