@@ -44,6 +44,56 @@
 
 
 
+
+    <!-- Mobile Responsiveness Enhancements -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <style>
+        /* Mobile Specific Tweaks */
+        @media (max-width: 768px) {
+            /* Prevent iOS Safari auto-zoom on inputs */
+            input:not([type="checkbox"]):not([type="radio"]), select, textarea {
+                font-size: 16px !important; 
+            }
+            /* Make buttons tap-friendly */
+            button, .nav-button, .action-btn {
+                min-height: 44px;
+                padding-top: 0.5rem;
+                padding-bottom: 0.5rem;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+            }
+            /* Fix Modals to fit screen */
+            .modal-content, .widget-card {
+                width: 95% !important;
+                margin-left: auto !important;
+                margin-right: auto !important;
+                padding: 1rem !important;
+                overflow-x: hidden;
+            }
+            /* Smooth horizontal scrolling for tables */
+            .overflow-x-auto {
+                -webkit-overflow-scrolling: touch;
+                padding-bottom: 5px;
+            }
+            /* Make sure grids collapse nicely */
+            .grid-cols-2 { grid-template-columns: repeat(1, minmax(0, 1fr)) !important; }
+            .grid-cols-3 { grid-template-columns: repeat(1, minmax(0, 1fr)) !important; }
+            .grid-cols-4 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+        }
+        
+        /* Hide scrollbars for the main nav to make it look native on mobile */
+        #main-nav::-webkit-scrollbar {
+            display: none;
+        }
+        #main-nav {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+
+    <link rel="manifest" href="./manifest.json">
 </head><body class="p-6">
 <div id="auth-container" class="widget-card shadow-lg border-t-4 border-blue-500" style="max-width: 420px; margin: 8% auto; border-radius: 0.75rem;">
     <h2 id="auth-title" class="text-center text-2xl font-black text-gray-800 mb-6"><i class="fas fa-user-circle text-blue-500 mr-2"></i> تسجيل الدخول</h2>
@@ -102,7 +152,7 @@
         
         
         
-        <div id="main-nav" class="flex flex-wrap justify-center gap-2 mb-6 border-b pb-4">
+        <div id="main-nav" class="flex md:flex-wrap overflow-x-auto whitespace-nowrap justify-start md:justify-center gap-2 mb-6 border-b pb-4 px-2" style="-webkit-overflow-scrolling: touch; scrollbar-width: none;">
             <button class="nav-button active" data-target="summary-section">الملخص</button>
             <button class="nav-button" data-target="inventory-section">المخزون والإضافة</button>
             <button class="nav-button" data-target="suppliers-section">الموردين والبحث التسلسلي</button>
@@ -1353,10 +1403,10 @@
                     <!-- KPI Summary Cards -->
                     <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                         
-                        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 card-shadow hover-card-shadow">
+                        <div class="bg-orange-50 border border-orange-200 p-4 rounded-xl">
                             <div class="flex justify-between items-start">
                                 <div>
-                                    <span class="text-xs font-semibold text-slate-500">إجمالي الحركات</span>
+                                    <span class="text-xs font-semibold text-orange-600 font-bold">إجمالي الحركات</span>
                                     <h3 id="stat-total" class="text-2xl font-bold font-mono text-slate-800 mt-1 m-0">0</h3>
                                 </div>
                                 <span class="w-9 h-9 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center text-sm">
@@ -1369,10 +1419,10 @@
                             </div>
                         </div>
 
-                        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 card-shadow hover-card-shadow">
+                        <div class="bg-emerald-50 border border-emerald-200 p-4 rounded-xl">
                             <div class="flex justify-between items-start">
                                 <div>
-                                    <span class="text-xs font-semibold text-slate-500">المبيعات والإيرادات</span>
+                                    <span class="text-xs font-semibold text-emerald-600 font-bold">المبيعات والإيرادات</span>
                                     <h3 id="stat-sales" class="text-2xl font-bold font-mono text-emerald-600 mt-1 m-0">0</h3>
                                 </div>
                                 <span class="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-sm border border-emerald-100">
@@ -1385,10 +1435,10 @@
                             </div>
                         </div>
 
-                        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 card-shadow hover-card-shadow">
+                        <div class="bg-blue-50 border border-blue-200 p-4 rounded-xl">
                             <div class="flex justify-between items-start">
                                 <div>
-                                    <span class="text-xs font-semibold text-slate-500">الديون والموردين</span>
+                                    <span class="text-xs font-semibold text-blue-600 font-bold">الديون والموردين</span>
                                     <h3 id="stat-debts" class="text-2xl font-bold font-mono text-indigo-600 mt-1 m-0">0</h3>
                                 </div>
                                 <span class="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-sm border border-indigo-100">
@@ -1401,10 +1451,10 @@
                             </div>
                         </div>
 
-                        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 card-shadow hover-card-shadow">
+                        <div class="bg-red-50 border border-red-200 p-4 rounded-xl">
                             <div class="flex justify-between items-start">
                                 <div>
-                                    <span class="text-xs font-semibold text-slate-500">المصروفات والسحوبات</span>
+                                    <span class="text-xs font-semibold text-red-600 font-bold">المصروفات والسحوبات</span>
                                     <h3 id="stat-expenses" class="text-2xl font-bold font-mono text-amber-600 mt-1 m-0">0</h3>
                                 </div>
                                 <span class="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-sm border border-amber-100">
@@ -1420,7 +1470,7 @@
                     </div>
 
                     <!-- Filter and Search Bar -->
-                    <div class="bg-white rounded-2xl p-4 border border-slate-200/80 card-shadow space-y-3.5">
+                    <div class="flex flex-col gap-4 mb-6 bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-inner">
                         <div class="flex flex-col md:flex-row gap-3 items-center justify-between">
                             
                             <!-- Search Box -->
@@ -1476,13 +1526,13 @@
                         
                         <div class="overflow-x-auto max-h-[60vh]">
                             <table class="w-full text-sm text-right text-slate-700 border-collapse">
-                                <thead class="text-xs uppercase bg-slate-100/80 text-slate-500 sticky top-0 backdrop-blur-md z-10 border-b border-slate-200">
+                                <thead class="bg-slate-800 text-white sticky top-0 z-10">
                                     <tr>
-                                        <th class="px-4 py-3.5 text-center w-12 font-bold">#</th>
-                                        <th class="px-4 py-3.5 font-bold w-48">الوقت والتاريخ</th>
-                                        <th class="px-4 py-3.5 font-bold w-52">نوع العملية</th>
-                                        <th class="px-4 py-3.5 font-bold">البيان والتفاصيل</th>
-                                        <th class="px-4 py-3.5 text-center font-bold w-24">معاينة</th>
+                                        <th class="p-3 border-b font-bold text-center w-12 rounded-tr-xl">#</th>
+                                        <th class="p-3 border-b font-bold w-48">الوقت والتاريخ</th>
+                                        <th class="p-3 border-b font-bold w-52">نوع العملية</th>
+                                        <th class="p-3 border-b font-bold">البيان والتفاصيل</th>
+                                        <th class="p-3 border-b text-center font-bold w-24 rounded-tl-xl">معاينة</th>
                                     </tr>
                                 </thead>
                                 <tbody id="operation-log-table-body" class="divide-y divide-slate-100 bg-white">
@@ -2214,7 +2264,7 @@
 <script src="js/finance-sync.js?v=1788024958900" defer></script>
 <!-- ③ App logic (defer, depends on all above) -->
 <script src="js/finance-core.js?v=1788024958900" defer></script>
-<script src="js/finance2.js" defer></script>
+<script src="js/finance2.js?v=1789154854664" defer></script>
 <script src="js/finance-pos.js" defer></script>
 <script src="js/serials.js" defer></script>
 <div id="refundModal" class="modal" style="display:none; z-index: 2100;">

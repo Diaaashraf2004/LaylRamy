@@ -1,0 +1,1 @@
+﻿let diff = expectedCapital - totalCapital;
