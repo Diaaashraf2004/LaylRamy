@@ -1206,7 +1206,17 @@ document.addEventListener('DOMContentLoaded', () => {
             let consig = data.pendingSales ? data.pendingSales.reduce((s, sale) => s + (sale.items && sale.totalCost !== undefined ? (Number(sale.totalCost)||0) : ((Number(sale.mainProduct?.costPrice)||0)*(Number(sale.mainProduct?.quantity)||1)) + (sale.additionalItems||[]).reduce((s,i)=>s+((Number(i.costPrice)||0)*(Number(i.quantity)||0)),0)), 0) : 0;
             let debts = data.debtors ? data.debtors.reduce((s, d) => s + (Number(d.amount)||0), 0) : 0;
             let pendingPurchasesVal = data.pendingPurchases ? data.pendingPurchases.reduce((s, p) => s + (Number(p.amountPaid)||0), 0) : 0;
-            let pendingReturnsVal = data.pendingReturns ? data.pendingReturns.reduce((s, r) => s + (Number(r.returnedAmount)||0), 0) : 0;
+            let pendingReturnsVal = data.pendingReturns ? data.pendingReturns.reduce((s, r) => {
+                let cost = 0;
+                if (r.costOfGoods !== undefined) {
+                    cost = Number(r.costOfGoods);
+                } else if (r.items && r.items.length > 0) {
+                    cost = r.items.reduce((itemSum, item) => itemSum + ((Number(item.costPrice) || 0) * (Number(item.quantity) || 0)), 0);
+                } else {
+                    cost = Number(r.returnedAmount) || 0;
+                }
+                return s + cost;
+            }, 0) : 0;
             let liab = data.liabilities ? data.liabilities.filter(l => l.id !== 'hidden-recorded-losses' && !l.isHidden).reduce((s, l) => s + (Number(l.amount)||0), 0) : 0;
             let monthlyLiab = data.monthlyLiabilities ? data.monthlyLiabilities.filter(l => !l.isHidden).reduce((s, l) => s + (Number(l.amount)||0), 0) : 0;
             let pendingDeposits = data.pendingOrders ? data.pendingOrders.reduce((s, o) => s + (Number(o.amountPaid)||0), 0) : 0;
