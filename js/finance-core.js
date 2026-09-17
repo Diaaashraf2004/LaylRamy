@@ -1,4 +1,4 @@
-﻿// finance-core.js — Main Application Logic
+// finance-core.js — Main Application Logic
 // Extracted from finance.html — DO NOT EDIT finance.html JS directly
 // All core functions, state, and event listeners live here.
     document.addEventListener("DOMContentLoaded", function() {
@@ -3366,6 +3366,18 @@ async function saveCurrentStateByDate(dateString) {
     try {
         const fullLocalBackup = { ...stateToSave }; 
         const backupKey = `goodsMgmt_backup_${dateString}_slot_${safeBackupIndex}`;
+        
+        // --- Cleanup old local backups from previous days to prevent LocalStorage memory full error ---
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith("goodsMgmt_backup_") && !key.includes(dateString)) {
+                keysToRemove.push(key);
+            }
+        }
+        keysToRemove.forEach(k => localStorage.removeItem(k));
+        // ---------------------------------------------------------------------------------------------
+
         saveData(backupKey, fullLocalBackup);
         
         if (typeof backupSlotIndex !== 'undefined') {
@@ -4317,10 +4329,11 @@ function inv_addInvoiceItem() {
         }
     }
 
-    // 4. التحقق من توفر الكمية في المخزون
+    // 4. التحقق من توفر الكمية في المخزون    // 4. التحقق من وجود الصنف في المخزن وتغليب الصنف المتوفر
     let currentProduct = null;
     if (typeof products !== 'undefined') {
-        currentProduct = products.find(p => p.name.toLowerCase() === name.toLowerCase());
+        const matches = products.filter(p => p.name.toLowerCase() === name.toLowerCase());
+        currentProduct = matches.find(p => Number(p.quantity) > 0) || matches[0];
     }
     
     const availableQty = currentProduct ? (Number(currentProduct.quantity) || 0) : Infinity; 
@@ -9500,39 +9513,20 @@ if (d('redo-button')) { d('redo-button').addEventListener('click', redo); }
                 }
 
             }
-
         }
-
-
 
         if (confirm(confirmMsg)) {
-
-            // تغيير نص الزر ليدل على التحميل
-
-            const originalText = saveButtonAlt.textContent;
-
-            saveButtonAlt.textContent = "جاري الحفظ...";
-
+            const originalHTML = saveButtonAlt.innerHTML;
+            saveButtonAlt.innerHTML = "جاري الحفظ...";
             saveButtonAlt.disabled = true;
-
             
-
             await saveCurrentStateByDate(targetDate);
-
             
-
-            // إعادة الزر لحالته الطبيعية
-
-            saveButtonAlt.textContent = originalText;
-
+            saveButtonAlt.innerHTML = originalHTML;
             saveButtonAlt.disabled = false;
-
         }
-
     });
-
 }
-
   if (loadDataButtonAlt) { loadDataButtonAlt.addEventListener("click", async () => { const dateToLoad = loadDateInputAlt ? loadDateInputAlt.value : null; const loadResult = loadDataForDate(dateToLoad); if(loadResult) updateUI(); }); } // Update UI only if loadDataForDate indicates a change happened
 
                  if (loadDateInputAlt) { loadDateInputAlt.addEventListener('change', (e) => { const dateValue = e.target.value; updateLoadDateDayName(dateValue, loadDateDayNameDisplayAlt); }); }
@@ -10485,7 +10479,11 @@ function sellProduct(skipConfirmation = true) {
         return;
     }
 
-    const mainProductIndex = products.findIndex(p => p.id === mainProductName || p.name.trim().toLowerCase() === mainProductName.trim().toLowerCase());
+    let mainProductIndex = products.findIndex(p => (p.id === mainProductName || p.name.trim().toLowerCase() === mainProductName.trim().toLowerCase()) && Number(p.quantity) >= quantitySold);
+    if (mainProductIndex === -1) {
+        // Fallback to any match (will trigger insufficient quantity error below)
+        mainProductIndex = products.findIndex(p => p.id === mainProductName || p.name.trim().toLowerCase() === mainProductName.trim().toLowerCase());
+    }
     if (mainProductIndex === -1) {
         showMessage(sellMessage, `المنتج "${mainProductName}" غير موجود في المخزن.`, true);
         return;
@@ -10848,7 +10846,8 @@ for (const checkbox of additionalCheckboxes) {
                      const quantitySold = sellQuantityInput ? (parseInputNumber(sellQuantityInput) || 0) : 0;
                      const totalSellPrice = sellPriceInput ? (parseInputNumber(sellPriceInput) || 0) : 0;
 
-                     const mainProduct = products.find(p => p.id === mainProductName || p.name.trim().toLowerCase() === mainProductName.trim().toLowerCase());
+                     const matches = products.filter(p => p.id === mainProductName || p.name.trim().toLowerCase() === mainProductName.trim().toLowerCase());
+                     const mainProduct = matches.find(p => Number(p.quantity) >= quantitySold) || matches.find(p => Number(p.quantity) > 0) || matches[0];
                      const profitDisplay = document.getElementById('quick-sell-profit-display');
                      if (!profitDisplay) return;
 

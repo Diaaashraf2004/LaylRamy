@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
@@ -529,9 +529,9 @@
         <!-- Items Section -->
         <fieldset>
             <legend>بنود الفاتورة</legend>
-            <div id="pi_items_container">
+            <div id="pi_items_container" style="overflow-x: auto;">
                 <!-- Table for items -->
-                <table id="pi_items_table" class="w-full border-collapse mt-2">
+                <table id="pi_items_table" class="w-full border-collapse mt-2" style="min-width: 500px;">
                     <thead>
                         <tr>
                             <th class="border p-2 bg-gray-50">اسم المنتج</th>
@@ -1745,19 +1745,22 @@
     <i class="fas fa-stream ml-1"></i> فتح المودل الذكي للاختيار المجمع وحساب الأرباح المتوقعة
 </button>
                               
-                                <table id="inv_invoiceItemsTable">
-                                    <thead>
-                                        <tr>
-                                            <th>البند</th>
-                                            <th>الكمية</th>
-                                            <th>سعر الوحدة</th>
-                                            <th>الإجمالي الفرعي</th>
-                                            <th class="no-print">إجراء</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="inv_invoiceItemsBody">
-                                        </tbody>
-                                </table>
+                                  <div style="overflow-x: auto; margin-top: 0.75rem;">
+                                      <table id="inv_invoiceItemsTable" style="margin-top: 0; min-width: 500px;">
+                                          <thead>
+                                              <tr>
+                                                  <th>الصنف</th>
+                                                  <th>الكمية</th>
+                                                  <th>سعر الوحدة</th>
+                                                  <th>الإجمالي الفرعي</th>
+                                                  <th class="no-print">إجراء</th>
+                                              </tr>
+                                          </thead>
+                                          <tbody id="inv_invoiceItemsBody">
+                                              <!-- Invoice items will be added here dynamically -->
+                                          </tbody>
+                                      </table>
+                                  </div>
                                 <div class="form-row totals-display" style="margin-top: 15px;">
                                     <div class="form-group">
                                         <label>إجمالي سعر البضاعة:</label>
