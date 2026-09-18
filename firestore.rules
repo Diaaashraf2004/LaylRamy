@@ -1,0 +1,26 @@
+rules_version = '2';
+// =====================================================================
+// Firestore Security Rules — Finance App
+// آخر تحديث: 2026-08-11
+//
+// الفلسفة:
+//   • كل مستخدم يصل فقط إلى بيانات نفسه: users/{uid}/...
+//   • لا توجد بيانات مشتركة بين المستخدمين.
+//   • المستخدم يجب أن يكون مسجلاً (request.auth != null).
+//   • المعرّفات الحساسة (uid) تُقارن مع التوكن دائماً.
+// =====================================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ❌ امنع أي وصول خارج مسار users/{uid}
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ✅ كل مستخدم يصل فقط لبياناته الخاصة
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
