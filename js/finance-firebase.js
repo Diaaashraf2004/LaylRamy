@@ -1,4 +1,4 @@
-// finance-firebase.js — Firebase Auth + Firestore (COMPAT VERSION FOR file://)
+﻿// finance-firebase.js - Firebase Auth + Firestore (COMPAT VERSION FOR file://)
 // extracted from finance.html
 
 const firebaseConfig = {
@@ -16,7 +16,7 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const auth = firebase.auth();
 
-// --- تهيئة الخدمات وجعلها متاحة للملفات الخارجية ---
+// --- تصدير الكائنات لتكون متاحة لبقية الملفات ---
 window.db = db;
 window.auth = auth;
 
@@ -51,7 +51,7 @@ window.where = function(field, op, value) { return { type: 'where', field, op, v
 window.orderBy = function(field, direction) { return { type: 'orderBy', field, direction }; };
 window.limit = function(value) { return { type: 'limit', value }; };
 
-// --- الدالة المحدثة ---
+// --- معالجة الاستعلامات ---
 window.getDocs = async function(queryRef) {
     const snap = await queryRef.get();
 
@@ -70,27 +70,26 @@ window.getDocs = async function(queryRef) {
     };
 };
 
-// إعدادات المصادقة
+// دوال المصادقة
 window.createUserWithEmailAndPassword = function(authInstance, email, password) { return authInstance.createUserWithEmailAndPassword(email, password); };
 window.signInWithEmailAndPassword = function(authInstance, email, password) { return authInstance.signInWithEmailAndPassword(email, password); };
 window.signOut = function(authInstance) { return authInstance.signOut(); };
 window.onAuthStateChanged = function(authInstance, callback) { return authInstance.onAuthStateChanged(callback); };
 
-// مراقبة حالة تسجيل الدخول
+// متابعة حالة تسجيل الدخول
 window.onAuthStateChanged(auth, (user) => {
     window.currentUser = user;
     
-    // إذا كان هناك كود معلق ينتظر، قم بتنفيذه الآن
     if (typeof window._pendingAuthCallback === 'function') {
-        console.log("🔄 تنفيذ الطلب المعلق للهوية...");
+        console.log("تم استدعاء رد اتصال المصادقة المعلق...");
         window._pendingAuthCallback(user);
         window._pendingAuthCallback = null; 
     }
 
     if (user) {
-        console.log("✅ متصل الآن بحساب: " + user.email);
+        console.log("✅ مستخدم مسجل الدخول: " + user.email);
     } else {
-        console.log("❌ غير متصل بالسحابة");
+        console.log("❌ لا يوجد مستخدم مسجل الدخول");
     }
 });
-console.log("🚀 نظام السحابة (Firebase Compat) جاهز ومؤمن للعمل بدون سيرفر (file://)");
+console.log("تم تحميل التوافقية بنجاح");
