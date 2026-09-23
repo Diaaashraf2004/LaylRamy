@@ -59,7 +59,7 @@ let debtorProfiles = []; // Array of {id, name, phone, address, generalNotes, cr
 let debtCollectionNotes = []; // Array of {id, customerId, debtId, note, createdAt, nextFollowUpDate}
   let liabilities = []; // Array of {id, name, amount}
         let totalProfit = 0;
-        let operationLog = []; window.getOperationLog = () => operationLog; // Array of {timestamp, type, details}
+        let operationLog = []; // Array of {timestamp, type, details}
         let currentLoadedDate = null; // Stores the YYYY-MM-DD string of the loaded data
        window.pendingSales = []; // Array of {id, timestamp, customerName, mainProduct{name,qty,cost,supplierId}, additionalItems[{name,qty,cost,supplierId}], totalSellPrice, potentialProfit, status}
         let goodsOnConsignmentValue = 0; // Calculated from pendingSales costs
@@ -987,10 +987,6 @@ function loadState(data, dateString) {
     liquidityLog = data.liquidityLog || [];
     salesToday = data.salesToday || [];
     serialNumbersLog = data.serialNumbersLog || [];
-    
-    if (typeof window.setStandaloneSerials === 'function') {
-        window.setStandaloneSerials(data.standaloneSerials || []);
-    }
 
     // الأسطر الخاصة بالاستيراد والمشتريات
     purchaseInvoices = data.purchaseInvoices || [];
@@ -1003,7 +999,13 @@ function loadState(data, dateString) {
     // 🌟 السطر المحدث: تحميل الفواتير المعلقة لنظام الاستبدال ERP من البيانات
     window.pendingOrders = data.pendingOrders || [];
 
+    // تحميل السيريالات المستقلة عند فتح اليوم
+    if (typeof window.setStandaloneSerials === 'function') {
+        window.setStandaloneSerials(data.standaloneSerials || [], true);
+    }
+
     currentLoadedDate = dateString;
+    captureHistoricalBaseline(dateString);
 
     // تصفير سجل التراجع/الإعادة لتجنب التداخل بين الأيام
     stateHistory = []; 
@@ -1075,8 +1077,8 @@ function calculateTotals() {
         } else if (r.items && r.items.length > 0) {
             cost = r.items.reduce((itemSum, item) => itemSum + ((Number(item.costPrice) || 0) * (Number(item.quantity) || 0)), 0);
         } else {
-            // Fallback just in case
-            cost = Number(r.returnedAmount) || 0;
+            // لا نستخدم سعر البيع (returnedAmount) كبديل لأنه يُضخم رأس المال بالأرباح الوهمية
+            cost = 0;
         }
         return sum + cost;
     }, 0);
@@ -2797,13 +2799,18 @@ window.convertPendingSaleToDebt = async function(pendingSaleId, debtMode, target
         return;
     }
     const saleData = pendingSales[pendingIndex];
+    if (saleData.isProcessingDebt) {
+        return; // منع النقر المزدوج (Issue 5)
+    }
+    saleData.isProcessingDebt = true;
 
-    // 2. ضبط المبالغ
+    // 2. تأكيد المبالغ
     const totalAmount = Number(saleData.grandTotal || saleData.finalTotal || saleData.totalSellPrice || 0);
     const paidAmount = Number(saleData.depositPaid || saleData.paidAmount || 0);
     const remainingAmount = Math.max(0, totalAmount - paidAmount);
 
     if (remainingAmount <= 0) {
+        saleData.isProcessingDebt = false; // تحرير القفل
         showGlobalMessage("المبلغ مدفوع بالكامل، لا يمكن تحويله لدين.", true);
         return;
     }
@@ -3352,15 +3359,17 @@ async function saveCurrentStateByDate(dateString) {
         liquidityLog: liquidityLog || [],
         salesToday: salesToday || [],
         serialNumbersLog: serialNumbersLog || [],
-        standaloneSerials: typeof window.getStandaloneSerials === 'function' ? window.getStandaloneSerials() : [], // السيريالات المستقلة
         inboxTasks: inboxTasks || [],
         purchaseInvoices: purchaseInvoices || [],
-        completedReturns: purchaseReturns || [],
+        purchaseReturns: purchaseReturns || [],
         pendingPurchases: pendingPurchases || [],
         completedReturns: completedReturns || [],
         pendingReturns: pendingReturns || [],
         pendingReturnsValue: safePendingReturnsValue,
+        debtorProfiles: debtorProfiles || [],
+        debtCollectionNotes: debtCollectionNotes || [],
         pendingOrders: window.pendingOrders || [], // 👈 السطر الجديد لحفظ الفواتير المعلقة
+        standaloneSerials: typeof window.getStandaloneSerials === 'function' ? window.getStandaloneSerials() : [],
         savedAt: new Date().toISOString(),
         savedForDate: dateString
     };
@@ -3419,10 +3428,15 @@ async function saveCurrentStateByDate(dateString) {
         const sanitizedSummary = sanitizeDataForFirebase(latestBalancesSummary);
         const summaryDocRef = window.doc(window.db, "users", userId, "summaries", "latestBalances");
 
-        if (isStateMeaningful(latestBalancesSummary)) {
-            window.setDoc(summaryDocRef, sanitizedSummary, { merge: true }).catch(e => console.log("Summary update delayed (silent)"));
+        const todayStr = typeof getTodayDateString === 'function' ? getTodayDateString() : new Date().toISOString().split('T')[0];
+        if (dateString === todayStr) {
+            if (isStateMeaningful(latestBalancesSummary)) {
+                window.setDoc(summaryDocRef, sanitizedSummary, { merge: true }).catch(e => console.log("Summary update delayed (silent)"));
+            } else {
+                console.log("تم تجاهل تحديث latestBalances لأن الحالة فارغة أو مصفرة.");
+            }
         } else {
-            console.log("تم تجاهل تحديث latestBalances لأن الحالة فارغة أو مصفرة.");
+            console.log("تم منع التحديث الكامل، سيتم حساب وتطبيق الفروقات."); processSmartDeltaRollover(typeof sanitizedState !== "undefined" ? sanitizedState : sanitizedSummary, typeof dateStr !== "undefined" ? dateStr : dateString);
         }
         
         console.log("Cloud save success.");
@@ -4476,10 +4490,10 @@ function getInvoiceFormData() {
         // تجميع البنود من الجدول
         items: inv_invoiceItemsBody ? Array.from(inv_invoiceItemsBody.querySelectorAll('.invoice-item-row')).map(row => ({
             name: row.dataset.itemName,
-            quantity: parseInt(row.dataset.itemQty),
-            unitPrice: parseFloat(row.dataset.itemPrice),
-            subtotal: parseFloat(row.dataset.itemSubtotal),
-            costPrice: parseFloat(row.dataset.itemCost),
+            quantity: parseInt(row.dataset.itemQty) || 0,
+            unitPrice: window.parseFloatSafe ? window.parseFloatSafe(row.dataset.itemPrice) : (parseFloat(row.dataset.itemPrice) || 0),
+            subtotal: window.parseFloatSafe ? window.parseFloatSafe(row.dataset.itemSubtotal) : (parseFloat(row.dataset.itemSubtotal) || 0),
+            costPrice: window.parseFloatSafe ? window.parseFloatSafe(row.dataset.itemCost) : (parseFloat(row.dataset.itemCost) || 0),
             serial: row.dataset.itemSerial || null
         })) : []
     };
@@ -4653,10 +4667,10 @@ async function handleSaveInvoice(skipConfirmation = true) {
     const invoiceItems = inv_invoiceItemsBody ? Array.from(inv_invoiceItemsBody.querySelectorAll('.invoice-item-row')).map(row => ({ 
         id: row.dataset.productId || null, 
         name: row.dataset.itemName, 
-        quantity: parseInt(row.dataset.itemQty), 
-        unitPrice: parseFloat(row.dataset.itemPrice), 
-        subtotal: parseFloat(row.dataset.itemSubtotal), 
-        costPrice: parseFloat(row.dataset.itemCost), 
+        quantity: parseInt(row.dataset.itemQty) || 0, 
+        unitPrice: window.parseFloatSafe ? window.parseFloatSafe(row.dataset.itemPrice) : (parseFloat(row.dataset.itemPrice) || 0), 
+        subtotal: window.parseFloatSafe ? window.parseFloatSafe(row.dataset.itemSubtotal) : (parseFloat(row.dataset.itemSubtotal) || 0), 
+        costPrice: window.parseFloatSafe ? window.parseFloatSafe(row.dataset.itemCost) : (parseFloat(row.dataset.itemCost) || 0), 
         serial: row.dataset.itemSerial || null 
     })) : [];
     const shippingCost = parseInputNumber(inv_shippingCostInput) || 0;
@@ -6091,6 +6105,7 @@ window.processSaleDeletion = async function(sale, selectedAccount, refundAmount)
     }
 
     if (typeof saveData === 'function') await saveData();
+    if (typeof saveSystemToCloud === 'function') saveSystemToCloud();
     if (typeof updateUI === 'function') updateUI();
     
     if (typeof showGlobalMessage === 'function') {
@@ -9545,9 +9560,15 @@ if (resetButtonAlt) {
     resetButtonAlt.addEventListener("click", () => { 
 
         // رسالة تأكيد جديدة وأكثر وضوحًا
-        if (confirm("تحذير خطير: سيتم مسح كل البيانات المعروضة على الشاشة نهائيًا (المخزون، الموردين، الديون، إلخ) والبدء من جديد. هذا الإجراء لا يمكن التراجع عنه. هل أنت متأكد؟")) { 
-            resetAllData(); // 👈🏻 يستدعي الدالة الجديدة الشاملة
-        } 
+        const userInput = prompt('تحذير: سيتم مسح جميع بيانات التطبيق بالكامل (المبيعات، الديون، المصروفات، المرتجعات، المعلقات).\nهل أنت متأكد؟\nاكتب كلمة "مسح" لتأكيد الحذف:');
+        if (userInput !== 'مسح') {
+            showGlobalMessage("تم إلغاء عملية المسح. الكلمة غير متطابقة.", true);
+            return;
+        }
+        if (typeof autoSaveTimer !== 'undefined') {
+            clearInterval(autoSaveTimer);
+        }
+        resetAllData(); 
     }); 
 }
                  if (printButtonAlt) { printButtonAlt.addEventListener("click", () => { document.body.classList.add('print-report'); // Add class for print styling
@@ -13117,7 +13138,6 @@ async function saveSystemToCloud() {
         pendingReturns: pendingReturns || [],
         liquidityLog: liquidityLog || [],
         serialNumbersLog: serialNumbersLog || [],
-        standaloneSerials: typeof window.getStandaloneSerials === 'function' ? window.getStandaloneSerials() : [], // السيريالات المستقلة
         log: operationLog || [], // سجل العمليات
         
         savedAt: new Date().toISOString(),
@@ -13136,14 +13156,19 @@ async function saveSystemToCloud() {
     lastUpdated: new Date().toISOString()
 };
 
-if (isStateMeaningful(latestBalancesData)) {
-    await window.setDoc(
-        window.doc(window.db, "users", userId, "summaries", "latestBalances"),
-        latestBalancesData,
-        { merge: true }
-    );
+const todayStr = typeof getTodayDateString === 'function' ? getTodayDateString() : new Date().toISOString().split('T')[0];
+if (dateStr === todayStr) {
+    if (isStateMeaningful(latestBalancesData)) {
+        await window.setDoc(
+            window.doc(window.db, "users", userId, "summaries", "latestBalances"),
+            latestBalancesData,
+            { merge: true }
+        );
+    } else {
+        console.log("تم تجاهل تحديث latestBalances لأن البيانات الحالية فارغة أو مصفرة.");
+    }
 } else {
-    console.log("تم تجاهل تحديث latestBalances لأن البيانات الحالية فارغة أو مصفرة.");
+    console.log("تم منع التحديث الكامل، سيتم حساب وتطبيق الفروقات."); processSmartDeltaRollover(typeof sanitizedState !== "undefined" ? sanitizedState : sanitizedSummary, typeof dateStr !== "undefined" ? dateStr : dateString);
 }
 
         console.log("✅ تمت المزامنة السحابية بنجاح.");
@@ -14616,7 +14641,7 @@ if (confirmPrBtn) confirmPrBtn.addEventListener('click', async () => {
     itemsReturned.forEach(ret => {
         const productIndex = products.findIndex(p => p.id === ret.id);
         if (productIndex !== -1) {
-            products[productIndex].quantity = Math.max(0, parseInt(products[productIndex].quantity) - ret.returnedQty);
+            products[productIndex].quantity = Math.max(0, Number(products[productIndex].quantity || 0) - Number(ret.returnedQty));
         }
         
         // Mark inside invoice
@@ -14643,134 +14668,3 @@ if (confirmPrBtn) confirmPrBtn.addEventListener('click', async () => {
 });
 
 
-// ==========================================
-// Department Logs Logic (Added dynamically)
-// ==========================================
-
-const DEPT_CONFIG = {
-    'sell-product': { title: 'سجل المبيعات', icon: 'fa-shopping-cart', keywords: ['بيع', 'فاتورة', 'مرتجع بيع'] },
-    'purchases-section': { title: 'سجل المشتريات', icon: 'fa-shopping-bag', keywords: ['شراء', 'مورد'] },
-    'inventory-section': { title: 'سجل المخزون', icon: 'fa-boxes', keywords: ['منتج', 'بضاعة', 'سيريال', 'جرد'] },
-    'liquidity-section': { title: 'سجل الخزينة والسيولة', icon: 'fa-money-bill-wave', keywords: ['سيولة', 'خزينة', 'مصروف'] },
-    'debts-section': { title: 'سجل الديون (لنا)', icon: 'fa-hand-holding-usd', keywords: ['دين', 'عميل', 'سداد دين'] },
-    'liabilities-section': { title: 'سجل الالتزامات (علينا)', icon: 'fa-file-invoice-dollar', keywords: ['التزام', 'سداد التزام', 'مورد'] },
-    'returns-section': { title: 'سجل المرتجعات', icon: 'fa-undo', keywords: ['مرتجع'] }
-};
-
-let currentViewedDept = null;
-
-function injectDeptLogButtons() {
-    Object.keys(DEPT_CONFIG).forEach(sectionId => {
-        const section = document.getElementById(sectionId);
-        if (section) {
-            // Find the first h2 or h3 in the section
-            const heading = section.querySelector('h2, h3');
-            if (heading && !heading.querySelector('.dept-log-btn')) {
-                // Make heading flex to align button
-                heading.classList.add('flex', 'justify-between', 'items-center', 'flex-wrap');
-                
-                const btn = document.createElement('button');
-                btn.className = 'dept-log-btn bg-indigo-100 text-indigo-700 hover:bg-indigo-200 text-sm py-1.5 px-3 rounded-lg font-bold transition-colors ml-2 shadow-sm border border-indigo-200 flex items-center gap-2';
-                btn.innerHTML = `<i class="fas ${DEPT_CONFIG[sectionId].icon}"></i> سجل حركات القسم`;
-                btn.onclick = (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    openDeptLogModal(sectionId);
-                };
-                heading.appendChild(btn);
-            }
-        }
-    });
-}
-
-window.openDeptLogModal = function(sectionId) {
-    const config = DEPT_CONFIG[sectionId];
-    if (!config) return;
-    currentViewedDept = sectionId;
-    
-    document.getElementById('dept-log-title').textContent = config.title;
-    document.getElementById('dept-log-icon').className = 'fas ' + config.icon;
-    document.getElementById('dept-log-date-filter').value = '';
-    
-    renderDeptLogTimeline();
-    
-    document.getElementById('dept-log-modal').classList.remove('hidden');
-};
-
-window.closeDeptLogModal = function() {
-    document.getElementById('dept-log-modal').classList.add('hidden');
-    currentViewedDept = null;
-};
-
-window.renderDeptLogTimeline = function() {
-    if (!currentViewedDept) return;
-    
-    const config = DEPT_CONFIG[currentViewedDept];
-    const container = document.getElementById('dept-log-timeline-container');
-    const countDisplay = document.getElementById('dept-log-count');
-    const dateFilter = document.getElementById('dept-log-date-filter').value;
-    
-    container.innerHTML = '';
-    
-    // Filter logic
-    let currentLogs = typeof window.getOperationLog === 'function' ? window.getOperationLog() : [];
-    let filteredLogs = (currentLogs || []).filter(log => {
-        // 1. Keyword match
-        const matchesKeyword = config.keywords.some(kw => 
-            (log.type && log.type.includes(kw)) || 
-            (log.details && log.details.includes(kw))
-        );
-        if (!matchesKeyword) return false;
-        
-        // 2. Date match
-        if (dateFilter) {
-            const logDate = log.timestamp ? log.timestamp.split('T')[0] : '';
-            if (logDate !== dateFilter) return false;
-        }
-        
-        return true;
-    });
-    
-    // Sort descending by timestamp
-    filteredLogs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-    
-    countDisplay.textContent = filteredLogs.length;
-    
-    if (filteredLogs.length === 0) {
-        container.innerHTML = '<div class="text-center text-gray-500 py-10 font-bold"><i class="fas fa-folder-open text-4xl mb-3 opacity-50 block"></i>لا توجد حركات مسجلة لهذا القسم.</div>';
-        return;
-    }
-    
-    const timeline = document.createElement('div');
-    timeline.className = 'dept-timeline';
-    
-    filteredLogs.forEach(log => {
-        const item = document.createElement('div');
-        item.className = 'dept-timeline-item';
-        
-        const content = document.createElement('div');
-        content.className = 'dept-timeline-content border-l-4 border-indigo-500';
-        
-        const dateStr = log.timestamp ? new Date(log.timestamp).toLocaleString('ar-EG', {
-            year: 'numeric', month: 'short', day: 'numeric',
-            hour: '2-digit', minute: '2-digit', hour12: true
-        }) : 'تاريخ غير معروف';
-        
-        content.innerHTML = `
-            <div class="dept-timeline-date"><i class="far fa-clock"></i> ${dateStr}</div>
-            <div class="dept-timeline-title text-indigo-700">${log.type || 'حركة'}</div>
-            <div class="dept-timeline-details">${log.details || ''}</div>
-        `;
-        
-        item.appendChild(content);
-        timeline.appendChild(item);
-    });
-    
-    container.appendChild(timeline);
-};
-
-// Inject buttons on load
-document.addEventListener("DOMContentLoaded", function() {
-    // Delay injection slightly to ensure UI is ready
-    setTimeout(injectDeptLogButtons, 500);
-});
