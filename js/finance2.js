@@ -1310,6 +1310,23 @@ window.lookupCustomerInvoices = async function() {
         }
     }
     
+    // Search Firestore
+    if(window.db && window.currentUser && window.currentUser.uid) {
+        try {
+            const q = window.query(
+                window.collection(window.db, "users", window.currentUser.uid, "invoices"),
+                window.where("customerName", ">=", custName),
+                window.where("customerName", "<=", custName + "\uf8ff")
+            );
+            const querySnapshot = await window.getDocs(q);
+            querySnapshot.forEach(doc => {
+                results.push(doc.data());
+            });
+        } catch (e) {
+            console.error("Firestore search error:", e);
+        }
+    }
+    
     // إزالة المكرر
     const uniqueIds = new Set();
     results = results.filter(s => {

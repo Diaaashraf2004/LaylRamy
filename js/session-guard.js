@@ -139,56 +139,78 @@
     heartbeatTimer = setInterval(heartbeat, HEARTBEAT_MS);
   }
 
-  async function claimSession(user) {
-    currentUserId = user.uid;
-    currentSessionId = makeSessionId();
-    const deviceId = getOrCreateDeviceId();
-
-    const result = await readLock(user.uid);
-    lockDocRef = result.ref;
-
-    await writeLock(lockDocRef, {
-      sessionId: currentSessionId,
-      userId: user.uid,
-      deviceId: deviceId,
-      deviceName: getDeviceName(),
-      startedAt: nowIso(),
-      lastHeartbeat: nowIso(),
-      status: "active"
-    });
-
-    await startHeartbeat();
-    return true;
-  }
-
   async function checkBeforeEntering(user) {
-    const result = await readLock(user.uid);
-    lockDocRef = result.ref;
-
-    if (!result.exists || !isLockActive(result.data)) {
-      return await claimSession(user);
-    }
-
-    const existing = result.data;
     const localDeviceId = getOrCreateDeviceId();
+    const newSessionId = makeSessionId();
+    const lockRef = await getLockDoc(user.uid);
+    let promptForForceClaim = false;
 
-    // لو نفس الجهاز، اسمح بالدخول بدون رسالة
-    if (existing.deviceId === localDeviceId) {
-      return await claimSession(user);
+    try {
+      await window.db.runTransaction(async (transaction) => {
+        const snap = await transaction.get(lockRef);
+        const exists = snap.exists;
+        const data = exists ? snap.data() : null;
+
+        if (exists && isLockActive(data)) {
+          if (data.deviceId !== localDeviceId) {
+            throw new Error("LOCKED_BY_OTHER");
+          }
+        }
+
+        transaction.set(lockRef, {
+          sessionId: newSessionId,
+          userId: user.uid,
+          deviceId: localDeviceId,
+          deviceName: getDeviceName(),
+          startedAt: nowIso(),
+          lastHeartbeat: nowIso(),
+          status: "active"
+        }, { merge: true });
+      });
+
+      currentUserId = user.uid;
+      currentSessionId = newSessionId;
+      lockDocRef = lockRef;
+      await startHeartbeat();
+      return true;
+
+    } catch (e) {
+      if (e.message === "LOCKED_BY_OTHER") {
+         promptForForceClaim = true;
+      } else {
+         console.error("Session transaction error:", e);
+         return false;
+      }
     }
 
-    const answer = confirm(
-      "يوجد جلسة شغالة حاليًا لهذا الحساب على جهاز آخر.\n\n" +
-      "اضغط OK لإنهاء الجلسة الحالية والمتابعة من هذا الجهاز.\n" +
-      "اضغط Cancel لإلغاء الدخول."
-    );
+    if (promptForForceClaim) {
+        const answer = confirm(
+          "يوجد جلسة شغالة حاليًا لهذا الحساب على جهاز آخر.\n\n" +
+          "اضغط OK لإنهاء الجلسة الحالية والمتابعة من هذا الجهاز.\n" +
+          "اضغط Cancel لإلغاء الدخول."
+        );
 
-    if (!answer) {
-      await window.signOut(window.auth);
-      return false;
+        if (!answer) {
+          await window.signOut(window.auth);
+          return false;
+        }
+
+        await writeLock(lockRef, {
+          sessionId: newSessionId,
+          userId: user.uid,
+          deviceId: localDeviceId,
+          deviceName: getDeviceName(),
+          startedAt: nowIso(),
+          lastHeartbeat: nowIso(),
+          status: "active"
+        });
+
+        currentUserId = user.uid;
+        currentSessionId = newSessionId;
+        lockDocRef = lockRef;
+        await startHeartbeat();
+        return true;
     }
-
-    return await claimSession(user);
   }
 
   async function assertCanWrite() {
@@ -199,15 +221,9 @@
       if (!snap.exists()) return false;
 
       const data = snap.data();
-      const localDeviceId = getOrCreateDeviceId();
-
-      // نفس الجهاز يقدر يكتب عادي
-      if (data.deviceId === localDeviceId) {
-        return true;
-      }
 
       if (data.sessionId !== currentSessionId) {
-        showForceLogoutMessage("تم إيقاف الحفظ لأن هناك جلسة أحدث على جهاز آخر.");
+        showForceLogoutMessage("تم إيقاف الحفظ لأن هناك جلسة أحدث على جهاز (أو تبويب) آخر.");
         stopHeartbeat();
         await window.signOut(window.auth);
         return false;
@@ -216,7 +232,7 @@
       return true;
     } catch (e) {
       console.error("assertCanWrite error:", e);
-      if (e.code === 'permission-denied' || (e.message && e.message.includes('permission'))) {
+      if (e.code === "permission-denied" || (e.message && e.message.includes("permission"))) {
         showForceLogoutMessage("انتهت جلسة تسجيل الدخول أو فقدت الصلاحية. يرجى تحديث الصفحة وإعادة تسجيل الدخول.");
         stopHeartbeat();
       }

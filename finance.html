@@ -2269,12 +2269,16 @@
 <!-- ② Firebase init + session + shared utils (defer, ordered) -->
 <script src="js/finance-firebase.js" defer></script>
 <script src="js/session-guard.js" defer></script>
-<script src="js/finance-shared.js?v=1788024958900" defer></script>
-<script src="js/finance-sync.js?v=1788024958900" defer></script>
+<script src="js/finance-shared.js?v=1790265320140" defer></script>
+<script src="js/finance-sync.js?v=1790265320140" defer></script>
 <!-- ③ App logic (defer, depends on all above) -->
-<script src="js/finance-core.js?v=1788024958900" defer></script>
-<script src="js/finance2.js?v=1789154854664" defer></script>
-<script src="js/finance-pos.js" defer></script>
+<script src="js/finance-db.js?v=1790445257131" defer></script>
+<script src="js/finance-smart-delta.js" defer></script>
+<script src="js/finance-core.js?v=1790445257131" defer></script>
+<script src="js/finance-dept-logs.js" defer></script>
+    <script src="js/finance-deductions.js?v=1790445257131" defer></script>
+<script src="js/finance2.js?v=1790445257131" defer></script>
+<script src="js/finance-pos.js?v=1790445257131" defer></script>
 <script src="js/serials.js" defer></script>
 <div id="refundModal" class="modal" style="display:none; z-index: 2100;">
     <div class="modal-content" style="max-width: 400px; border-top: 5px solid #e74c3c; padding: 20px; border-radius: 10px; background-color: #fff;">
@@ -2326,6 +2330,35 @@
         </div>
         <div class="modal-footer">
             <button id="confirmTransferBtn" class="bg-orange-500 text-white w-full py-2 rounded font-bold hover:bg-orange-600">تأكيد عملية التحويل</button>
+        </div>
+    </div>
+</div>
+
+
+<!-- مودال تحويل الالتزام لشخص آخر (جديد) -->
+<div id="transferLiabilityModal" class="modal" style="display: none; z-index: 2100;">
+    <div class="modal-content" style="max-width: 450px; border-top: 5px solid #8b5cf6;">
+        <div class="modal-header">
+            <span class="modal-close-btn" onclick="closeTransferLiabilityModal()">&times;</span>
+            <h2 style="color: #6d28d9;">تحويل التزام لشخص آخر</h2>
+        </div>
+        <div class="modal-body">
+            <p style="background: #f3e8ff; padding: 10px; border-radius: 5px; font-size: 13px;">
+                تحويل التزام من الدائن: <strong id="trans-lia-source-name"></strong> <br>
+                الرصيد المتاح للتحويل: <strong id="trans-lia-available"></strong>
+            </p>
+            <div class="form-group" style="margin-top: 15px;">
+                <label>تحويل إلى (اسم الدائن الجديد):</label>
+                <input type="text" id="trans-lia-target-name" list="liability-names-list" placeholder="اكتب اسم الدائن المستلم">
+                <datalist id="liability-names-list"></datalist>
+            </div>
+            <div class="form-group">
+                <label>المبلغ المراد تحويله:</label>
+                <input type="number" id="trans-lia-amount" step="0.01">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button id="confirmLiabilityTransferBtn" class="bg-purple-600 text-white w-full py-2 rounded font-bold hover:bg-purple-700">تأكيد عملية التحويل</button>
         </div>
     </div>
 </div>
@@ -2947,6 +2980,11 @@
                     </div>
                 </div>
 
+                <div id="pd_deduction_container" style="display: none; justify-content: space-between; margin-bottom: 5px; margin-top: 10px;">
+                    <span style="color: #9333ea; font-weight: bold;">استقطاع مخفي (<span id="pd_deduction_name"></span>):</span>
+                    <span id="pd_deduction_amount" style="color: #9333ea; font-weight: bold; font-family: monospace; font-size: 15px;">0.00</span>
+                </div>
+
                 <!-- الخط الفاصل -->
                 <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 12px 0;">
 
@@ -3367,10 +3405,16 @@
             
             <!-- Filters & Controls -->
             <div class="p-4 bg-slate-50 border-b border-slate-200 flex flex-wrap gap-3 items-center justify-between">
-                <div class="flex items-center gap-2">
-                    <span class="text-sm font-bold text-slate-600"><i class="fas fa-filter"></i> فلترة باليوم:</span>
+                <div class="flex items-center gap-2 flex-wrap">
+                    <span class="text-sm font-bold text-slate-600"><i class="fas fa-filter"></i> فلترة:</span>
                     <input type="date" id="dept-log-date-filter" class="border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" onchange="renderDeptLogTimeline()">
-                    <button onclick="document.getElementById('dept-log-date-filter').value=''; renderDeptLogTimeline()" class="text-xs bg-slate-200 hover:bg-slate-300 text-slate-700 px-2 py-1.5 rounded-lg font-bold">الكل</button>
+                    
+                    <div class="relative">
+                        <i class="fas fa-search absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 text-sm"></i>
+                        <input type="text" id="dept-log-text-filter" placeholder="بحث بالاسم أو التفاصيل..." class="border border-slate-300 rounded-lg pr-8 pl-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none w-48" onkeyup="renderDeptLogTimeline()">
+                    </div>
+                    
+                    <button onclick="document.getElementById('dept-log-date-filter').value=''; document.getElementById('dept-log-text-filter').value=''; renderDeptLogTimeline()" class="text-xs bg-slate-200 hover:bg-slate-300 text-slate-700 px-2 py-1.5 rounded-lg font-bold">الكل</button>
                 </div>
                 <div class="text-sm font-bold bg-blue-100 text-blue-800 px-3 py-1.5 rounded-lg border border-blue-200">
                     إجمالي الحركات: <span id="dept-log-count">0</span>

@@ -1,4 +1,4 @@
-﻿// finance-firebase.js - Firebase Auth + Firestore (COMPAT VERSION FOR file://)
+// finance-firebase.js - Firebase Auth + Firestore (COMPAT VERSION FOR file://)
 // extracted from finance.html
 
 const firebaseConfig = {
@@ -14,6 +14,16 @@ const firebaseConfig = {
 // Initialize Firebase using the global firebase object (compat mode)
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
+
+// ✅ منطق الطوارئ: تفعيل الحفظ دون اتصال بالإنترنت (Offline Persistence)
+// هذا سيجعل المتصفح يحفظ البيانات داخلياً إذا انقطع الإنترنت ويرفعها تلقائياً عند عودة الاتصال
+db.enablePersistence({ synchronizeTabs: true }).catch((err) => {
+    if (err.code === 'failed-precondition') {
+        console.warn('تبويبات متعددة مفتوحة. الحفظ دون اتصال يعمل في تبويب واحد فقط.');
+    } else if (err.code === 'unimplemented') {
+        console.warn('المتصفح لا يدعم الحفظ دون اتصال.');
+    }
+});
 const auth = firebase.auth();
 
 // --- تصدير الكائنات لتكون متاحة لبقية الملفات ---
@@ -24,13 +34,33 @@ window.auth = auth;
 window.doc = function(dbInstance, ...paths) { return dbInstance.doc(paths.join('/')); };
 window.setDoc = function(docRef, data, options) { return docRef.set(data, options); };
 window.getDoc = async function(docRef) { 
-    const snap = await docRef.get(); 
-    return {
-        exists: () => snap.exists,
-        data: () => snap.data(),
-        id: snap.id,
-        ref: snap.ref
-    }; 
+    try {
+        // إضافة مؤقت زمني 5 ثواني لمنع توقف البرنامج إذا كانت الشبكة ضعيفة أو معلقة
+        const snap = await Promise.race([
+            docRef.get(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Network Timeout')), 3000))
+        ]);
+        return {
+            exists: () => snap.exists,
+            data: () => snap.data(),
+            id: snap.id,
+            ref: snap.ref
+        }; 
+    } catch (error) {
+        console.warn("جلب البيانات من الشبكة تأخر أو فشل، جاري القراءة من الذاكرة المحلية (Cache):", error.message);
+        try {
+            const snap = await docRef.get({ source: 'cache' });
+            return {
+                exists: () => snap.exists,
+                data: () => snap.data(),
+                id: snap.id,
+                ref: snap.ref
+            };
+        } catch (cacheError) {
+            console.error("فشل القراءة من الذاكرة المحلية أيضاً:", cacheError);
+            return { exists: () => false, data: () => null, id: docRef.id, ref: docRef };
+        }
+    }
 };
 window.deleteDoc = function(docRef) { return docRef.delete(); };
 window.updateDoc = function(docRef, data) { return docRef.update(data); };

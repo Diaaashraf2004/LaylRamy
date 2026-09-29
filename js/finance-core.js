@@ -58,6 +58,16 @@ let redoHistory = [];  // لتخزين الحالات التي تم التراج
 let debtorProfiles = []; // Array of {id, name, phone, address, generalNotes, createdAt}
 let debtCollectionNotes = []; // Array of {id, customerId, debtId, note, createdAt, nextFollowUpDate}
   let liabilities = []; // Array of {id, name, amount}
+        
+        // --- Exposing variables for external modules ---
+        window.getLiabilities = function() { return liabilities; };
+        window.setLiabilities = function(newArr) { liabilities = newArr; };
+        window.getTotalProfit = function() { return totalProfit; };
+        window.setTotalProfit = function(val) { totalProfit = val; };
+        window.getSalesToday = function() { return salesToday; };
+        window.getOperationLog = function() { return operationLog; };
+        window.setOperationLog = function(arr) { operationLog = arr; };
+        // ----------------------------------------------------
         let totalProfit = 0;
         let operationLog = []; // Array of {timestamp, type, details}
         let currentLoadedDate = null; // Stores the YYYY-MM-DD string of the loaded data
@@ -224,7 +234,7 @@ async function savePurchaseInvoiceToCloud(invoiceData) {
     const userId = window.currentUser.uid;
     try {
         const docRef = window.doc(window.db, "users", userId, "purchase_archives", invoiceData.id);
-        await window.setDoc(docRef, invoiceData);
+        window.setDoc(docRef, invoiceData);
         console.log("✅ تم أرشفة فاتورة الشراء سحابياً.");
     } catch (error) {
         console.error("❌ فشل أرشفة فاتورة الشراء:", error);
@@ -549,7 +559,7 @@ async function saveInvoiceToFirestore(invoiceRecord) {
     try {
         const invoiceDocRef = window.doc(window.db, "users", userId, "invoices", invoiceRecord.id);
         // ننتظر حتى ينتهي الحفظ تماماً
-        await window.setDoc(invoiceDocRef, invoiceRecord);
+        window.setDoc(invoiceDocRef, invoiceRecord, { merge: true });
         console.log(`تم رفع الفاتورة ${invoiceRecord.invoiceNumber} للسحابة بنجاح.`);
     } catch (error) {
         console.error("خطأ في الرفع للسحابة:", error);
@@ -594,7 +604,7 @@ async function migrateOldSalesToInvoicesCollection() {
                         if(sale.id && !sale.saleDate) { // تأكد من وجود ID وأنها ليست مرحّلة من قبل
                            sale.saleDate = dateStr; 
                            const invoiceDocRef = window.doc(window.db, "users", userId, "invoices", sale.id);
-                           await window.setDoc(invoiceDocRef, sale);
+                           window.setDoc(invoiceDocRef, sale);
                            migratedCount++;
                         }
                     }
@@ -610,6 +620,71 @@ async function migrateOldSalesToInvoicesCollection() {
 }
 // =================== نهاية دالة ترحيل البيانات القديمة ===================
 window.migrateOldSalesToInvoicesCollection = migrateOldSalesToInvoicesCollection;
+
+// =========================================================
+// ترحيل تلقائي صامت: نسخ المبيعات القديمة من ملفات الأيام إلى invoices
+// يتم مرة واحدة فقط في الخلفية بدون تأثير على سرعة البرنامج
+// =========================================================
+(async function autoMigrateOldSales() {
+    const MIGRATION_KEY = 'sales_migration_done_v2';
+    if (localStorage.getItem(MIGRATION_KEY) === 'true') return; // تم الترحيل مسبقاً
+    
+    // ننتظر تسجيل الدخول
+    const waitForUser = () => new Promise(resolve => {
+        if (window.currentUser) return resolve(window.currentUser);
+        const check = setInterval(() => {
+            if (window.currentUser) { clearInterval(check); resolve(window.currentUser); }
+        }, 2000);
+        // توقف بعد 30 ثانية لو مفيش مستخدم
+        setTimeout(() => { clearInterval(check); resolve(null); }, 30000);
+    });
+    
+    const user = await waitForUser();
+    if (!user) return;
+    
+    const userId = user.uid;
+    console.log('[ترحيل تلقائي] بدء ترحيل المبيعات القديمة في الخلفية...');
+    
+    let migratedCount = 0;
+    const startDate = new Date('2023-01-01');
+    const endDate = new Date();
+    
+    try {
+        for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+            const dateStr = d.toISOString().split('T')[0];
+            
+            try {
+                const dayDocRef = window.doc(window.db, "users", userId, "days", dateStr);
+                const dayDocSnap = await window.getDoc(dayDocRef);
+
+                if (dayDocSnap.exists()) {
+                    const dayData = dayDocSnap.data();
+                    const sales = dayData.salesToday || [];
+                    
+                    for (const sale of sales) {
+                        if (!sale.id) continue;
+                        if (!sale.saleDate) sale.saleDate = dateStr;
+                        
+                        try {
+                            const invoiceDocRef = window.doc(window.db, "users", userId, "invoices", sale.id);
+                            const existing = await window.getDoc(invoiceDocRef);
+                            if (!existing.exists()) {
+                                window.setDoc(invoiceDocRef, sale);
+                                migratedCount++;
+                            }
+                        } catch(e) { /* skip individual errors */ }
+                    }
+                }
+            } catch(e) { /* skip days that fail */ }
+        }
+        
+        localStorage.setItem(MIGRATION_KEY, 'true');
+        console.log('[ترحيل تلقائي] ✅ اكتمل! تم ترحيل ' + migratedCount + ' فاتورة.');
+    } catch(e) {
+        console.warn('[ترحيل تلقائي] خطأ:', e);
+    }
+})();
+
 
         // --- Undo/Redo State Management Functions ---
 
@@ -1005,7 +1080,26 @@ function loadState(data, dateString) {
     }
 
     currentLoadedDate = dateString;
-    captureHistoricalBaseline(dateString);
+
+    // === ترحيل المعرفات الفريدة: إضافة id لأي عنصر قديم بدون id ===
+    suppliers.forEach(s => { if (!s.id) s.id = generateId('SUP'); });
+    accounts.forEach(a => { if (!a.id) a.id = generateId('ACC'); });
+    debtors.forEach(d => { if (!d.id) d.id = generateId('DEBT'); });
+    debtorProfiles.forEach(dp => { if (!dp.id) dp.id = generateId('DPROF'); });
+    liabilities.forEach(l => { if (!l.id) l.id = generateId('LIA'); });
+    monthlyLiabilities.forEach(ml => { if (!ml.id) ml.id = generateId('MLIA'); });
+    operationLog.forEach(log => { if (!log.id) log.id = generateId('LOG'); });
+    liquidityLog.forEach(ll => { if (!ll.id) ll.id = generateId('LIQ'); });
+    salesToday.forEach(s => { if (!s.id) s.id = generateId('SALE'); });
+    serialNumbersLog.forEach(s => { if (!s.id) s.id = generateId('SER'); });
+    pendingSales.forEach(ps => { if (!ps.id) ps.id = generateId('PSALE'); });
+    purchaseInvoices.forEach(pi => { if (!pi.id) pi.id = generateId('PINV'); });
+    completedReturns.forEach(cr => { if (!cr.id) cr.id = generateId('RET'); });
+    pendingReturns.forEach(pr => { if (!pr.id) pr.id = generateId('PRET'); });
+    debtCollectionNotes.forEach(dn => { if (!dn.id) dn.id = generateId('DNOTE'); });
+    // === نهاية ترحيل المعرفات ===
+
+    if (typeof window.captureHistoricalBaseline === "function") window.captureHistoricalBaseline(dateString);
 
     // تصفير سجل التراجع/الإعادة لتجنب التداخل بين الأيام
     stateHistory = []; 
@@ -1046,7 +1140,7 @@ function resetState() {
         el.textContent = '';
         el.classList.remove('visible', 'error', 'success', 'info');
     });
-}        function logOperation(type, details){ const timestamp = new Date().toISOString(); operationLog.push({timestamp, type, details}); updateLogDisplay() } // Log display updated immediately
+}        function logOperation(type, details){ const timestamp = new Date().toISOString(); operationLog.push({id: generateId("LOG"), timestamp, type, details}); updateLogDisplay() } // Log display updated immediately
         function calculateTotalDebts(){ const total = debtors.reduce((sum, debtor) => sum + (Number(debtor.amount) || 0), 0); return total; }
         function calculateTotalLiabilities(){ return liabilities.reduce((sum, liability) => sum + (Number(liability.amount) || 0), 0) }
       
@@ -2266,9 +2360,10 @@ function handleConfirmInlineDebtPayment(debtorName, formElement) {
             return `<li><div class="flex justify-between items-start"><div><span class="font-medium ${amountClass}">${amountSign}${formatCurrency(Math.abs(log.amount))}</span> <span class="text-sm details">(${log.description || 'بدون وصف'})</span><span class="block text-xs text-gray-400">${formatDateTime(log.timestamp)}</span></div><span class="text-sm details flex-shrink-0 ml-2">الرصيد: ${formatCurrency(log.currentBalance)}</span></div></li>`}).join('')}}
      function updateLiabilitiesListDisplay() {
     if (!liabilitiesListContainer) return;
-    liabilitiesListContainer.innerHTML = ''; // مسح المحتوى السابق
-
-    // فرز الالتزامات: إخفاء القديمة التي ليس لها تاريخ والتي قيمتها صفر
+    
+    // مسح المحتوى السابق
+    liabilitiesListContainer.innerHTML = '';
+    
     // نعرض فقط الالتزامات النشطة (أكبر من 0 ولم يتم سدادها)
     const visibleLiabilities = liabilities.filter(l => (Number(l.amount) || 0) > 0.001);
 
@@ -2277,55 +2372,192 @@ function handleConfirmInlineDebtPayment(debtorName, formElement) {
         return;
     }
 
-    // الترتيب: النشط أولاً، ثم المسدد
-    const sortedLiabilities = [...visibleLiabilities].sort((a, b) => {
-        const aIsPaid = a.status === 'paid';
-        const bIsPaid = b.status === 'paid';
-        if (aIsPaid !== bIsPaid) return aIsPaid ? 1 : -1;
-        return a.name.localeCompare(b.name, 'ar');
+    // تجميع الالتزامات حسب اسم الدائن (Creditor Profile)
+    const grouped = {};
+    visibleLiabilities.forEach(l => {
+        const rawName = l.name || "دائن بدون اسم";
+        const normalizedName = normalizeArabicText(rawName);
+        if (!grouped[normalizedName]) {
+            grouped[normalizedName] = { name: rawName, liabilities: [], total: 0 };
+        }
+        grouped[normalizedName].liabilities.push(l);
+        grouped[normalizedName].total += (Number(l.amount) || 0);
     });
 
-    sortedLiabilities.forEach(liability => {
-        const li = document.createElement('li');
-        const isPaid = liability.status === 'paid' && (Number(liability.amount) || 0) <= 0.001;
-        li.className = `flex justify-between items-center py-2 border-b border-gray-100 ${isPaid ? 'opacity-70 bg-gray-50' : ''}`; 
+    const creditors = Object.values(grouped).sort((a, b) => b.total - a.total); // ترتيب حسب المبلغ الإجمالي تنازلياً
+
+    creditors.forEach(creditor => {
+        const detailsElement = document.createElement('details');
+        detailsElement.className = 'group mb-4 bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden';
         
-        // التحقق من وجود معرف فاتورة شراء مرتبطة
-        const hasInvoice = !!liability.purchaseInvoiceId;
-
-        let nameHTML = `<span class="font-medium ${isPaid ? 'text-gray-500 line-through' : ''}">${liability.name}</span>`; // الشكل الافتراضي للاسم
-
-        // إذا كان الالتزام مرتباً بفاتورة، نجعله رابطاً تفاعلياً لجلب البيانات من الأرشيف
-        if (hasInvoice) {
-            nameHTML = `
-                <div class="view-purchase-invoice-btn" style="cursor: pointer;" data-purchase-invoice-id="${liability.purchaseInvoiceId}">
-                    <span class="font-medium text-blue-700 hover:underline ${isPaid ? 'line-through' : ''}">
-                        <i class="fas fa-file-invoice ml-1"></i> ${liability.name}
-                    </span>
-                    <span class="block text-[10px] text-gray-400">اضغط لعرض التفاصيل من الأرشيف السحابي</span>
+        const summaryElement = document.createElement('summary');
+        summaryElement.className = 'flex justify-between items-center p-3 cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors';
+        summaryElement.style.listStyle = 'none'; // لإخفاء السهم الافتراضي
+        
+        summaryElement.innerHTML = `
+            <div class="flex items-center gap-3">
+                <i class="fas fa-chevron-down text-gray-400 group-open:rotate-180 transition-transform"></i>
+                <div class="font-bold text-gray-800 text-base flex items-center gap-2">
+                    <i class="fas fa-user-tie text-purple-600"></i> ${creditor.name}
+                    <span class="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded-full">${creditor.liabilities.length} التزامات</span>
                 </div>
-            `;
-        }
-
-        // بناء الهيكل النهائي لسطر الالتزام
-        li.innerHTML = `
-            <div class="flex-grow pr-4">
-                ${nameHTML}
-                ${liability.category && liability.category !== 'أخرى' ? `<span class="inline-block mt-1 text-[10px] bg-gray-200 text-gray-600 px-2 py-0.5 rounded">${liability.category}</span>` : ''}
-                ${isPaid ? `<span class="inline-block mt-1 text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded font-bold ml-1">مسدد بالكامل</span>` : ''}
             </div>
-            <div class="actions flex-shrink-0 flex items-center gap-4">
-                <span class="text-pink-700 font-semibold font-mono">${formatCurrency(liability.amount)}</span>
-                <button onclick="renameLiability('${liability.id}')" style="background-color: #f59e0b; color: white;" class="text-xs hover:opacity-80 font-semibold py-1 px-2 rounded transition-colors" title="تعديل اسم الالتزام"><i class="fas fa-edit"></i></button>
-                <button onclick="openCreditorStatement('${liability.id}')" class="text-xs bg-blue-500 hover:bg-blue-600 text-white font-semibold py-1 px-3 rounded transition-colors" title="كشف حساب المورد/الدائن"><i class="fas fa-file-invoice-dollar"></i> كشف</button>
-                ${!isPaid ? `<button data-liability-id="${liability.id}" class="pay-liability-btn text-xs bg-teal-500 hover:bg-teal-600 text-white font-semibold py-1 px-3 rounded transition-colors">تسديد</button>` : ''}
+            <div class="font-bold text-purple-700 bg-purple-100 px-3 py-1 rounded-lg">
+                ${formatCurrency(creditor.total)}
             </div>
         `;
-
-        liabilitiesListContainer.appendChild(li);
+        
+        const ulElement = document.createElement('ul');
+        ulElement.className = 'divide-y divide-gray-100 px-4 py-2';
+        
+        creditor.liabilities.sort((a, b) => b.amount - a.amount).forEach(liability => {
+            const li = document.createElement('li');
+            li.className = 'py-3 flex justify-between items-center hover:bg-purple-50 transition-colors rounded px-2 -mx-2';
+            
+            const hasInvoice = !!liability.purchaseInvoiceId;
+            let nameHTML = `<span class="font-medium text-gray-700">${liability.name}</span>`;
+            
+            if (hasInvoice) {
+                nameHTML = `
+                    <div class="view-purchase-invoice-btn inline-block" style="cursor: pointer;" data-purchase-invoice-id="${liability.purchaseInvoiceId}">
+                        <span class="font-medium text-blue-700 hover:underline">
+                            <i class="fas fa-file-invoice text-xs"></i> فاتورة مشتريات
+                        </span>
+                        <span class="block text-[10px] text-gray-400 mt-0.5">اضغط لعرض الفاتورة</span>
+                    </div>
+                `;
+            } else if (liability.isAmortizedDebt) {
+                nameHTML = `<span class="font-medium text-indigo-700"><i class="fas fa-sync-alt text-xs"></i> ${liability.name}</span>`;
+            } else {
+                nameHTML = `<span class="font-medium text-gray-700">${liability.category || 'التزام عام'}</span>`;
+            }
+            
+            li.innerHTML = `
+                <div class="flex-grow">
+                    ${nameHTML}
+                    <div class="text-[10px] text-gray-400 mt-1"><i class="far fa-clock"></i> ${formatDateForDisplay(liability.date)}</div>
+                </div>
+                <div class="actions flex-shrink-0 flex flex-wrap items-center gap-2 justify-end">
+                    <span class="text-purple-700 font-semibold font-mono whitespace-nowrap bg-purple-50 px-2 py-1 rounded border border-purple-100">${formatCurrency(liability.amount)}</span>
+                    <div class="flex items-center gap-1 mt-1 sm:mt-0">
+                        <button onclick="window.openTransferLiabilityModal('${liability.id}')" class="text-[11px] bg-indigo-500 hover:bg-indigo-600 text-white font-medium py-1 px-2 rounded transition-colors" title="تحويل الالتزام">
+                            <i class="fas fa-exchange-alt"></i> تحويل
+                        </button>
+                        <button onclick="renameLiability('${liability.id}')" style="background-color: #f59e0b; color: white;" class="text-[11px] hover:opacity-80 font-medium py-1 px-2 rounded transition-colors" title="تعديل اسم الالتزام">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button onclick="openCreditorStatement('${liability.id}')" class="text-[11px] bg-blue-500 hover:bg-blue-600 text-white font-medium py-1 px-2 rounded transition-colors" title="كشف حساب الدائن">
+                            <i class="fas fa-file-invoice-dollar"></i> كشف
+                        </button>
+                        <button data-liability-id="${liability.id}" class="pay-liability-btn text-[11px] bg-teal-500 hover:bg-teal-600 text-white font-medium py-1 px-2 rounded transition-colors shadow-sm">
+                            <i class="fas fa-hand-holding-usd"></i> تسديد
+                        </button>
+                    </div>
+                </div>
+            `;
+            ulElement.appendChild(li);
+        });
+        
+        detailsElement.appendChild(summaryElement);
+        detailsElement.appendChild(ulElement);
+        liabilitiesListContainer.appendChild(detailsElement);
     });
 }
-       // =================================================================
+
+// ==========================================
+// 💡 دوال تحويل الالتزامات (Liability Transfer)
+// ==========================================
+window.openTransferLiabilityModal = function(liabilityId) {
+    const liability = window.liabilities.find(l => l.id === liabilityId);
+    if (!liability) return;
+
+    const modal = document.getElementById('transferLiabilityModal');
+    if (!modal) return;
+    
+    document.getElementById('trans-lia-source-name').textContent = liability.name;
+    document.getElementById('trans-lia-available').textContent = formatCurrency(liability.amount);
+    document.getElementById('trans-lia-amount').value = liability.amount;
+    
+    // تحديث قائمة الدائنين المقترحة
+    const datalist = document.getElementById('liability-names-list');
+    if (datalist) {
+        const uniqueNames = [...new Set(window.liabilities.map(l => l.name))];
+        datalist.innerHTML = uniqueNames.map(n => `<option value="${n}">`).join('');
+    }
+    
+    // ربط التأكيد
+    document.getElementById('confirmLiabilityTransferBtn').onclick = () => window.processLiabilityTransfer(liabilityId);
+    
+    // تصفير المدخلات
+    document.getElementById('trans-lia-target-name').value = '';
+    
+    modal.style.display = 'block';
+};
+
+window.closeTransferLiabilityModal = function() {
+    const modal = document.getElementById('transferLiabilityModal');
+    if (modal) modal.style.display = 'none';
+};
+
+window.processLiabilityTransfer = function(sourceLiabilityId) {
+    const sourceIndex = window.liabilities.findIndex(l => l.id === sourceLiabilityId);
+    if (sourceIndex === -1) return;
+
+    const sourceLiability = window.liabilities[sourceIndex];
+    const targetName = document.getElementById('trans-lia-target-name').value.trim();
+    const transferAmount = parseFloat(document.getElementById('trans-lia-amount').value);
+    
+    if (!targetName || isNaN(transferAmount) || transferAmount <= 0 || transferAmount > sourceLiability.amount) {
+        if(typeof showGlobalMessage === 'function') showGlobalMessage("يرجى التأكد من اسم المستلم والمبلغ المحول.", true);
+        else alert("يرجى التأكد من اسم المستلم والمبلغ المحول");
+        return;
+    }
+    
+    if (normalizeArabicText(targetName) === normalizeArabicText(sourceLiability.name)) {
+        if(typeof showGlobalMessage === 'function') showGlobalMessage("لا يمكن التحويل لنفس الشخص.", true);
+        return;
+    }
+
+    if(typeof saveStateToHistory === 'function') saveStateToHistory(); // للحفظ قبل التغيير
+
+    // خصم من المصدر
+    const oldSourceName = sourceLiability.name;
+    sourceLiability.amount -= transferAmount;
+    
+    // إذا تبقى شيء، نتركه، وإلا يتم حذفه أو إخفاؤه
+    if (sourceLiability.amount < 0.01) {
+        sourceLiability.status = 'paid';
+    }
+
+    // إضافة للمستلم الجديد
+    // نرى ما إذا كان هناك التزام عام (أخرى) مفتوح لنفس الدائن لندمجه، وإلا ننشئ واحداً جديداً
+    const existingTargetLiability = window.liabilities.find(l => 
+        normalizeArabicText(l.name) === normalizeArabicText(targetName) && 
+        l.status !== 'paid' && 
+        (l.category === 'أخرى' || !l.category)
+    );
+
+    if (existingTargetLiability) {
+        existingTargetLiability.amount += transferAmount;
+    } else {
+        window.liabilities.push({
+            id: generateId("LIA"),
+            name: targetName,
+            amount: transferAmount,
+            date: new Date().toISOString(),
+            category: "أخرى",
+            note: `محول من ${oldSourceName}`
+        });
+    }
+
+    if(typeof logOperation === 'function') logOperation("تحويل التزام", `تم تحويل التزام بقيمة ${formatCurrency(transferAmount)} من "${oldSourceName}" إلى "${targetName}".`);
+
+    window.closeTransferLiabilityModal();
+    if(typeof updateUI === 'function') updateUI();
+    if(typeof showGlobalMessage === 'function') showGlobalMessage(`تم تحويل الالتزام بنجاح إلى ${targetName}.`, false);
+};
+
+// =================================================================
 // START: NEW BULK PAYMENT FUNCTIONS
 // =================================================================
 
@@ -2650,7 +2882,10 @@ function updateUI() {
     
     // ✅ 1. حساب الربح المتوقع من المبيعات المعلقة (النظام القديم)
     const totalPotentialProfit = pendingSales.reduce((sum, sale) => {
-        return sum + (Number(sale.potentialProfit) || 0);
+        let p = Number(sale.potentialProfit) || 0;
+        // تم خصم الاستقطاع المخفي مسبقاً أثناء إنشاء البيعة المؤقتة (netProfitForDisplay)
+        // لذا لا حاجة لخصمه مرة أخرى هنا لتجنب الخصم المزدوج.
+        return sum + p;
     }, 0);
 
     // ✅ 2. حساب أرباح المرتجعات قيد الاستلام (كي لا تُخصم من رأس المال المتوقع إلا عند الاستلام الفعلي)
@@ -2799,10 +3034,10 @@ window.convertPendingSaleToDebt = async function(pendingSaleId, debtMode, target
         return;
     }
     const saleData = pendingSales[pendingIndex];
-    if (saleData.isProcessingDebt) {
-        return; // منع النقر المزدوج (Issue 5)
-    }
+    // Force clear the lock just in case it was stuck from a previous error
+    saleData.isProcessingDebt = false;
     saleData.isProcessingDebt = true;
+    try {
 
     // 2. تأكيد المبالغ
     const totalAmount = Number(saleData.grandTotal || saleData.finalTotal || saleData.totalSellPrice || 0);
@@ -2860,6 +3095,7 @@ window.convertPendingSaleToDebt = async function(pendingSaleId, debtMode, target
     if (confirmSale) {
         const acc = accounts.find(a => a.id === accountId);
         if (!acc) {
+            saleData.isProcessingDebt = false;
             showGlobalMessage("يرجى اختيار الخزنة.", true);
             return;
         }
@@ -2912,6 +3148,12 @@ window.convertPendingSaleToDebt = async function(pendingSaleId, debtMode, target
             accountId: accountId
         };
 
+        // ✅ تطبيق الاستقطاع المخفي إن وجد لتصحيح الربح والدين
+        if (typeof applyPendingDeduction === 'function') {
+            applyPendingDeduction(confirmedInvoice);
+        }
+
+
         // 🌟 التوافق مع التراجع (Undo) وتجنب تلوث واجهة اليوم الحالي 🌟
         const activeDate = (typeof currentLoadedDate !== 'undefined' && currentLoadedDate) ? currentLoadedDate : new Date().toISOString().split('T')[0];
         if (confirmedInvoice.saleDate !== activeDate) {
@@ -2960,6 +3202,7 @@ window.convertPendingSaleToDebt = async function(pendingSaleId, debtMode, target
                 linkedInvoice: finalInvoiceRef
             };
 
+            if (!newDebtRecord.id) newDebtRecord.id = generateId("DEBT");
             debtors.push(JSON.parse(JSON.stringify(newDebtRecord)));
             showGlobalMessage(`تم إضافة بند دين مستقل لحساب: ${targetCustomerName}`);
             done = true;
@@ -2977,6 +3220,7 @@ window.convertPendingSaleToDebt = async function(pendingSaleId, debtMode, target
             timestamp: new Date().toISOString(),
             linkedInvoice: finalInvoiceRef
         };
+        if (!newCustomerDebt.id) newCustomerDebt.id = generateId("DEBT");
         debtors.push(JSON.parse(JSON.stringify(newCustomerDebt)));
         showGlobalMessage(`تم تسجيل دين لعميل جديد: ${saleData.customerName}`);
     }
@@ -2987,19 +3231,32 @@ window.convertPendingSaleToDebt = async function(pendingSaleId, debtMode, target
     // 🌟 الإصلاح الثالث: حذف البيعة المؤقتة نهائياً من Firebase 🌟
     if (window.db && window.currentUser && typeof window.deleteDoc === 'function' && typeof window.doc === 'function') {
         try {
-            await window.deleteDoc(window.doc(window.db, "users", window.currentUser.uid, "pending_sales", String(pendingSaleId)));
+            window.deleteDoc(window.doc(window.db, "users", window.currentUser.uid, "pending_sales", String(pendingSaleId)));
         } catch (error) {
             console.log("تنبيه: الكوليكشن الخاص بالمبيعات المؤقتة قد لا يكون مستقلاً، تم الحذف المحلي.");
         }
     }
     
     const m = document.getElementById('convertPendingToDebtModal');
+    if (typeof saveCurrentStateByDate === 'function') { saveCurrentStateByDate(currentLoadedDate || (typeof getTodayDateString === 'function' ? getTodayDateString() : new Date().toISOString().split('T')[0])); }
     if (m) m.style.display = 'none';
 
     updateUI();
     if (typeof window.refreshMainUI === 'function') window.refreshMainUI();
+    } catch(err) {
+        console.error(err);
+    } finally {
+        if (saleData) saleData.isProcessingDebt = false;
+    }
 
     // مزامنة كافة التغييرات الأخرى (الديون والسيولة والمخزون) مع السحابة
+    // 🌟 حماية من التبخر السريع لو تم تحديث الصفحة 🌟
+    try {
+        localStorage.setItem("goodsMgmt_data_salesToday", JSON.stringify(typeof salesToday !== 'undefined' ? salesToday : []));
+        localStorage.setItem("goodsMgmt_data_pendingSales", JSON.stringify(typeof pendingSales !== 'undefined' ? pendingSales : []));
+        localStorage.setItem("goodsMgmt_data_debtors", JSON.stringify(typeof debtors !== 'undefined' ? debtors : []));
+    } catch(e) {}
+    
     if (typeof saveSystemToCloud === 'function') {
         saveSystemToCloud();
     }
@@ -3322,6 +3579,7 @@ function resetReturnForm() {
 
 
 async function saveCurrentStateByDate(dateString) {
+    if (typeof window.syncDualWriteToDB === "function") await window.syncDualWriteToDB();
     const canWrite = await window.SessionGuard.assertCanWrite();
     if (!canWrite) {
         if (typeof autoSaveTimer !== 'undefined' && autoSaveTimer) {
@@ -3404,7 +3662,7 @@ async function saveCurrentStateByDate(dateString) {
     // 2. الحفظ السحابي (محاولة هادئة)
     try {
         const docRef = window.doc(window.db, "users", userId, "days", dateString);
-        await window.setDoc(docRef, sanitizedState, { merge: true });
+        window.setDoc(docRef, sanitizedState, { merge: true });
 
         // 🌟 تحديث الملخص
         const latestBalancesSummary = {
@@ -3998,6 +4256,7 @@ function addOrUpdateMonthlyLiability() {
              return;
         }
         const newLiability = { id: generateId('m-liab'), name, amount };
+        if (!newLiability.id) newLiability.id = generateId("MLIA");
         monthlyLiabilities.push(newLiability);
         logOperation("إضافة التزام شهري", `تمت إضافة التزام شهري جديد: "${name}" بقيمة ${formatCurrency(amount)}.`);
         showMessage(monthlyLiabilityMessage, "تمت إضافة الالتزام الشهري بنجاح.");
@@ -4169,7 +4428,25 @@ function processMonthlyLiabilities() {
                 const existingNote = inv_invoiceItemsBody?.parentNode.querySelector('p.invoice-origin-note');
                 if(existingNote) existingNote.remove();
                 if(typeof inv_updateDeductibleCostsCheckboxes === 'function') inv_updateDeductibleCostsCheckboxes();
-                if(typeof inv_calculateTotals === 'function') inv_calculateTotals();
+                
+            // ✅ استعادة بيانات الاستقطاع المخفي للفاتورة المفصلة
+            const invDedToggle = document.getElementById('inv-deduction-toggle');
+            const invDedAmount = document.getElementById('inv-deduction-amount');
+            const invDedList = document.getElementById('inv-deduction-liability-name');
+            if (invDedToggle && invDedAmount && invDedList) {
+                if (sale.deductionAmount && sale.deductionAmount > 0) {
+                    invDedToggle.checked = true;
+                    invDedToggle.dispatchEvent(new Event('change'));
+                    invDedAmount.value = sale.deductionAmount;
+                    invDedList.value = sale.deductionLiabilityName || '';
+                } else {
+                    invDedToggle.checked = false;
+                    invDedToggle.dispatchEvent(new Event('change'));
+                    invDedAmount.value = '';
+                    invDedList.value = '';
+                }
+            }
+            if(typeof inv_calculateTotals === 'function') inv_calculateTotals();
             }
             window.resetInvoiceForm = resetInvoiceForm;
 
@@ -4736,9 +5013,22 @@ async function handleSaveInvoice(skipConfirmation = true) {
     }
 
     const finalInvoiceProfit = grandTotal - totalInvoiceCost;
+    
+    let invoiceDeductionData = null;
+    let netInvoiceProfit = finalInvoiceProfit;
+    if (typeof getDeductionData === 'function') {
+        invoiceDeductionData = getDeductionData('invoice');
+        if (invoiceDeductionData && invoiceDeductionData.error) {
+            restoreSaveBtn();
+            return;
+        }
+        if (invoiceDeductionData && invoiceDeductionData.amount > 0) {
+            netInvoiceProfit -= invoiceDeductionData.amount;
+        }
+    }
 
     if (!skipConfirmation) {
-        window.showConfirmSaleModal(finalInvoiceProfit, () => {
+        window.showConfirmSaleModal(netInvoiceProfit, () => {
             handleSaveInvoice(true);
         });
         restoreSaveBtn();
@@ -4815,9 +5105,11 @@ async function handleSaveInvoice(skipConfirmation = true) {
             deductedItems: deductedItemsData,
             totalSellPrice: grandTotal,
             totalCost: totalInvoiceCost,
-            potentialProfit: finalInvoiceProfit,
+            potentialProfit: netInvoiceProfit,
             depositPaid: depositAlreadyPaid,
             status: 'pending',
+            deductionAmount: invoiceDeductionData ? invoiceDeductionData.amount : 0,
+            deductionLiabilityName: invoiceDeductionData ? invoiceDeductionData.liabilityName : '',
             invoiceData: {
                 customerAddress,
                 phones,
@@ -4863,7 +5155,7 @@ async function handleSaveInvoice(skipConfirmation = true) {
             }
         });
 
-        totalProfit += finalInvoiceProfit;
+        totalProfit += (typeof netInvoiceProfit !== "undefined" ? netInvoiceProfit : finalInvoiceProfit);
 
         if ((isInvoiceFromPending || isEditingPendingInvoice) && pendingSaleOriginData && pendingSaleOriginData.id) {
             const idx = pendingSales.findIndex(s => String(s.id).trim() === String(pendingSaleOriginData.id).trim());
@@ -4913,6 +5205,12 @@ async function handleSaveInvoice(skipConfirmation = true) {
             accountId: selectedAccountId
         };
         
+        if (invoiceDeductionData && invoiceDeductionData.amount > 0 && typeof applyDeduction === 'function') {
+            applyDeduction(invoiceDeductionData, invoiceRecord);
+        } else {
+            invoiceRecord.profit = netInvoiceProfit;
+        }
+        
         // --- التوافق مع التراجع (Undo) وتجنب تلوث واجهة اليوم الحالي ---
         const activeDate = currentLoadedDate || getTodayDateString();
         if (invoiceRecord.saleDate !== activeDate) {
@@ -4938,6 +5236,7 @@ async function handleSaveInvoice(skipConfirmation = true) {
     updateUI();
     inv_closeModal();
     restoreSaveBtn();
+    if (typeof saveCurrentStateByDate === 'function') { saveCurrentStateByDate(currentLoadedDate || (typeof getTodayDateString === 'function' ? getTodayDateString() : new Date().toISOString().split('T')[0])); }
     window.showPostSaleModal('invoice', wasPending);
 }
             // (استكمالاً للجزء 8أ)
@@ -5219,7 +5518,12 @@ function printPendingSaleAsInvoice(pendingId) {
                 </div>
 
                 <!-- الخط الفاصل -->
-                <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 12px 0;">
+                
+                        <div id="pd_deduction_container" style="display: none; justify-content: space-between; margin-bottom: 5px; margin-top: 10px;">
+                            <span style="color: #9333ea; font-weight: bold;">استقطاع مخفي (<span id="pd_deduction_name"></span>):</span>
+                            <span id="pd_deduction_amount" style="color: #9333ea; font-weight: bold; font-family: monospace; font-size: 15px;">0.00</span>
+                        </div>
+                        <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 12px 0;">
 
                 <!-- الإجماليات -->
                 <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
@@ -5372,7 +5676,12 @@ function printPendingSaleAsInvoice(pendingId) {
                 }
 
                 const totalCost = goodsCost + deductedItemsCost;
-                const expectedProfit = grandTotal - totalCost;
+                let expectedProfit = grandTotal - totalCost;
+                const dedToggleInv = document.getElementById('inv-deduction-toggle');
+                const dedAmountInv = document.getElementById('inv-deduction-amount');
+                if (dedToggleInv && dedToggleInv.checked && dedAmountInv) {
+                    const amtInv = parseFloat(dedAmountInv.value) || 0;
+                    if (amtInv > 0) expectedProfit -= amtInv; const hint = document.getElementById('inv-deduction-real-profit'); if (hint) { hint.textContent = formatCurrency(expectedProfit); hint.style.color = expectedProfit >= 0 ? '#15803d' : '#dc2626'; } }
 
                 const profitDisplay = document.getElementById('inv_expected_profit_display');
                 if (profitDisplay) {
@@ -5652,8 +5961,9 @@ function saveAddedSerialsFromModal() {
 
     // 🌟 [تعديل د. ضياء]: ربط السيريال المضاف حديثاً بالـ ID الفريد للمنتج لمنع التداخل
     newSerials.forEach(serial => {
-        serialNumbersLog.push({ 
-            serial: serial, 
+        serialNumbersLog.push({
+                id: generateId("SER"),
+                serial: serial, 
             productName: currentManagingSerialsProduct,
             productId: product.id || "", // 🆔 حفظ الـ ID هنا خطوة حاسمة لمنع تداخل الأصناف متشابهة الاسم
             supplierId: supplierId, 
@@ -5891,10 +6201,10 @@ window.removeSaleFromReportOnly = async function(saleId) {
     try {
         if (window.db && window.currentUser) {
             const uid = window.currentUser.uid;
-            try { await window.deleteDoc(window.doc(window.db, "users", uid, "salesToday", saleId)); } catch(e) {}
-            try { await window.deleteDoc(window.doc(window.db, "users", uid, "sales", saleId)); } catch(e) {}
+            try { window.deleteDoc(window.doc(window.db, "users", uid, "salesToday", saleId)); } catch(e) {}
+            try { window.deleteDoc(window.doc(window.db, "users", uid, "sales", saleId)); } catch(e) {}
             try { 
-                await window.deleteDoc(window.doc(window.db, "users", uid, "invoices", saleId)); 
+                window.deleteDoc(window.doc(window.db, "users", uid, "invoices", saleId)); 
             } catch(e) {
                 console.error("فشل حذف الفاتورة من السحابة:", e);
                 alert("⚠️ تحذير: فشل حذف الفاتورة من السحابة (" + e.message + "). قد تظهر مرة أخرى لاحقًا في التقرير.");
@@ -6087,8 +6397,8 @@ window.processSaleDeletion = async function(sale, selectedAccount, refundAmount)
 
     if (window.db && window.currentUser) {
         const uid = window.currentUser.uid;
-        try { await window.deleteDoc(window.doc(window.db, "users", uid, "sales", saleId)); } catch(e) {}
-        try { await window.deleteDoc(window.doc(window.db, "users", uid, "invoices", saleId)); } catch(e) {}
+        try { window.deleteDoc(window.doc(window.db, "users", uid, "sales", saleId)); } catch(e) {}
+        try { window.deleteDoc(window.doc(window.db, "users", uid, "invoices", saleId)); } catch(e) {}
     }
 
     if (typeof salesToday !== 'undefined') {
@@ -6153,20 +6463,13 @@ async function generateMonthlySalesReport() {
     const monthInput = document.getElementById('report-month-year');
     const msgEl = document.getElementById('report-message');
     
-    // التحقق من العناصر والمستخدم
     if (!monthInput || !msgEl) return;
-    if (!window.currentUser) {
-        showMessage(msgEl, "يجب تسجيل الدخول أولاً.", true);
-        return;
-    }
+    if (!window.currentUser) { showMessage(msgEl, "يجب تسجيل الدخول أولاً.", true); return; }
     
     const yearMonth = monthInput.value;
-    if (!yearMonth) {
-        showMessage(msgEl, "يرجى اختيار الشهر والسنة.", true); return;
-    }
+    if (!yearMonth) { showMessage(msgEl, "يرجى اختيار الشهر والسنة.", true); return; }
 
-    showMessage(msgEl, `جاري جلب البيانات (مع تصفية التراجعات)...`, false, true);
-    
+    showMessage(msgEl, "جاري جلب البيانات...", false, true);
     if(typeof displaySalesReport === 'function') displaySalesReport([]); 
 
     const userId = window.currentUser.uid;
@@ -6175,155 +6478,118 @@ async function generateMonthlySalesReport() {
     const lastDay = new Date(Number(year), Number(month), 0).getDate();
     const endDate = `${yearMonth}-${String(lastDay).padStart(2, '0')}`;
 
-    // خريطة لتجميع الفواتير
-    const salesMap = new Map();
+    // =============================================
+    // المرحلة 1: جلب سريع (استعلام واحد فقط)
+    // =============================================
+    const salesById = new Map(); // المفتاح = id الفريد
 
-    // =========================================================
-    // الخطوة 1: جلب بيانات السحابة
-    // =========================================================
     try {
         const invoicesColRef = window.collection(window.db, "users", userId, "invoices");
         const q = window.query(invoicesColRef, 
             window.where("saleDate", ">=", startDate), 
             window.where("saleDate", "<=", endDate)
         );
-        
         const querySnapshot = await window.getDocs(q);
         querySnapshot.forEach((doc) => {
-            salesMap.set(doc.id, doc.data());
+            salesById.set(doc.id, doc.data());
         });
-        console.log(`تم جلب ${querySnapshot.size} فاتورة من السحابة.`);
-        
-    } catch (cloudError) {
-        console.warn("فشل الاتصال بالسحابة:", cloudError);
-        showMessage(msgEl, "تنبيه: فشل جلب بيانات السحابة. جاري عرض البيانات المحلية.", true, true);
+        console.log(`[تقرير] جلب ${querySnapshot.size} فاتورة من السحابة.`);
+    } catch (e) {
+        console.warn("[تقرير] فشل السحابة:", e);
+        showMessage(msgEl, "فشل الاتصال بالسحابة.", true);
     }
 
-    // =========================================================
-    // 🔥 الخطوة 2 (الجديدة المحسنة): تنقية البيانات بناءً على الواقع المحلي (Smart Filter)
-    // هذا يمنع ظهور الفواتير التي قمت بعمل (Undo) لها، حتى الفواتير القديمة (التي لها تاريخ رجعي)
-    // =========================================================
-    const activeDateForFilter = (typeof currentLoadedDate !== 'undefined' && currentLoadedDate) ? currentLoadedDate : (typeof getTodayDateString === 'function' ? getTodayDateString() : new Date().toISOString().split('T')[0]);
-    
+    // دمج المبيعات المحلية (اليوم الحالي)
     if (typeof salesToday !== 'undefined' && Array.isArray(salesToday)) {
-        for (const [id, cloudSale] of salesMap.entries()) {
-            let sDate = cloudSale.saleDate ? String(cloudSale.saleDate).split('T')[0] : "";
-            let tDate = "";
-            if (cloudSale.timestamp) {
-                try {
-                    if (typeof cloudSale.timestamp === 'object' && cloudSale.timestamp.toDate) {
-                        tDate = cloudSale.timestamp.toDate().toISOString().split('T')[0];
-                    } else if (typeof cloudSale.timestamp === 'number') {
-                        tDate = new Date(cloudSale.timestamp).toISOString().split('T')[0];
-                    } else {
-                        tDate = String(cloudSale.timestamp).split('T')[0];
-                    }
-                } catch(e) { console.warn("Error parsing timestamp in smart filter", e); }
-            }
-            
-            let cDate = "";
-            if (cloudSale.confirmedAt) {
-                try {
-                    cDate = String(cloudSale.confirmedAt).split('T')[0];
-                } catch(e) {}
-            }
-            if (!sDate) sDate = tDate || cDate;
-            
-            // إذا كانت الفاتورة تنتمي لليوم المفتوح حالياً (سواء بتاريخ البيع أو بتاريخ الإنشاء الفعلي أو التأكيد)
-            if (sDate === activeDateForFilter || tDate === activeDateForFilter || cDate === activeDateForFilter) {
-                // يجب أن تكون موجودة في الذاكرة المحلية (حتى لو كانت مخفية عن العرض اليومي)
-                const existsLocally = salesToday.some(local => local.id === id);
-                
-                // إذا لم تكن في الذاكرة المحلية (غالباً بسبب التراجع Undo)، نحذفها من التقرير فوراً
-                if (!existsLocally) {
-                    salesMap.delete(id);
-                }
-            }
-        }
-    }
-    // =========================================================
-    // الخطوة 3: دمج البيانات المحلية الجديدة (لتظهر الفواتير الجديدة فوراً)
-    // =========================================================
-    let localCount = 0;
-    if (typeof salesToday !== 'undefined' && Array.isArray(salesToday)) {
-        salesToday.forEach(localSale => {
-            const sDate = localSale.saleDate || (localSale.timestamp ? localSale.timestamp.split('T')[0] : '');
-            if (sDate >= startDate && sDate <= endDate) {
-                salesMap.set(localSale.id, localSale);
-                localCount++;
+        salesToday.forEach(s => {
+            const sDate = s.saleDate || (s.timestamp ? s.timestamp.split('T')[0] : '');
+            if (sDate >= startDate && sDate <= endDate && s.id) {
+                salesById.set(s.id, s); // نفس الـ ID = يحل محل النسخة السحابية
             }
         });
     }
 
-// =========================================================
-    // الخطوة 4: الفلتر الذكي المدمر للتكرار (يعتمد على البصمة الزمنية لمنع تكرار الفواتير بنفس المحتوى)
-    // =========================================================
-    let rawSalesList = Array.from(salesMap.values());
-    let finalSalesList = [];
-    const uniqueFingerprints = new Set();
+    // =============================================
+    // المرحلة 2: إزالة التكرار بالمعرف الفريد (ID)
+    // الـ Map بطبيعته يمنع تكرار نفس الـ ID
+    // لكن المشكلة إن بعض الفواتير القديمة ليها IDs مختلفة لنفس العملية
+    // لذلك نستخدم بصمة المحتوى كطبقة حماية ثانية
+    // =============================================
+    const contentFingerprints = new Map(); // بصمة المحتوى -> أول ID
+    const duplicateDocIds = []; // IDs المكررة لحذفها من السحابة
 
-    const normalizeText = (text) => {
-        if (!text) return "unknown";
-        return text.toString().toLowerCase().replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/[^a-z0-9ا-ي]/g, ''); 
+    const normName = (n) => {
+        if (!n) return 'cash';
+        return n.trim().toLowerCase().replace(/[أإآ]/g,'ا').replace(/ة/g,'ه').replace(/ى/g,'ي').replace(/\s+/g,'');
     };
 
-    rawSalesList.forEach(sale => {
-        // تحديد وقت وتاريخ آمنين
-        let safeDate = "";
-        let safeTimeMinute = ""; // تقريب للوقت بالدقائق
-        
-        let targetTimestamp = sale.createdAt || sale.timestamp || sale.saleDate;
-        
-        if (targetTimestamp) {
-            try {
-                let dateObj;
-                if (typeof targetTimestamp === 'object' && targetTimestamp.toDate) {
-                    dateObj = targetTimestamp.toDate();
-                } else if (typeof targetTimestamp === 'number') {
-                    dateObj = new Date(targetTimestamp);
-                } else {
-                    dateObj = new Date(targetTimestamp);
-                }
-                
-                if (!isNaN(dateObj.getTime())) {
-                    safeDate = dateObj.toISOString().split('T')[0];
-                    safeTimeMinute = dateObj.toISOString().substring(0, 16); // e.g. "2026-09-09T01:27"
-                }
-            } catch(e) {}
+    const getMinute = (sale) => {
+        const ts = sale.createdAt || sale.timestamp || sale.saleDate || '';
+        try {
+            const d = new Date(ts);
+            return isNaN(d.getTime()) ? String(ts).substring(0,16) : d.toISOString().substring(0,16);
+        } catch(e) { return String(ts).substring(0,16); }
+    };
+
+    const finalList = [];
+    for (const [docId, sale] of salesById.entries()) {
+        const minute = getMinute(sale);
+        const customer = normName(sale.customerName);
+        const amount = Math.round(Number(sale.grandTotal || sale.finalTotal || sale.totalSellPrice || 0));
+        const fp = `${minute}_${customer}_${amount}`;
+
+        if (contentFingerprints.has(fp)) {
+            // مكرر بمحتوى متطابق - نحذفه
+            duplicateDocIds.push(docId);
+        } else {
+            contentFingerprints.set(fp, docId);
+            finalList.push(sale);
         }
-        
-        if (!safeDate && sale.saleDate) safeDate = String(sale.saleDate).split('T')[0];
+    }
 
-        const amount = Math.round(Number(sale.grandTotal || sale.finalTotal || sale.totalSellPrice || 0)); 
-        const cleanCustomer = normalizeText(sale.customerName || 'cash');
-        
-        // بصمة ذكية: تاريخ+وقت_مبلغ_عميل_عددالعناصر
-        const itemsCount = sale.items ? sale.items.length : 0;
-        const fingerprint = `${safeTimeMinute}_${amount}_${cleanCustomer}_${itemsCount}`;
-
-        // إذا كانت البصمة مكررة، إذن هي نفس الفاتورة تم ضغط زر حفظها مرتين أو تكررت في السحابة
-        if (!uniqueFingerprints.has(fingerprint)) {
-            uniqueFingerprints.add(fingerprint);
-            finalSalesList.push(sale);
-        }
-    });
-
-    // الترتيب من الأحدث للأقدم
-    finalSalesList.sort((a, b) => {
-        let dateA = new Date(a.createdAt || a.timestamp || a.saleDate || 0).getTime();
-        let dateB = new Date(b.createdAt || b.timestamp || b.saleDate || 0).getTime();
-        return dateB - dateA; 
+    // =============================================
+    // المرحلة 3: العرض
+    // =============================================
+    finalList.sort((a, b) => {
+        const dA = new Date(a.createdAt || a.timestamp || a.saleDate || 0).getTime();
+        const dB = new Date(b.createdAt || b.timestamp || b.saleDate || 0).getTime();
+        return dB - dA;
     });
     
-    currentMonthlySalesData = finalSalesList;
-    if(typeof displaySalesReport === 'function') displaySalesReport(finalSalesList);
+    currentMonthlySalesData = finalList;
+    if(typeof displaySalesReport === 'function') displaySalesReport(finalList);
 
-    if (finalSalesList.length === 0) {
-        showMessage(msgEl, `لا توجد مبيعات مسجلة لشهر ${yearMonth}.`, false, true);
+    if (finalList.length === 0) {
+        showMessage(msgEl, `لا توجد مبيعات لشهر ${yearMonth}.`, false, true);
     } else {
-        showMessage(msgEl, `تم عرض ${finalSalesList.length} عملية بیع فعلية (بعد تنقية التكرار نهائياً).`, false);
+        const dupMsg = duplicateDocIds.length > 0 ? ` (حُذف ${duplicateDocIds.length} مكرر)` : '';
+        showMessage(msgEl, `${finalList.length} عملية بيع${dupMsg}`, false);
+    }
+
+    // =============================================
+    // تنظيف المكررات من السحابة (صامت في الخلفية)
+    // =============================================
+    if (duplicateDocIds.length > 0) {
+        console.log(`[تنظيف] حذف ${duplicateDocIds.length} فاتورة مكررة من السحابة...`);
+        setTimeout(async () => {
+            for (const dupId of duplicateDocIds) {
+                try {
+                    const ref = window.doc(window.db, "users", userId, "invoices", dupId);
+                    window.deleteDoc(ref);
+                } catch(e) {}
+            }
+            console.log('[تنظيف] ✅ تم.');
+        }, 500);
     }
 }
+
+
+
+
+
+
+
+
 // دالة البحث المباشر (الطريقة الثانية) - نسخة محدثة
 // =======================================================
 // START: دالة البحث المباشر (النسخة النهائية فائقة السرعة)
@@ -6423,6 +6689,9 @@ if (button.classList.contains('convert-pending-to-debt')) {
     if (button.classList.contains('confirm-pending')) {
         if (confirm(`سيتم الآن فتح نافذة الفاتورة لتأكيد هذه العملية واختيار حساب الإيداع. هل تريد المتابعة؟`)) {
             isInvoiceFromPending = true;
+            // ✅ نظام الاستقطاع: نقل بيانات الاستقطاع من البيع المؤقت للفاتورة
+            window._pendingDeductionCarryover = { amount: sale.deductionAmount || 0, liabilityName: sale.deductionLiabilityName || '' };
+
             pendingSaleOriginData = sale; 
             inv_openModal(); // فتح النافذة وإعادة تعيينها
 
@@ -6704,6 +6973,25 @@ if (button.classList.contains('convert-pending-to-debt')) {
     sellButton.classList.add('bg-orange-500', 'hover:bg-orange-600');
     
     d('cancel-edit-pending-button').classList.remove('hidden');
+    
+    // ✅ استعادة بيانات الاستقطاع المخفي للبيع السريع
+    const dedToggle = document.getElementById('sell-deduction-toggle');
+    const dedAmount = document.getElementById('sell-deduction-amount');
+    const dedList = document.getElementById('sell-deduction-liability-name');
+    if (dedToggle && dedAmount && dedList) {
+        if (sale.deductionAmount && sale.deductionAmount > 0) {
+            dedToggle.checked = true;
+            dedToggle.dispatchEvent(new Event('change'));
+            dedAmount.value = sale.deductionAmount;
+            dedList.value = sale.deductionLiabilityName || '';
+        } else {
+            dedToggle.checked = false;
+            dedToggle.dispatchEvent(new Event('change'));
+            dedAmount.value = '';
+            dedList.value = '';
+        }
+    }
+
     
     // حساب وإظهار الربح المتوقع فوراً
     if (typeof calculateQuickSellProfit === 'function') {
@@ -7342,7 +7630,8 @@ function fc_execute_debt_treatment() {
         totalPeriods: periodValue,       // إجمالي عدد الشهور
         periodsProcessed: 0,             // عدد الشهور التي تم توزيعها (يبدأ بصفر)
     };
-    monthlyLiabilities.push(newMonthlyLiability);
+    if (!newMonthlyLiability.id) newMonthlyLiability.id = generateId("MLIA");
+        monthlyLiabilities.push(newMonthlyLiability);
     
     logOperation("معالجة دين متعثر", `تم تحويل دين "${debtInfo.name}" (${formatCurrency(debtAmount)}) إلى التزام شهري ثابت بقيمة ${formatCurrency(costPerMonth)} لمدة ${periodValue} شهور.`);
     showGlobalMessage("تم تحويل الدين إلى التزام شهري بنجاح.", false);
@@ -7555,7 +7844,7 @@ function handleConfirmReceipt(pendingId) {
     });
 
     // 3. نقل المرتجع إلى قائمة المكتملة
-    completedReturns.push({ ...ret, status: 'Completed', timestamp: new Date().toISOString() });
+    completedReturns.push({ id: generateId("RET"), ...ret, status: 'Completed', timestamp: new Date().toISOString() });
 
     // 🌟 خصم الأرباح المؤجلة الآن لأن المرتجع استُلم فعلياً
     if (ret.profitToReverse && Math.abs(ret.profitToReverse) > 0.001) {
@@ -7877,8 +8166,9 @@ products.push({
             if (item.serials && item.serials.length > 0) {
                 item.serials.forEach(serial => {
                     if (!serialNumbersLog.some(s => s.serial === serial)) {
-                        serialNumbersLog.push({ 
-                            serial, 
+                        serialNumbersLog.push({
+                id: generateId("SER"),
+                serial, 
                             productName: item.name, 
                             supplierId: p.supplierId, 
                             addedTimestamp: p.timestamp, 
@@ -7899,6 +8189,7 @@ products.push({
      
         
         purchase.status = 'Confirmed';
+        if (!purchase.id) purchase.id = generateId("PINV");
         purchaseInvoices.push(purchase);
         pendingPurchases.splice(purchaseIndex, 1);
         logOperation("استلام بضاعة", `تم استلام بضاعة من "${supplier?.name}" وتوزيع التكاليف وتحديث التصنيفات.`);
@@ -8107,7 +8398,8 @@ async function pi_confirmPurchaseInvoice() {
                         supplierId: invoiceData.supplierId,
                         createdAt: new Date().toISOString()
                     };
-                    liabilities.push(newLiability);
+                    if (!newLiability.id) newLiability.id = generateId("LIA");
+        liabilities.push(newLiability);
                     logOperation(
                         "إنشاء التزام تلقائي",
                         `تم إنشاء التزام جديد للتكلفة الإضافية "${cost.name}" بقيمة ${formatCurrency(cost.amount)} لأن الالتزام المرتبط لم يتم العثور عليه.`
@@ -8124,7 +8416,8 @@ async function pi_confirmPurchaseInvoice() {
                     supplierId: invoiceData.supplierId,
                     createdAt: new Date().toISOString()
                 };
-                liabilities.push(newLiability);
+                if (!newLiability.id) newLiability.id = generateId("LIA");
+        liabilities.push(newLiability);
                 logOperation(
                     "إنشاء التزام تكلفة إضافية",
                     `تم إنشاء التزام جديد باسم "${newLiability.name}" بقيمة ${formatCurrency(cost.amount)} من فاتورة الشراء رقم "${invoiceData.invoiceNumber || invoiceData.id}".`
@@ -8183,7 +8476,8 @@ async function pi_confirmPurchaseInvoice() {
                 }
                 delete item.duplicateResolution; // تنظيف فلاج القرار بعد اكتمال الترحيل الآمن
             });
-            purchaseInvoices.push(invoiceData);
+            if (!invoiceData.id) invoiceData.id = generateId("PINV");
+        purchaseInvoices.push(invoiceData);
         } else {
             pendingPurchases.push(invoiceData);
         }
@@ -9616,7 +9910,11 @@ if (addProductButton) {
         // نتحقق من وجود منتج بنفس الاسم، مع استثناء المنتج الحالي الذي نعدله (سواء بالـ ID أو بالاسم القديم)
         const duplicateProduct = products.find(p => {
             if (p.name.toLowerCase() !== name.toLowerCase()) return false;
-            if (!window.currentEditingProductID && !editingProductName) return true; // إضافة منتج جديد
+            if (!window.currentEditingProductID && !editingProductName) {
+                // إذا كان المنتج القديم رصيده صفر، نتجاوز التحذير ليتم الدمج بصمت
+                if (Number(p.quantity) === 0) return false; 
+                return true; 
+            }
             
             if (window.currentEditingProductID && p.id) {
                 return String(p.id) !== String(window.currentEditingProductID);
@@ -9745,9 +10043,11 @@ if (addProductButton) {
             if (enteredSerials.length > 0) {
                 enteredSerials.forEach(serial => {
                     if (!serialNumbersLog.some(s => s.serial === serial)) {
-                        serialNumbersLog.push({ 
+                        serialNumbersLog.push({
+                            id: generateId("SER"),
                             serial, 
                             productName: name, 
+                            productId: products[productIndex] ? products[productIndex].id : null,
                             supplierId: supplierId || "", 
                             addedTimestamp: new Date().toISOString(), 
                             status: 'in_stock' 
@@ -9770,6 +10070,7 @@ if (addProductButton) {
             products[productIndex].category = category;
             products[productIndex].quantity = quantity;
             products[productIndex].supplierId = supplierId;
+            products[productIndex].lastUpdated = new Date().toISOString();
             
             showMessage(productMessage, `تم تحديث المنتج "${name}" بنجاح.`);
             resetProductForm();
@@ -9799,7 +10100,7 @@ if (addProductButton) {
 
             if (existingIndex !== -1) {
                  // الحالة الأولى: المنتج موجود مسبقاً بنفس الاسم والقسم (زيادة كمية عادية)
-                 if (newQuantity <= 0) { showMessage(productMessage, "الكمية المضافة يجب أن تكون أكبر من صفر.", true); return; }
+                 if (newQuantity < 0) { showMessage(productMessage, "الكمية المضافة لا يمكن أن تكون سالبة.", true); return; }
                  const existing = products[existingIndex];
                  
                  if (deductLiquidity && newQuantity > 0) {
@@ -9824,8 +10125,9 @@ if (addProductButton) {
                 // حقن السيريالات الجديدة المضافة بنجاح في السجل العام للبرنامج
                 enteredSerials.forEach(serial => {
                     if (!serialNumbersLog.some(s => s.serial === serial)) {
-                        serialNumbersLog.push({ 
-                            serial, 
+                        serialNumbersLog.push({
+                id: generateId("SER"),
+                serial, 
                             productName: existing.name, 
                             supplierId: supplierId || "", 
                             addedTimestamp: new Date().toISOString(), 
@@ -9838,7 +10140,7 @@ if (addProductButton) {
 
             } else {
                 // الحالة الثانية: منتج جديد كلياً في قاعدة البيانات
-                if (newQuantity <= 0) { showMessage(productMessage, "كمية المنتج الجديد يجب أن تكون أكبر من صفر.", true); return; }
+                if (newQuantity < 0) { showMessage(productMessage, "كمية المنتج الجديد لا يمكن أن تكون سالبة.", true); return; }
 
                 if (deductLiquidity && newQuantity > 0) {
                     const costToDeduct = newQuantity * costPrice;
@@ -9859,15 +10161,18 @@ if (addProductButton) {
                     quantity: newQuantity, 
                     costPrice, 
                     supplierId: supplierId || "", 
-                    category: category 
+                    category: category,
+                    lastUpdated: new Date().toISOString()
                 });
 
                 // حقن السيريالات للمنتج الجديد كلياً في السجل العام للبرنامج
                 enteredSerials.forEach(serial => {
                     if (!serialNumbersLog.some(s => s.serial === serial)) {
-                        serialNumbersLog.push({ 
-                            serial, 
+                        serialNumbersLog.push({
+                id: generateId("SER"),
+                serial, 
                             productName: name, 
+                            productId: uniqueProductCode,
                             supplierId: supplierId || "", 
                             addedTimestamp: new Date().toISOString(), 
                             status: 'in_stock' 
@@ -10236,7 +10541,7 @@ if (confirmDuplicateBtn) {
 
                     // **** حذف السيريالات المرتبطة بالمنتج المحذوف ****
                     const initialSerialCount = serialNumbersLog.length;
-                    serialNumbersLog = serialNumbersLog.filter(log => log.productName !== productName);
+                    serialNumbersLog = serialNumbersLog.filter(log => log.productId ? log.productId !== productId : log.productName !== productName);
                     const deletedSerialCount = initialSerialCount - serialNumbersLog.length;
 
                     logOperation("حذف منتج", `تم حذف المنتج "${productName}" (الكمية: ${qty} قطعة، التكلفة الإجمالية المحذوفة من رأس المال: ${formatCurrency(totalCardValue)}).`);
@@ -10283,6 +10588,9 @@ if (debtorsListContainer) {
 
                  // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
 function resetSellForm() {
+        // ✅ تصفير حقول الاستقطاع المخفي
+        if (typeof resetDeductionFields === 'function') resetDeductionFields('quick');
+
     editingPendingSaleId = null; // الخروج من وضع التعديل
     
     if (sellProductNameInput) sellProductNameInput.value = "";
@@ -10484,6 +10792,8 @@ window.showPostSaleModal = function(type, isFromPending = false) {
 };
 
 function sellProduct(skipConfirmation = true) {
+
+
     const isPendingSale = sellPendingCheckbox.checked;
     const mainProductName = sellProductNameInput.value.trim();
     const customerName = d("sell-customer-name").value.trim();
@@ -10576,8 +10886,17 @@ function sellProduct(skipConfirmation = true) {
 
     const profit = totalSellPrice - costOfGoodsSold;
 
+    // تجهيز الربح الصافي للعرض في نافذة التأكيد (شاملاً الاستقطاع المخفي إن وجد)
+    let netProfitForDisplay = profit;
+    try {
+        const _ded = (typeof getDeductionData === 'function') ? getDeductionData('quick') : null;
+        if (_ded && !_ded.error && _ded.amount > 0) {
+            netProfitForDisplay -= _ded.amount;
+        }
+    } catch(e) {}
+
     if (!skipConfirmation) {
-        window.showConfirmSaleModal(profit, () => {
+        window.showConfirmSaleModal(netProfitForDisplay, () => {
             sellProduct(true);
         });
         return;
@@ -10589,6 +10908,7 @@ function sellProduct(skipConfirmation = true) {
             serialNumbersLog[serialIndex].status = isPendingSale ? 'pending_sale' : 'sold';
         } else {
             serialNumbersLog.push({
+                id: generateId("SER"),
                 serial: selectedSerial,
                 productName: mainProductName,
                 supplierId: mainProduct.supplierId || "",
@@ -10612,7 +10932,7 @@ function sellProduct(skipConfirmation = true) {
     if (isPendingSale) {
         goodsOnConsignmentValue += costOfGoodsSold;
         const pendingSaleData = {
-            id: `pending-${Date.now()}`,
+            id: generateId("PSALE"),
             createdAt: new Date().toISOString(),
             timestamp: new Date().toISOString(),
             saleDate: currentLoadedDate || new Date().toISOString().split('T')[0],
@@ -10640,12 +10960,16 @@ function sellProduct(skipConfirmation = true) {
             paidAmount: 0,
             status: 'pending'
         };
+        // ✅ نظام الاستقطاع المخفي: حفظ بيانات الاستقطاع داخل البيع المؤقت
+        const _pendingDeduction = (typeof getDeductionData === 'function') ? getDeductionData('quick') : null;
+        if (_pendingDeduction && !_pendingDeduction.error) {
+            pendingSaleData.deductionAmount = _pendingDeduction.amount;
+            pendingSaleData.deductionLiabilityName = _pendingDeduction.liabilityName; pendingSaleData.potentialProfit = netProfitForDisplay; }
         pendingSales.push(pendingSaleData);
         logOperation("بيع مؤقت", `بيع مؤقت: ${productNameWithSerial}`);
         showMessage(sellMessage, "تم تسجيل البيع المؤقت بنجاح.");
     } else {
-        account.balance += totalSellPrice;
-        totalProfit += profit;
+        account.balance += totalSellPrice; totalProfit += (typeof netProfitForDisplay !== "undefined" ? netProfitForDisplay : profit);
         
         const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
         liquidityLog.push({ id: `liq-${Date.now()}`, timestamp: new Date().toISOString(), type: "add", amount: totalSellPrice, description: `بيع بضاعة: ${productNameWithSerial}`, currentBalance: newTotalLiquidity });
@@ -10669,11 +10993,18 @@ function sellProduct(skipConfirmation = true) {
             invoiceNumber: quickInvoiceNumber,
             customerName, 
             items: allItems, 
-            totalSellPrice, totalCost: costOfGoodsSold, profit,
+            totalSellPrice, totalCost: costOfGoodsSold, profit: (typeof netProfitForDisplay !== "undefined" ? netProfitForDisplay : profit),
             grandTotal: totalSellPrice,
-            accountId: selectedAccountId
+            accountId: selectedAccountId,
+            deductionAmount: (typeof getDeductionData === 'function') ? (getDeductionData('quick')?.amount || 0) : 0,
+            deductionLiabilityName: (typeof getDeductionData === 'function') ? (getDeductionData('quick')?.liabilityName || '') : ''
         };
         salesToday.push(saleRecord);
+        // ✅ نظام الاستقطاع المخفي: تطبيق الاستقطاع عند البيع النهائي
+        const _deductionData = (typeof getDeductionData === 'function') ? getDeductionData('quick') : null;
+        if (_deductionData && !_deductionData.error) {
+            if (typeof applyDeduction === 'function') applyDeduction(_deductionData, saleRecord);
+        }
         saveInvoiceToFirestore(saleRecord);
         logOperation("بيع بضاعة", `بيع ${productNameWithSerial} بسعر ${formatCurrency(totalSellPrice)}`);
         showMessage(sellMessage, "تم تسجيل البيعة بنجاح.");
@@ -10682,6 +11013,8 @@ function sellProduct(skipConfirmation = true) {
     updateUI();
     resetSellForm(); // تنظيف النموذج فوراً بعد البيع لمنع ظهور البيانات القديمة
     window.showPostSaleModal('quick');
+
+    if (typeof saveCurrentStateByDate === 'function') { saveCurrentStateByDate(currentLoadedDate || (typeof getTodayDateString === 'function' ? getTodayDateString() : new Date().toISOString().split('T')[0])); }
 }
 function updatePendingSale(pendingId) {
     const saleIndex = pendingSales.findIndex(s => s.id === pendingId);
@@ -10708,7 +11041,7 @@ function updatePendingSale(pendingId) {
         products[oldMainIndex].quantity += Number(oldMainProduct.quantity);
     } else {
         // لو المنتج اتحذف بالغلط، نرجعه عشان الحسابات تظبط
-        products.push({ ...oldMainProduct, name: oldMainNameSimple });
+        products.push({ ...oldMainProduct, id: oldMainProduct.id || generateId("PROD"), name: oldMainNameSimple });
     }
 
     // إرجاع الملحقات
@@ -10805,7 +11138,8 @@ for (const checkbox of additionalCheckboxes) {
                  serialNumbersLog[newLogIdx].status = 'pending_sale';
              } else {
                  serialNumbersLog.push({
-                     serial: newSerial,
+                id: generateId("SER"),
+                serial: newSerial,
                      productName: newMainProductName,
                      supplierId: products[newMainIndex].supplierId || "",
                      addedTimestamp: new Date().toISOString(),
@@ -10839,19 +11173,32 @@ for (const checkbox of additionalCheckboxes) {
     }
 
     // التحديث النهائي للكائن - مع الحفاظ على التاريخ الأصلي
+    
+    let finalPotentialProfit = newTotalSellPrice - newTotalCost;
+    const _pendingDeduction = (typeof getDeductionData === 'function') ? getDeductionData('quick') : null;
+    let _deductionAmount = 0;
+    let _deductionLiabilityName = '';
+    
+    if (_pendingDeduction && !_pendingDeduction.error) {
+        _deductionAmount = _pendingDeduction.amount;
+        _deductionLiabilityName = _pendingDeduction.liabilityName;
+        finalPotentialProfit -= _deductionAmount;
+    }
+
     pendingSales[saleIndex] = {
         ...originalSale,
         customerName: newCustomerName,
         mainProduct: { 
             name: displayName, 
             quantity: newQuantitySold, 
-            // الآن هذا السطر آمن لأننا لم نحذف المنتج من المصفوفة
             costPrice: products[newMainIndex].costPrice, 
             supplierId: products[newMainIndex].supplierId 
         },
         additionalItems: newAdditionalItemsData,
         totalSellPrice: newTotalSellPrice,
-        potentialProfit: newTotalSellPrice - newTotalCost,
+        potentialProfit: finalPotentialProfit,
+        deductionAmount: _deductionAmount,
+        deductionLiabilityName: _deductionLiabilityName,
         timestamp: originalSale.timestamp || new Date().toISOString(),
         editHistory: _editHistory
     };
@@ -10896,7 +11243,12 @@ for (const checkbox of additionalCheckboxes) {
                          }
                      });
 
-                     const profit = totalSellPrice - costOfGoodsSold;
+                     let profit = totalSellPrice - costOfGoodsSold;
+                     const dedToggle = document.getElementById('sell-deduction-toggle');
+                     const dedAmount = document.getElementById('sell-deduction-amount');
+                     if (dedToggle && dedToggle.checked && dedAmount) {
+                         const amt = parseFloat(dedAmount.value) || 0;
+                         if (amt > 0) profit -= amt; const hint = document.getElementById('sell-deduction-real-profit'); if (hint) { hint.textContent = formatCurrency(profit); hint.style.color = profit >= 0 ? '#15803d' : '#dc2626'; } }
                      profitDisplay.textContent = formatCurrency(profit);
                      if (profit >= 0) {
                          profitDisplay.style.color = '#166534';
@@ -11282,7 +11634,8 @@ if (addLiabilityButton) {
                 status: 'active',
                 createdAt: realTime
             };
-            liabilities.push(newLiability);
+            if (!newLiability.id) newLiability.id = generateId("LIA");
+        liabilities.push(newLiability);
             logMsg = `تسجيل التزام جديد على الشركة لـ "${name}" بمبلغ ${formatCurrency(amount)}.`;
             showMessage(liabilitiesMessage, `تم تسجيل التزام جديد لـ "${name}".`);
         }
@@ -11305,6 +11658,7 @@ if (addLiabilityButton) {
                 currentBalance: newTotalLiquidity,
                 accountId: selectedAccountId
             };
+            if (!liqLogEntry.id) liqLogEntry.id = generateId("LIQ");
             liquidityLog.push(liqLogEntry);
             logMsg += ` وتم استلام سيولة مقابله في "${account.name}".`;
         }
@@ -11547,8 +11901,9 @@ products.push({
             if (item.serials && item.serials.length > 0) {
                 item.serials.forEach(serial => {
                     if (!serialNumbersLog.some(s => s.serial === serial)) {
-                        serialNumbersLog.push({ 
-                            serial, 
+                        serialNumbersLog.push({
+                id: generateId("SER"),
+                serial, 
                             productName: item.name, 
                             supplierId: purchase.supplierId, 
                             addedTimestamp: purchase.timestamp, 
@@ -11942,6 +12297,7 @@ if (accountForm) {
                 return;
             }
             const newAccount = { id: `acc-${Date.now()}`, name: name, balance: balance };
+            if (!newAccount.id) newAccount.id = generateId("ACC");
             accounts.push(newAccount);
             logOperation("إضافة حساب", `تم إنشاء حساب جديد "${name}" برصيد افتتاحي ${formatCurrency(balance)}.`);
         }
@@ -12204,6 +12560,20 @@ if (d('liabilities-list-container')) {
 }
     // لا داعي للبحث عن آخر يوم محفوظ، سنقوم بالتحميل مباشرة
     await loadDataForDate(todayString);
+
+    // -- PHASE 3 DB READ --
+    if (window.FinanceDB) {
+        try {
+            const dbProducts = await window.FinanceDB.loadAllProducts();
+            if (dbProducts && dbProducts.length > 0) {
+                console.log('Phase 3: Overriding local products with Cloud Isolated Collections');
+                window.products = dbProducts;
+            }
+        } catch(e) {
+            console.error('Failed to load products from FinanceDB on startup', e);
+        }
+    }
+    // -----------------------
 
     // بعد التأكد من تحميل البيانات، نقوم بتحديث الواجهة بالكامل
     updateUI();
@@ -12702,7 +13072,18 @@ window.showPendingSaleDetails = function(pendingId) {
 
     const totalCalculatedCost = mainCost + attachmentsTotalCost;
     const sellPrice = Number(sale.totalSellPrice) || 0;
-    const profit = sellPrice - totalCalculatedCost;
+    let profit = sellPrice - totalCalculatedCost;
+    const deductionContainer = document.getElementById('pd_deduction_container');
+    if (deductionContainer) {
+        if (sale.deductionAmount && sale.deductionAmount > 0) {
+            deductionContainer.style.display = 'flex';
+            document.getElementById('pd_deduction_name').textContent = sale.deductionLiabilityName || 'استقطاع';
+            document.getElementById('pd_deduction_amount').textContent = "-" + formatCurrency(sale.deductionAmount);
+            profit -= sale.deductionAmount;
+        } else {
+            deductionContainer.style.display = 'none';
+        }
+    }
 
     document.getElementById('pd_total_cost').textContent = formatCurrency(totalCalculatedCost);
     document.getElementById('pd_sell_price').textContent = formatCurrency(sellPrice);
@@ -12955,7 +13336,7 @@ async function syncLocalSalesToCloud() {
         try {
             // نستخدم setDoc مع merge لضمان عدم مسح بيانات إضافية إن وجدت
             const docRef = window.doc(window.db, "users", userId, "invoices", sale.id);
-            await window.setDoc(docRef, sale, { merge: true });
+            window.setDoc(docRef, sale, { merge: true });
             successCount++;
         } catch (e) {
             console.error("فشل رفع الفاتورة:", sale.id, e);
@@ -13007,7 +13388,7 @@ window.syncLocalSalesToCloud = async function() {
         try {
             // نستخدم setDoc مع merge لضمان عدم مسح بيانات إضافية إن وجدت
             const docRef = window.doc(window.db, "users", userId, "invoices", sale.id);
-            await window.setDoc(docRef, sale, { merge: true });
+            window.setDoc(docRef, sale, { merge: true });
             successCount++;
         } catch (e) {
             console.error("فشل رفع الفاتورة:", sale.id, e);
@@ -13081,7 +13462,7 @@ const userId = window.currentUser ? window.currentUser.uid : null;
         if (userId) {
             try {
                  const docRef = window.doc(window.db, "users", userId, "invoices", inv.id);
-                 await window.setDoc(docRef, inv, { merge: true });
+                 window.setDoc(docRef, inv, { merge: true });
             } catch(e) { 
                 console.error("فشل تحديث السحابة للفاتورة:", inv.id); 
             }
@@ -13101,6 +13482,7 @@ const userId = window.currentUser ? window.currentUser.uid : null;
 // 1. دالة الحفظ الشامل للسحابة (القلب النابض)
 // ==========================================
 async function saveSystemToCloud() {
+    if (typeof window.syncDualWriteToDB === "function") await window.syncDualWriteToDB();
     window.saveSystemToCloud = saveSystemToCloud; // لجعلها قابلة للاستدعاء من الخارج
     // التحقق من وجود مستخدم
     if (!window.currentUser) return;
@@ -13149,7 +13531,7 @@ async function saveSystemToCloud() {
 
     try {
         // 1. حفظ بيانات اليوم
-        await window.setDoc(window.doc(window.db, "users", userId, "days", dateStr), sanitizedState, { merge: true });
+        window.setDoc(window.doc(window.db, "users", userId, "days", dateStr), sanitizedState, { merge: true });
         
       const latestBalancesData = {
     ...sanitizedState,
@@ -13159,7 +13541,7 @@ async function saveSystemToCloud() {
 const todayStr = typeof getTodayDateString === 'function' ? getTodayDateString() : new Date().toISOString().split('T')[0];
 if (dateStr === todayStr) {
     if (isStateMeaningful(latestBalancesData)) {
-        await window.setDoc(
+        window.setDoc(
             window.doc(window.db, "users", userId, "summaries", "latestBalances"),
             latestBalancesData,
             { merge: true }
@@ -13290,7 +13672,7 @@ window.deleteAllReportData = async function() {
             // أ. الحذف من السحابة
             if (userId) {
                 try {
-                    await window.deleteDoc(window.doc(window.db, "users", userId, "invoices", sale.id));
+                    window.deleteDoc(window.doc(window.db, "users", userId, "invoices", sale.id));
                 } catch (e) {
                     console.error(`فشل حذف الفاتورة ${sale.id} من السحابة:`, e);
                 }
@@ -13588,10 +13970,12 @@ window.injectSaleToMain = function(saleObj) {
     };
     
     window.injectLogToMain = function(logObj) { 
-        if (typeof operationLog !== 'undefined') operationLog.push(logObj); 
+        if (typeof operationLog !== 'undefined') if (!logObj.id) logObj.id = generateId("LOG");
+    operationLog.push(logObj); 
     };
     window.injectProductToMain = function(prodObj) { 
-        if (typeof products !== 'undefined') products.push(prodObj); 
+        if (typeof products !== 'undefined') if (!prodObj.id) prodObj.id = generateId("PROD");
+    products.push(prodObj); 
     };
     
     // دوال قراءة البيانات الحية
@@ -14122,7 +14506,12 @@ window.usm_calculateLiveProfit = function() {
     const shippingCost = parseFloat(document.getElementById('usm_shipping_cost').value) || 0;
     
     const finalGrandTotalSales = totalSalesOfSelected + extraCharges + shippingCost;
-    const finalExpectedProfit = finalGrandTotalSales - totalCostOfSelected;
+    let finalExpectedProfit = finalGrandTotalSales - totalCostOfSelected;
+    const usmToggle = document.getElementById('usm-deduction-toggle');
+    const usmAmount = document.getElementById('usm-deduction-amount');
+    if (usmToggle && usmToggle.checked && usmAmount) {
+        const amt = parseFloat(usmAmount.value) || 0;
+        if (amt > 0) finalExpectedProfit -= amt; const hint = document.getElementById('usm-deduction-real-profit'); if (hint) { hint.textContent = formatCurrency(finalExpectedProfit); hint.style.color = finalExpectedProfit >= 0 ? '#15803d' : '#dc2626'; } }
     
     document.getElementById('usm_total_sales_display').textContent = finalGrandTotalSales.toFixed(2) + " جنيه";
     document.getElementById('usm_total_cost_display').textContent = totalCostOfSelected.toFixed(2) + " جنيه";
@@ -14184,6 +14573,40 @@ window.usm_applySelectionToOrigin = function() {
         if (typeof updateAdditionalCostsCheckboxes === 'function') {
             updateAdditionalCostsCheckboxes(remainingAttachments);
         }
+        
+        { // --- نقل قيم الاستقطاع المخفي بأمان ---
+        let targetPrefix = window.usm_currentOrigin === 'quick' ? 'sell' : 'inv';
+        if (document.getElementById('usm-deduction-toggle') && document.getElementById('usm-deduction-toggle').checked) {
+            const targetToggle = document.getElementById(targetPrefix + '-deduction-toggle');
+            if (targetToggle) {
+                targetToggle.checked = true;
+                const targetAmt = document.getElementById(targetPrefix + '-deduction-amount');
+                const usmAmt = document.getElementById('usm-deduction-amount');
+                if (targetAmt && usmAmt) targetAmt.value = usmAmt.value;
+                
+                const targetName = document.getElementById(targetPrefix + '-deduction-liability-name');
+                const usmName = document.getElementById('usm-deduction-liability-name');
+                if (targetName && usmName) targetName.value = usmName.value;
+            }
+        }
+}
+        
+        { // --- نقل قيم الاستقطاع المخفي بأمان ---
+        let targetPrefix = window.usm_currentOrigin === 'quick' ? 'sell' : 'inv';
+        if (document.getElementById('usm-deduction-toggle') && document.getElementById('usm-deduction-toggle').checked) {
+            const targetToggle = document.getElementById(targetPrefix + '-deduction-toggle');
+            if (targetToggle) {
+                targetToggle.checked = true;
+                const targetAmt = document.getElementById(targetPrefix + '-deduction-amount');
+                const usmAmt = document.getElementById('usm-deduction-amount');
+                if (targetAmt && usmAmt) targetAmt.value = usmAmt.value;
+                
+                const targetName = document.getElementById(targetPrefix + '-deduction-liability-name');
+                const usmName = document.getElementById('usm-deduction-liability-name');
+                if (targetName && usmName) targetName.value = usmName.value;
+            }
+        }
+}
         
         window.closeUnifiedSellModal();
         
@@ -14666,5 +15089,6 @@ if (confirmPrBtn) confirmPrBtn.addEventListener('click', async () => {
     document.getElementById('purchaseReturnModal').classList.add('hidden');
     if (typeof showGlobalMessage === 'function') showGlobalMessage("تم إرجاع المنتجات وتحديث الأرصدة بنجاح.");
 });
+
 
 
