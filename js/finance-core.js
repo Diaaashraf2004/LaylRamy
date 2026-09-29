@@ -3734,7 +3734,10 @@ async function saveCurrentStateByDate(dateString) {
 
         showGlobalMessage(userMessage, isError, isInfo);
     }
-}function openBackupHistoryModal() {
+}, 3000);
+}
+
+function openBackupHistoryModal() {
     const modal = document.getElementById('backupHistoryModal');
     const listContainer = document.getElementById('backup-history-list');
     
