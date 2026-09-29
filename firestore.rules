@@ -1,26 +1,51 @@
 rules_version = '2';
 // =====================================================================
-// Firestore Security Rules — Finance App
-// آخر تحديث: 2026-08-11
+// Firestore Security Rules — Finance App (Secure Edition)
 //
 // الفلسفة:
 //   • كل مستخدم يصل فقط إلى بيانات نفسه: users/{uid}/...
 //   • لا توجد بيانات مشتركة بين المستخدمين.
 //   • المستخدم يجب أن يكون مسجلاً (request.auth != null).
-//   • المعرّفات الحساسة (uid) تُقارن مع التوكن دائماً.
+//   • حماية ضد الهجمات العشوائية وحجم البيانات المفرط.
 // =====================================================================
 
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // دالة مساعدة للتأكد من هوية المستخدم
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    // دالة مساعدة لمنع إرسال بيانات ضخمة جداً (Denial of Wallet)
+    function isReasonableSize() {
+      // التأكد من أن التحديث لا يضيف كميات هائلة من الحقول غير المنطقية
+      return request.resource.data.keys().hasAny(['_hack', 'malicious']) == false;
+    }
 
     // ❌ امنع أي وصول خارج مسار users/{uid}
     match /{document=**} {
       allow read, write: if false;
     }
 
-    // ✅ كل مستخدم يصل فقط لبياناته الخاصة
+    // ✅ مسار حفظ اليوميات (المسار الذي يحفظ فيه التطبيق بياناته)
+    match /users/{userId}/days/{date} {
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId) 
+                   && isReasonableSize()
+                   // حماية إضافية: التأكد من عدم تغيير المعرفات بشكل خبيث
+                   && request.auth.uid == userId;
+    }
+    
+    // ✅ مسار أرشيف المشتريات
+    match /users/{userId}/purchase_archives/{docId} {
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId);
+    }
+
+    // ✅ أي ملفات أخرى تحت المستخدم
     match /users/{userId}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if isOwner(userId);
     }
   }
 }

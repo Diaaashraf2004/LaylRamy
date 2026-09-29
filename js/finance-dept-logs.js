@@ -43,7 +43,8 @@ window.renderDeptLogTimeline = function() {
         else if (c === 'liabilities') matchesCat = type.includes('التزام') || type.includes('دائن');
         else if (c === 'products') matchesCat = type.includes('منتج') || type.includes('مخزون') || type.includes('بضاعة');
         else if (c === 'expenses') matchesCat = type.includes('مصروف');
-        else if (c === 'returns') matchesCat = type.includes('مرتجع');
+        else if (c === 'returns') matchesCat = type.includes('مرتجع') && !type.includes('مورد');
+        else if (c === 'supplier_returns') matchesCat = type.includes('مرتجع مورد') || (type.includes('مرتجع') && type.includes('مورد'));
         else matchesCat = type.includes(c);
         
         let matchesDate = true;
@@ -79,15 +80,22 @@ window.renderDeptLogTimeline = function() {
             highlightedDetails = log.details.replace(regex, match => `<span class="bg-yellow-200 text-yellow-900 font-bold px-1 rounded">${match}</span>`);
         }
         
+        const isPending = log.type && log.type.includes('بيع مؤقت');
+        const bgClass = isPending ? 'bg-yellow-50' : 'bg-white';
+        const borderClass = isPending ? 'border-yellow-400' : 'border-slate-100';
+        const dotClass = isPending ? 'bg-yellow-500' : 'bg-blue-500';
+        const typeClass = isPending ? 'text-yellow-800' : 'text-blue-700';
+        const iconHTML = isPending ? '<i class="fas fa-clock mr-1"></i>' : '';
+
         html += `<div class="relative">
-                <div class="absolute -right-6 top-1 w-4 h-4 bg-blue-500 rounded-full border-4 border-white shadow"></div>
-                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+                <div class="absolute -right-6 top-1 w-4 h-4 ${dotClass} rounded-full border-4 border-white shadow"></div>
+                <div class="${bgClass} p-4 rounded-xl shadow-sm border ${borderClass}">
                     <div class="flex justify-between items-start mb-2">
-                        <span class="font-bold text-blue-700 text-sm">${log.type}</span>
+                        <span class="font-bold ${typeClass} text-sm">${iconHTML}${log.type}</span>
                         <span class="text-xs text-slate-400 font-mono bg-slate-100 px-2 py-1 rounded">${timeOnly}</span>
                     </div>
-                    <p class="text-slate-600 text-sm m-0">${highlightedDetails}</p>
-                    <div class="text-xs text-slate-400 mt-2"><i class="far fa-calendar-alt ml-1"></i>${dateOnly}</div>
+                    <p class="text-slate-700 font-medium text-sm m-0">${highlightedDetails}</p>
+                    <div class="text-xs text-slate-500 mt-2"><i class="far fa-calendar-alt ml-1"></i>${dateOnly}</div>
                 </div>
             </div>`;
     });

@@ -3659,10 +3659,16 @@ async function saveCurrentStateByDate(dateString) {
         console.warn("Local backup warning (silent):", e);
     }
 
-    // 2. الحفظ السحابي (محاولة هادئة)
-    try {
-        const docRef = window.doc(window.db, "users", userId, "days", dateString);
-        window.setDoc(docRef, sanitizedState, { merge: true });
+    // 2. الحفظ السحابي (Smart Debounce Sync)
+    if (window._saveTimeout) clearTimeout(window._saveTimeout);
+    window._pendingSaveDate = dateString;
+
+    window._saveTimeout = setTimeout(async () => {
+        try {
+            window._saveTimeout = null;
+            console.log(`[Smart Sync] Executing debounced cloud save for ${window._pendingSaveDate}...`);
+            const docRef = window.doc(window.db, "users", userId, "days", window._pendingSaveDate);
+            await window.setDoc(docRef, sanitizedState, { merge: true });
 
         // 🌟 تحديث الملخص
         const latestBalancesSummary = {
@@ -6133,9 +6139,10 @@ function displaySalesReport(salesToDisplay) {
                 </div>
             `).join('');
 
-            const saleAmount = Number(sale.grandTotal ?? sale.totalSellPrice) || 0;
-            const costAmount = Number(sale.totalCost) || 0;
-            const profitAmount = Number(sale.profit) || 0;
+            const saleAmount = (Number(sale.grandTotal ?? sale.totalSellPrice) || 0) - (Number(sale.returnedAmount) || 0);
+            const costAmount = (Number(sale.totalCost) || 0) - (Number(sale.returnedCost) || 0);
+            const returnedProfit = (Number(sale.returnedAmount) || 0) - (Number(sale.returnedCost) || 0);
+            const profitAmount = (Number(sale.profit) || 0) - returnedProfit;
 
             totalMonthSales += saleAmount;
             totalMonthCost += costAmount;
@@ -7737,8 +7744,17 @@ function handleInvoiceReturnConfirmation(invoiceId, invoiceNumber) {
         return;
     }
 
-    if (totalReturnValue > liquidity) {
-        showMessage(returnMessage, `السيولة غير كافية (${formatCurrency(liquidity)}) لإرجاع هذا المبلغ (${formatCurrency(totalReturnValue)}).`, true);
+    
+    const selectedAccountId = document.getElementById('return-from-account-select')?.value;
+    const account = accounts.find(acc => acc.id === selectedAccountId);
+    
+    if (!account) {
+        showMessage(returnMessage, "يرجى اختيار الحساب الذي سيتم سحب مبلغ المرتجع منه.", true);
+        return;
+    }
+
+    if (totalReturnValue > account.balance) {
+        showMessage(returnMessage, `السيولة غير كافية في حساب "${account.name}" (${formatCurrency(account.balance)}) لإرجاع هذا المبلغ (${formatCurrency(totalReturnValue)}).`, true);
         return;
     }
 
@@ -7746,7 +7762,8 @@ function handleInvoiceReturnConfirmation(invoiceId, invoiceNumber) {
     const customerName = invoiceSearchResults.querySelector('p > strong').nextSibling.textContent.trim();
 
     // Process the return
-    liquidity -= totalReturnValue;
+    account.balance -= totalReturnValue;
+
     const profitToReverse = totalReturnValue - totalCostOfReturn;
 
     if(receiveNow) {
@@ -7768,7 +7785,7 @@ products.push({ id: uniqueProductCodeReturn, name: item.name, quantity: item.qua
         logOperation("مرتجع معلق من فاتورة", `إرجاع مبلغ ${formatCurrency(totalReturnValue)} للعميل من فاتورة ${invoiceNumber}. البضاعة قيد الاستلام.`);
     }
 
-    liquidityLog.push({ id: `liq-${Date.now()}`, type: "remove", amount: totalReturnValue, description: `مرتجع من فاتورة ${invoiceNumber}`, currentBalance: liquidity });
+    liquidityLog.push({ id: `liq-${Date.now()}`, timestamp: new Date().toISOString(), type: "remove", amount: totalReturnValue, description: `مرتجع من فاتورة ${invoiceNumber}`, currentBalance: accounts.reduce((sum, acc) => sum + acc.balance, 0), accountId: account.id });
 
     showMessage(returnMessage, "تم تسجيل عملية الإرجاع من الفاتورة بنجاح.", false);
     invoiceSearchResults.innerHTML = '';
@@ -8430,11 +8447,13 @@ async function pi_confirmPurchaseInvoice() {
             account.balance -= invoiceData.paidAmount;
             const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
             liquidityLog.push({ 
-                id: `liq-${Date.now()}`, 
+                id: `liq-${Date.now()}`,
+                timestamp: new Date().toISOString(),
                 type: "remove", 
                 amount: invoiceData.paidAmount, 
                 description: goodsReceived ? `دفع فاتورة شراء لـ ${supplier?.name}` : `عربون شراء لـ ${supplier?.name}`, 
-                currentBalance: newTotalLiquidity 
+                currentBalance: newTotalLiquidity,
+                accountId: account.id
             });
         }
 
@@ -8801,7 +8820,18 @@ function handleIncomeAddition() {
     saveStateToHistory();
     account.balance += amount;
     logOperation("إضافة إيراد", `إضافة ${formatCurrency(amount)} إلى حساب "${account.name}" تحت فئة "${category}".`);
-    // لاحقاً، سنضيف هذا لسجل السيولة المفصل
+    
+    const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
+    liquidityLog.push({
+        id: 'liq-' + Date.now(),
+        timestamp: new Date().toISOString(),
+        type: "add",
+        amount: amount,
+        description: `إضافة إيراد (${category}) لحساب "${account.name}"`,
+        currentBalance: newTotalLiquidity,
+        accountId: accountId
+    });
+    
     return true;
 }
 
@@ -8893,6 +8923,26 @@ function handleTransfer() {
     fromAccount.balance -= amount;
     toAccount.balance += amount;
     logOperation("تحويل بين الحسابات", `تم تحويل ${formatCurrency(amount)} من "${fromAccount.name}" إلى "${toAccount.name}".`);
+    
+    const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
+    liquidityLog.push({
+        id: 'liq-out-' + Date.now(),
+        timestamp: new Date().toISOString(),
+        type: "remove",
+        amount: amount,
+        description: `تحويل صادر إلى حساب "${toAccount.name}"`,
+        currentBalance: newTotalLiquidity,
+        accountId: fromAccount.id
+    });
+    liquidityLog.push({
+        id: 'liq-in-' + (Date.now() + 1),
+        timestamp: new Date().toISOString(),
+        type: "add",
+        amount: amount,
+        description: `تحويل وارد من حساب "${fromAccount.name}"`,
+        currentBalance: newTotalLiquidity,
+        accountId: toAccount.id
+    });
     return true;
 }
 
@@ -8922,8 +8972,20 @@ function handleBalanceAdjustment() {
 
     if (confirm(`هل أنت متأكد من تغيير رصيد حساب "${account.name}" إلى ${formatCurrency(newBalance)}؟`)) {
         saveStateToHistory();
+        const difference = newBalance - account.balance;
         account.balance = newBalance;
         logOperation("تعديل رصيد يدوي", `تم تعديل رصيد حساب "${account.name}" إلى ${formatCurrency(newBalance)}. السبب: ${reason}.`);
+        
+        const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
+        liquidityLog.push({
+            id: 'liq-adj-' + Date.now(),
+            timestamp: new Date().toISOString(),
+            type: difference >= 0 ? "add" : "remove",
+            amount: Math.abs(difference),
+            description: `تعديل رصيد (السبب: ${reason}) لحساب "${account.name}"`,
+            currentBalance: newTotalLiquidity,
+            accountId: account.id
+        });
         return true;
     }
     return false;
@@ -10028,6 +10090,16 @@ if (addProductButton) {
                     account.balance -= costToDeduct;
                     logOperation("شراء بضاعة (تعديل كمية)", `خصم ${formatCurrency(costToDeduct)} من حساب "${account.name}" لزيادة كمية منتج "${name}" بمقدار ${addedQty} قطعة.`);
                     
+                    liquidityLog.push({
+                        id: 'liq-buy-' + Date.now(),
+                        timestamp: new Date().toISOString(),
+                        type: "remove",
+                        amount: costToDeduct,
+                        description: `شراء بضاعة (تعديل): ${addedQty}x ${name}`,
+                        currentBalance: accounts.reduce((sum, acc) => sum + acc.balance, 0),
+                        accountId: account.id
+                    });
+                    
                     // معادلة متوسط التكلفة المرجح الحقيقية لحماية تقارير الأرباح
                     products[productIndex].costPrice = ((oldQty * oldCost) + (addedQty * costPrice)) / quantity;
                 } else {
@@ -10111,6 +10183,15 @@ if (addProductButton) {
                     }
                     account.balance -= costToDeduct;
                     logOperation("شراء بضاعة", `خصم ${formatCurrency(costToDeduct)} من حساب "${account.name}" لشراء ${newQuantity}x ${name}.`);
+                    liquidityLog.push({
+                        id: 'liq-buy-' + Date.now(),
+                        timestamp: new Date().toISOString(),
+                        type: "remove",
+                        amount: costToDeduct,
+                        description: `شراء بضاعة: ${newQuantity}x ${name}`,
+                        currentBalance: accounts.reduce((sum, acc) => sum + acc.balance, 0),
+                        accountId: account.id
+                    });
                 }
 
                 const oldQuantity = Number(existing.quantity) || 0;
@@ -10150,6 +10231,15 @@ if (addProductButton) {
                     }
                     account.balance -= costToDeduct;
                     logOperation("شراء بضاعة جديدة", `خصم ${formatCurrency(costToDeduct)} من حساب "${account.name}" لشراء ${newQuantity}x ${name}.`);
+                    liquidityLog.push({
+                        id: 'liq-buy-new-' + Date.now(),
+                        timestamp: new Date().toISOString(),
+                        type: "remove",
+                        amount: costToDeduct,
+                        description: `شراء بضاعة جديدة: ${newQuantity}x ${name}`,
+                        currentBalance: accounts.reduce((sum, acc) => sum + acc.balance, 0),
+                        accountId: account.id
+                    });
                 }
 
                 // 🆔 [توليد كود مخصص وحصري فريد]: منح كود فريد لكل منتج جديد يدخل النظام
@@ -10335,6 +10425,15 @@ if (confirmDecreaseBtn) {
             }
             account.balance += totalRefundValue;
             logOperation("تسوية مخزن (إيداع)", `إضافة ${formatCurrency(totalRefundValue)} لحساب "${account.name}" مقابل مرتجع/تقليص كمية منتج "${name}" بمقدار ${reducedQty} قطعة.`);
+              liquidityLog.push({
+                  id: 'liq-adj-dep-' + Date.now(),
+                  timestamp: new Date().toISOString(),
+                  type: "add",
+                  amount: totalRefundValue,
+                  description: `تسوية مخزن (إيداع): تقليص ${reducedQty}x ${name}`,
+                  currentBalance: accounts.reduce((sum, acc) => sum + acc.balance, 0),
+                  accountId: account.id
+              });
         } else {
             // الخيار الثاني: الخصم المباشر من رأس المال (تسجيل خسارة / هالك بضاعة) دون كاش
             logOperation("تسوية مخزن (هالك/خسارة)", `تقليص كمية منتج "${name}" بمقدار ${reducedQty} قطعة واعتبارها هالك/خسارة قيمتها ${formatCurrency(totalRefundValue)} دون إدخال سيولة.`);
@@ -10418,6 +10517,15 @@ if (confirmDuplicateBtn) {
                     if (costToDeduct <= account.balance) {
                         account.balance -= costToDeduct;
                         logOperation("شراء بضاعة (منفصلة الاسم)", `خصم ${formatCurrency(costToDeduct)} من حساب "${account.name}" لشراء منتج مستقل يحمل اسم مكرر "${data.name}".`);
+                    liquidityLog.push({
+                        id: 'liq-buy-sep-' + Date.now(),
+                        timestamp: new Date().toISOString(),
+                        type: "remove",
+                        amount: costToDeduct,
+                        description: `شراء بضاعة (منفصلة): ${data.quantity}x ${data.name}`,
+                        currentBalance: accounts.reduce((sum, acc) => sum + acc.balance, 0),
+                        accountId: account.id
+                    });
                     }
                 }
 
@@ -10972,7 +11080,7 @@ function sellProduct(skipConfirmation = true) {
         account.balance += totalSellPrice; totalProfit += (typeof netProfitForDisplay !== "undefined" ? netProfitForDisplay : profit);
         
         const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
-        liquidityLog.push({ id: `liq-${Date.now()}`, timestamp: new Date().toISOString(), type: "add", amount: totalSellPrice, description: `بيع بضاعة: ${productNameWithSerial}`, currentBalance: newTotalLiquidity });
+        liquidityLog.push({ id: `liq-${Date.now()}`, timestamp: new Date().toISOString(), type: "add", amount: totalSellPrice, description: `بيع بضاعة: ${productNameWithSerial}`, currentBalance: newTotalLiquidity, accountId: account.id });
 
         const allItems = [
             { name: mainProduct.name, quantity: quantitySold, costPrice: mainProduct.costPrice, serial: selectedSerial },
@@ -11476,7 +11584,7 @@ if (existingDebtIndex !== -1) {
         if (deductLiquidity) {
             account.balance -= amount;
             const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
-            liquidityLog.push({ id: `liq-${Date.now()}`, timestamp: new Date().toISOString(), type: "remove", amount: amount, description: `سلفة لـ ${name} من حساب "${account.name}"`, currentBalance: newTotalLiquidity });
+            liquidityLog.push({ id: `liq-${Date.now()}`, timestamp: new Date().toISOString(), type: "remove", amount: amount, description: `سلفة لـ ${name} من حساب "${account.name}"`, currentBalance: newTotalLiquidity, accountId: account.id });
             logMsg += ` وتم خصمه كسلفة من حساب "${account.name}".`;
         }
         
@@ -11555,7 +11663,7 @@ if (receivePaymentButton) {
 
         const summaryText = Array.from(paidDebtorsSummary.entries()).map(([name, amount]) => `${name} (${formatCurrency(amount)})`).join('، ');
         const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
-        liquidityLog.push({ id: `liq-${Date.now()}`, timestamp: new Date().toISOString(), type: "add", amount: totalPayment, description: `سداد مجمع من: ${summaryText}`, currentBalance: newTotalLiquidity });
+        liquidityLog.push({ id: `liq-${Date.now()}`, timestamp: new Date().toISOString(), type: "add", amount: totalPayment, description: `سداد مجمع من: ${summaryText}`, currentBalance: newTotalLiquidity, accountId: account.id });
         logOperation("استلام سداد مجمع", `استلام ${formatCurrency(totalPayment)} في حساب "${account.name}" من: ${summaryText}.`);
 
         showMessage(debtsMessage, `تم استلام دفعة مجمعة بقيمة ${formatCurrency(totalPayment)} بنجاح.`);
@@ -11791,7 +11899,7 @@ if (toggleAllLiabilitiesCheckbox) {
         });
         const summaryText = Array.from(paidCreditorsSummary.entries()).map(([name, amount]) => `${name} (${formatCurrency(amount)})`).join('، ');
         const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
-        liquidityLog.push({ id: `liq-${Date.now()}`, timestamp: new Date().toISOString(), type: "remove", amount: totalPayment, description: `تسديد التزام مجمع لـ: ${summaryText}`, currentBalance: newTotalLiquidity });
+        liquidityLog.push({ id: `liq-${Date.now()}`, timestamp: new Date().toISOString(), type: "remove", amount: totalPayment, description: `تسديد التزام مجمع لـ: ${summaryText}`, currentBalance: newTotalLiquidity, accountId: account.id });
         logOperation("تسديد التزام مجمع", `تسديد ${formatCurrency(totalPayment)} من حساب "${account.name}" إلى: ${summaryText}.`);
 
         showMessage(liabilitiesMessage, `تم تسديد دفعة مجمعة بقيمة ${formatCurrency(totalPayment)} بنجاح.`);
@@ -12937,7 +13045,7 @@ d('confirm-partial-debt-payment-btn').addEventListener('click', () => {
     logOperation("استلام سداد جزئي", `استلام ${formatCurrency(amountToPay)} في حساب "${account.name}" من دين "${debt.name}".`);
     
     const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
-    liquidityLog.push({ id: `liq-${Date.now()}`, timestamp: new Date().toISOString(), type: "add", amount: amountToPay, description: summaryText, currentBalance: newTotalLiquidity });
+    liquidityLog.push({ id: `liq-${Date.now()}`, timestamp: new Date().toISOString(), type: "add", amount: amountToPay, description: summaryText, currentBalance: newTotalLiquidity, accountId: account.id });
 
     // Remove debt if it's fully paid
     if (debt.amount < 0.01) {
@@ -15092,3 +15200,11 @@ if (confirmPrBtn) confirmPrBtn.addEventListener('click', async () => {
 
 
 
+
+// ?? Flush Save on Window Close to prevent data loss
+window.addEventListener('beforeunload', (e) => {
+    if (window._saveTimeout) {
+        e.preventDefault();
+        e.returnValue = '???? ?????? ?? ??? ????? ??? ??????? ???? ???? ???????? ????? ?????!';
+    }
+});
