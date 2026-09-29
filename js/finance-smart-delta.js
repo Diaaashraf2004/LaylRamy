@@ -90,7 +90,24 @@ window.loadLatestBalances = function(callback) {
             if (data.accounts) window.accounts = data.accounts;
             if (data.products) window.products = data.products;
             if (data.debtors) window.debtors = data.debtors;
-            console.log("Loaded latest balances:", data);
+            if (data.suppliers) window.suppliers = data.suppliers;
+            if (data.liabilities) window.liabilities = data.liabilities;
+            if (data.monthlyLiabilities) window.monthlyLiabilities = data.monthlyLiabilities;
+            if (data.serialNumbersLog) window.serialNumbersLog = data.serialNumbersLog;
+            if (data.debtorProfiles) window.debtorProfiles = data.debtorProfiles;
+            if (data.debtCollectionNotes) window.debtCollectionNotes = data.debtCollectionNotes;
+            if (data.pendingOrders) window.pendingOrders = data.pendingOrders;
+            
+            // Handle standaloneSerials correctly through the setter if available
+            if (data.standaloneSerials) {
+                if (typeof window.setStandaloneSerials === 'function') {
+                    window.setStandaloneSerials(data.standaloneSerials);
+                } else {
+                    window.standaloneSerials = data.standaloneSerials;
+                }
+            }
+            
+            console.log("Loaded all arrays from latest balances.");
         } else {
             console.log("No latest balances found.");
         }

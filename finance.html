@@ -2356,6 +2356,14 @@
                 <label>المبلغ المراد تحويله:</label>
                 <input type="number" id="trans-lia-amount" step="0.01">
             </div>
+            <div class="form-group">
+                <label>مسمى الالتزام في بروفايل المستلم:</label>
+                <div style="display: flex; gap: 15px; margin-bottom: 8px; font-size: 13px;">
+                    <label><input type="radio" name="lia-category-opt" value="keep" checked onchange="document.getElementById('trans-lia-new-category').classList.add('hidden')"> نفس المسمى</label>
+                    <label><input type="radio" name="lia-category-opt" value="change" onchange="document.getElementById('trans-lia-new-category').classList.remove('hidden')"> مسمى آخر</label>
+                </div>
+                <input type="text" id="trans-lia-new-category" class="hidden shadow-inner border p-2 w-full" placeholder="اكتب مسمى الالتزام الجديد هنا (مثال: أخرى)">
+            </div>
         </div>
         <div class="modal-footer">
             <button id="confirmLiabilityTransferBtn" class="bg-purple-600 text-white w-full py-2 rounded font-bold hover:bg-purple-700">تأكيد عملية التحويل</button>

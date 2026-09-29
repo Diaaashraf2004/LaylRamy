@@ -2468,7 +2468,7 @@ function handleConfirmInlineDebtPayment(debtorName, formElement) {
 // 💡 دوال تحويل الالتزامات (Liability Transfer)
 // ==========================================
 window.openTransferLiabilityModal = function(liabilityId) {
-    const liability = window.liabilities.find(l => l.id === liabilityId);
+    const liability = liabilities.find(l => l.id === liabilityId);
     if (!liability) return;
 
     const modal = document.getElementById('transferLiabilityModal');
@@ -2481,7 +2481,7 @@ window.openTransferLiabilityModal = function(liabilityId) {
     // تحديث قائمة الدائنين المقترحة
     const datalist = document.getElementById('liability-names-list');
     if (datalist) {
-        const uniqueNames = [...new Set(window.liabilities.map(l => l.name))];
+        const uniqueNames = [...new Set(liabilities.map(l => l.name))];
         datalist.innerHTML = uniqueNames.map(n => `<option value="${n}">`).join('');
     }
     
@@ -2490,6 +2490,10 @@ window.openTransferLiabilityModal = function(liabilityId) {
     
     // تصفير المدخلات
     document.getElementById('trans-lia-target-name').value = '';
+    document.getElementById('trans-lia-new-category').value = '';
+    document.getElementById('trans-lia-new-category').classList.add('hidden');
+    const keepOpt = document.querySelector('input[name="lia-category-opt"][value="keep"]');
+    if(keepOpt) keepOpt.checked = true;
     
     modal.style.display = 'block';
 };
@@ -2500,13 +2504,17 @@ window.closeTransferLiabilityModal = function() {
 };
 
 window.processLiabilityTransfer = function(sourceLiabilityId) {
-    const sourceIndex = window.liabilities.findIndex(l => l.id === sourceLiabilityId);
+    const sourceIndex = liabilities.findIndex(l => l.id === sourceLiabilityId);
     if (sourceIndex === -1) return;
 
-    const sourceLiability = window.liabilities[sourceIndex];
+    const sourceLiability = liabilities[sourceIndex];
     const targetName = document.getElementById('trans-lia-target-name').value.trim();
     const transferAmount = parseFloat(document.getElementById('trans-lia-amount').value);
     
+    const useNewCategory = document.querySelector('input[name="lia-category-opt"]:checked').value === 'change';
+    const newCategory = document.getElementById('trans-lia-new-category').value.trim();
+    const finalCategory = (useNewCategory && newCategory) ? newCategory : (sourceLiability.category || 'أخرى');
+
     if (!targetName || isNaN(transferAmount) || transferAmount <= 0 || transferAmount > sourceLiability.amount) {
         if(typeof showGlobalMessage === 'function') showGlobalMessage("يرجى التأكد من اسم المستلم والمبلغ المحول.", true);
         else alert("يرجى التأكد من اسم المستلم والمبلغ المحول");
@@ -2531,21 +2539,21 @@ window.processLiabilityTransfer = function(sourceLiabilityId) {
 
     // إضافة للمستلم الجديد
     // نرى ما إذا كان هناك التزام عام (أخرى) مفتوح لنفس الدائن لندمجه، وإلا ننشئ واحداً جديداً
-    const existingTargetLiability = window.liabilities.find(l => 
+    const existingTargetLiability = liabilities.find(l => 
         normalizeArabicText(l.name) === normalizeArabicText(targetName) && 
         l.status !== 'paid' && 
-        (l.category === 'أخرى' || !l.category)
+        normalizeArabicText(l.category || 'أخرى') === normalizeArabicText(finalCategory)
     );
 
     if (existingTargetLiability) {
         existingTargetLiability.amount += transferAmount;
     } else {
-        window.liabilities.push({
+        liabilities.push({
             id: generateId("LIA"),
             name: targetName,
             amount: transferAmount,
             date: new Date().toISOString(),
-            category: "أخرى",
+            category: finalCategory,
             note: `محول من ${oldSourceName}`
         });
     }
@@ -15211,3 +15219,7 @@ window.addEventListener('beforeunload', (e) => {
         e.returnValue = '???? ?????? ?? ??? ????? ??? ??????? ???? ???? ???????? ????? ?????!';
     }
 });
+
+window.loadInvoiceDraft = function() { if(typeof showGlobalMessage === 'function') showGlobalMessage('ميزة المسودة قيد التطوير ولم تكتمل برمجتها بعد.', true); else alert('ميزة المسودة قيد التطوير ولم تكتمل برمجتها بعد.'); };
+window.loadQuickSellDraft = function() { if(typeof showGlobalMessage === 'function') showGlobalMessage('ميزة استعادة المسودة قيد التطوير ولم تكتمل برمجتها بعد.', true); else alert('ميزة المسودة قيد التطوير ولم تكتمل برمجتها بعد.'); };
+window.saveQuickSellDraft = function() { if(typeof showGlobalMessage === 'function') showGlobalMessage('ميزة حفظ المسودة قيد التطوير ولم تكتمل برمجتها بعد.', true); else alert('ميزة المسودة قيد التطوير ولم تكتمل برمجتها بعد.'); };
