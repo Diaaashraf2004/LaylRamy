@@ -1,4 +1,4 @@
-/**
+﻿/**
  * نظام الاستبدال وإدارة الفواتير المعلقة (ERP V10.5)
  * التحديث: إصلاح أخطاء الـ Null Pointer وتأمين دوال الحساب لضمان استقرار النظام.
  */
@@ -973,7 +973,7 @@ window.generateExpensesReportExternal = async function(deps) {
 
     showMessage(messageEl, `جاري جلب وتحليل المصروفات...`, false, true);
     summaryContainer.classList.add('hidden');
-    tableBody.innerHTML = `<tr><td colspan="4" class="text-center text-gray-500 py-4"><i class="fas fa-spinner fa-spin"></i> جاري معالجة البيانات...</td></tr>`;
+    tableBody.innerHTML = `<tr><td colspan="5" class="text-center text-gray-500 py-4"><i class="fas fa-spinner fa-spin"></i> جاري معالجة البيانات...</td></tr>`;
 
     setTimeout(async () => {
         try {
@@ -999,7 +999,7 @@ window.generateExpensesReportExternal = async function(deps) {
         } catch (error) {
             console.error("Error fetching expenses:", error);
             showMessage(messageEl, "حدث خطأ أثناء جلب البيانات السحابية.", true);
-            tableBody.innerHTML = '<tr><td colspan="4" class="text-center text-red-500">فشل تحميل البيانات.</td></tr>';
+            tableBody.innerHTML = '<tr><td colspan="5" class="text-center text-red-500">فشل تحميل البيانات.</td></tr>';
         }
     }, 100);
 
@@ -1095,7 +1095,7 @@ window.generateExpensesReportExternal = async function(deps) {
         let uniqueExpenses = [];
         let seenKeys = new Set();
         allExpenses.forEach(exp => {
-            const key = `${exp.amount}_${exp.details.trim()}_${exp.date}`;
+            const key = `${exp.amount}_${exp.details.trim()}_${exp.timestamp}`;
             if (!seenKeys.has(key)) {
                 uniqueExpenses.push(exp);
                 seenKeys.add(key);
@@ -1108,7 +1108,7 @@ window.generateExpensesReportExternal = async function(deps) {
         tableBody.innerHTML = '';
         
         if (uniqueExpenses.length === 0) {
-            tableBody.innerHTML = `<tr><td colspan="4" class="text-center text-gray-500 py-4">لا توجد مصروفات أو مسحوبات مسجلة في هذا الشهر.</td></tr>`;
+            tableBody.innerHTML = `<tr><td colspan="5" class="text-center text-gray-500 py-4">لا توجد مصروفات أو مسحوبات مسجلة في هذا الشهر.</td></tr>`;
         } else {
             uniqueExpenses.forEach(exp => {
                 totalAmount += exp.amount;
@@ -1130,7 +1130,12 @@ window.generateExpensesReportExternal = async function(deps) {
                         ${exp.isVerified ? `<br><span class="text-xs bg-red-100 text-red-800 px-2 py-1 rounded border border-red-200 mt-1 inline-block">مصروف معتمد</span>` : ''}
                     </td>
                     <td class="p-3 text-sm text-gray-600">${exp.details}</td>
-                    <td class="p-3 text-sm text-center font-mono font-bold text-red-600">-${formatCurrency(exp.amount)}</td>
+                    <td class="p-3 text-sm text-center font-mono font-bold text-red-600">-</td>
+                    <td class="p-3 text-sm text-center">
+                        <button onclick="window.deleteExpenseEntry('${exp.timestamp}', '${exp.source}', ${exp.amount})" class="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded transition-colors" title="حذف المصروف">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </td>
                 `;
                 tableBody.appendChild(tr);
             });
@@ -1344,7 +1349,7 @@ window.lookupCustomerInvoices = async function() {
         document.body.appendChild(modal);
     }
 
-    let tbody = results.length === 0 ? `<tr><td colspan="4" style="text-align:center;">لا توجد فواتير مطابقة</td></tr>` :
+    let tbody = results.length === 0 ? `<tr><td colspan="5" style="text-align:center;">لا توجد فواتير مطابقة</td></tr>` :
         results.map(s => `
             <tr>
                 <td>${s.invoiceNumber || s.id}</td>
@@ -1409,4 +1414,75 @@ window.selectInvoiceForReturn = function(invoice) {
     
     document.getElementById('ex-invoice-lookup-modal').style.display='none';
     if(typeof runCalc === 'function') runCalc();
+};
+
+window.deleteExpenseEntry = function(timestamp, source, amount) {
+    if (source === 'cloud') {
+        alert("لا يمكن حذف مصروفات الأيام السابقة مباشرة من هنا لتأثيرها على رصيد الخزنة المغلق. يرجى استخدام (إضافة سيولة) أو (تقليل مصروف) من القائمة الرئيسية لتسويتها محاسبياً.");
+        return;
+    }
+    
+    if (!confirm(هل أنت متأكد من حذف هذا المصروف بقيمة  + (typeof formatCurrency === 'function' ? formatCurrency(amount) : amount) + ؟ سيتم إرجاع المبلغ لحسابه الأصلي.)) return;
+
+    let foundAndDeleted = false;
+
+    // 1. Remove from operationLog
+    if (typeof window.operationLog !== 'undefined') {
+        const idx = window.operationLog.findIndex(log => log.timestamp === timestamp);
+        if (idx !== -1) {
+            window.operationLog.splice(idx, 1);
+            foundAndDeleted = true;
+        }
+    }
+
+    // 2. Remove from liquidityLog and restore account balance
+    if (typeof window.liquidityLog !== 'undefined' && typeof window.accounts !== 'undefined') {
+        const lIdx = window.liquidityLog.findIndex(l => l.timestamp === timestamp);
+        if (lIdx !== -1) {
+            const lEntry = window.liquidityLog[lIdx];
+            window.liquidityLog.splice(lIdx, 1);
+            
+            // Restore account balance
+            if (lEntry.accountId) {
+                const acc = window.accounts.find(a => String(a.id) === String(lEntry.accountId));
+                if (acc) acc.balance += Number(lEntry.amount || amount);
+            } else if (lEntry.description) {
+                const match = lEntry.description.match(/من حساب "([^"]+)"/);
+                if (match && match[1]) {
+                    const accName = match[1];
+                    const acc = window.accounts.find(a => a.name === accName);
+                    if (acc) acc.balance += Number(lEntry.amount || amount);
+                }
+            }
+            foundAndDeleted = true;
+        }
+    }
+
+    // 3. Subtract from global expenses
+    if (foundAndDeleted && typeof window.expenses !== 'undefined') {
+        window.expenses = Math.max(0, window.expenses - amount);
+    }
+
+    if (foundAndDeleted) {
+        if (typeof window.saveStateToHistory === 'function') window.saveStateToHistory();
+        if (typeof window.updateUI === 'function') window.updateUI();
+        if (typeof window.saveCurrentStateByDate === 'function') {
+            const d = typeof window.currentLoadedDate !== 'undefined' && window.currentLoadedDate ? window.currentLoadedDate : new Date().toISOString().split('T')[0];
+            window.saveCurrentStateByDate(d);
+        }
+        
+        if (typeof window.logOperation === 'function') {
+            window.logOperation("إلغاء مصروف", تم حذف مصروف بقيمة  + amount +  يدوياً من التقرير.);
+        }
+        
+        if (typeof generateExpensesReport === 'function') generateExpensesReport();
+        
+        if (typeof showGlobalMessage === 'function') {
+            showGlobalMessage("تم حذف المصروف وإرجاع المبلغ بنجاح.", false);
+        } else {
+            alert("تم حذف المصروف وإرجاع المبلغ بنجاح.");
+        }
+    } else {
+        alert("لم يتم العثور على المصروف في سجلات اليوم الحالي.");
+    }
 };
