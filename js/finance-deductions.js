@@ -280,9 +280,32 @@
     window.applyDeduction = function(deductionData, saleRecord) {
         if (!deductionData || deductionData.error) return;
 
+        // ============================================================
+        // 🛡️ الحارس 1: لا تطبق الاستقطاع على البيعات المعلقة (pending)
+        // يُطبَّق فقط عند التأكيد عبر applyPendingDeduction
+        // ============================================================
+        if (saleRecord && saleRecord.status === 'pending') {
+            console.warn(`⛔ [Deduction Guard] تجاهل الاستقطاع: البيعة "${saleRecord.id}" معلقة. سيُطبَّق عند التأكيد فقط.`);
+            return;
+        }
+
         const amount = deductionData.amount;
         const liabilityName = deductionData.liabilityName;
         const appLiabilities = (typeof window.getLiabilities === 'function') ? window.getLiabilities() : [];
+
+        // ============================================================
+        // 🛡️ الحارس 2: منع التكرار — إذا الفاتورة دي اتسجلت قبل كده
+        // ============================================================
+        if (saleRecord?.id) {
+            const liabForCheck = appLiabilities.find(l =>
+                (l.name || l.description || '').trim().toLowerCase() === liabilityName.trim().toLowerCase()
+            );
+            const alreadyRecorded = (liabForCheck?.history || []).find(h => h.saleId === saleRecord.id);
+            if (alreadyRecorded) {
+                console.warn(`⛔ [Deduction Guard] تجاهل التكرار: الفاتورة "${saleRecord.id}" مسجلة بالفعل في history.`);
+                return;
+            }
+        }
 
         // البحث عن التزام موجود بنفس الاسم
         const existingLiability = appLiabilities.find(l =>

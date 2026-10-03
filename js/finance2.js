@@ -1,4 +1,4 @@
-﻿/**
+/**
  * نظام الاستبدال وإدارة الفواتير المعلقة (ERP V10.5)
  * التحديث: إصلاح أخطاء الـ Null Pointer وتأمين دوال الحساب لضمان استقرار النظام.
  */
@@ -1422,7 +1422,7 @@ window.deleteExpenseEntry = function(timestamp, source, amount) {
         return;
     }
     
-    if (!confirm(هل أنت متأكد من حذف هذا المصروف بقيمة  + (typeof formatCurrency === 'function' ? formatCurrency(amount) : amount) + ؟ سيتم إرجاع المبلغ لحسابه الأصلي.)) return;
+    if (!confirm(`هل أنت متأكد من حذف هذا المصروف بقيمة ${typeof formatCurrency === 'function' ? formatCurrency(amount) : amount}؟ سيتم إرجاع المبلغ لحسابه الأصلي.`)) return;
 
     let foundAndDeleted = false;
 
@@ -1472,7 +1472,7 @@ window.deleteExpenseEntry = function(timestamp, source, amount) {
         }
         
         if (typeof window.logOperation === 'function') {
-            window.logOperation("إلغاء مصروف", تم حذف مصروف بقيمة  + amount +  يدوياً من التقرير.);
+            window.logOperation("إلغاء مصروف", `تم حذف مصروف بقيمة ${amount} يدوياً من التقرير.`);
         }
         
         if (typeof generateExpensesReport === 'function') generateExpensesReport();

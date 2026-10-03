@@ -3153,7 +3153,8 @@ window.convertPendingSaleToDebt = async function(pendingSaleId, debtMode, target
             items: normalizedItems,        
             timestamp: saleData.timestamp || new Date().toISOString(), // 🌟 تثبيت الوقت القديم إن وجد 🌟
             confirmedAt: new Date().toISOString(), // 🌟 تتبع وقت التأكيد الفعلي لمنع الأشباح في التراجع 🌟
-            accountId: accountId
+            accountId: accountId,
+            status: 'completed'
         };
 
         // ✅ تطبيق الاستقطاع المخفي إن وجد لتصحيح الربح والدين
@@ -11754,7 +11755,14 @@ if (addLiabilityButton) {
         if (existingIndex !== -1) {
             liabilities[existingIndex].amount = (Number(liabilities[existingIndex].amount) || 0) + amount;
             // تحديث التاريخ عند التعديل
-            liabilities[existingIndex].createdAt = realTime;
+            liabilities[existingIndex].lastUpdated = realTime;
+            if (!liabilities[existingIndex].history) liabilities[existingIndex].history = [];
+            liabilities[existingIndex].history.push({
+                date: realTime,
+                addedAmount: amount,
+                saleId: 'MANUAL_ADD',
+                note: 'زيادة يدوية من شاشة الالتزامات'
+            });
             logMsg = `زيادة التزام قائم لـ "${name}" بمبلغ ${formatCurrency(amount)}. الإجمالي: ${formatCurrency(liabilities[existingIndex].amount)}`;
             showMessage(liabilitiesMessage, `تمت زيادة الالتزام لـ "${name}".`);
         } else {
@@ -15238,4 +15246,6 @@ window.addEventListener('beforeunload', (e) => {
 window.loadInvoiceDraft = function() { if(typeof showGlobalMessage === 'function') showGlobalMessage('ميزة المسودة قيد التطوير ولم تكتمل برمجتها بعد.', true); else alert('ميزة المسودة قيد التطوير ولم تكتمل برمجتها بعد.'); };
 window.loadQuickSellDraft = function() { if(typeof showGlobalMessage === 'function') showGlobalMessage('ميزة استعادة المسودة قيد التطوير ولم تكتمل برمجتها بعد.', true); else alert('ميزة المسودة قيد التطوير ولم تكتمل برمجتها بعد.'); };
 window.saveQuickSellDraft = function() { if(typeof showGlobalMessage === 'function') showGlobalMessage('ميزة حفظ المسودة قيد التطوير ولم تكتمل برمجتها بعد.', true); else alert('ميزة المسودة قيد التطوير ولم تكتمل برمجتها بعد.'); };
+
+
 
