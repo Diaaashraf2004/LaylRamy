@@ -3586,7 +3586,7 @@ function resetReturnForm() {
 }
 
 
-async function saveCurrentStateByDate(dateString) {
+async function saveCurrentStateByDate(dateString, immediate = false) {
     if (typeof window.syncDualWriteToDB === "function") await window.syncDualWriteToDB();
     const canWrite = await window.SessionGuard.assertCanWrite();
     if (!canWrite) {
@@ -3596,19 +3596,10 @@ async function saveCurrentStateByDate(dateString) {
         return;
     }
     
-    // 1. التحقق من تسجيل الدخول
-    if (!window.currentUser) {
-        showGlobalMessage("تنبيه: أنت غير مسجل دخول. يتم الحفظ على الجهاز فقط.", false, true);
-        return;
-    }
-    
-    const userId = window.currentUser.uid;
-    // console.log(`Starting save process for: ${dateString}...`); 
-
+    // Local backup preparation moved UP
     const safePendingReturnsValue = (typeof pendingReturnsValue !== 'undefined') ? pendingReturnsValue : 0;
     const safeBackupIndex = (typeof backupSlotIndex !== 'undefined') ? backupSlotIndex : 0;
 
-    // 🌟 تجهيز كائن البيانات الكامل (تمت إضافة pendingOrders هنا)
     const stateToSave = {
         month: dateString.substring(0, 7),
         products: products || [],
@@ -3634,7 +3625,7 @@ async function saveCurrentStateByDate(dateString) {
         pendingReturnsValue: safePendingReturnsValue,
         debtorProfiles: debtorProfiles || [],
         debtCollectionNotes: debtCollectionNotes || [],
-        pendingOrders: window.pendingOrders || [], // 👈 السطر الجديد لحفظ الفواتير المعلقة
+        pendingOrders: window.pendingOrders || [],
         standaloneSerials: typeof window.getStandaloneSerials === 'function' ? window.getStandaloneSerials() : [],
         savedAt: new Date().toISOString(),
         savedForDate: dateString
@@ -3642,12 +3633,10 @@ async function saveCurrentStateByDate(dateString) {
 
     const sanitizedState = sanitizeDataForFirebase(stateToSave);
 
-    // 1. حفظ نسخة محلية للطوارئ (بصمت تام)
     try {
         const fullLocalBackup = { ...stateToSave }; 
         const backupKey = `goodsMgmt_backup_${dateString}_slot_${safeBackupIndex}`;
         
-        // --- Cleanup old local backups from previous days to prevent LocalStorage memory full error ---
         const keysToRemove = [];
         for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
@@ -3656,7 +3645,6 @@ async function saveCurrentStateByDate(dateString) {
             }
         }
         keysToRemove.forEach(k => localStorage.removeItem(k));
-        // ---------------------------------------------------------------------------------------------
 
         saveData(backupKey, fullLocalBackup);
         
@@ -3667,18 +3655,20 @@ async function saveCurrentStateByDate(dateString) {
         console.warn("Local backup warning (silent):", e);
     }
 
+    // 1. التحقق من تسجيل الدخول
+    if (!window.currentUser) {
+        showGlobalMessage("تنبيه: أنت غير مسجل دخول. يتم الحفظ على الجهاز فقط.", false, true);
+        return;
+    }
+    
+    const userId = window.currentUser.uid;
+
     // 2. الحفظ السحابي (Smart Debounce Sync)
     if (window._saveTimeout) clearTimeout(window._saveTimeout);
     window._pendingSaveDate = dateString;
 
-    window._saveTimeout = setTimeout(async () => {
-        try {
-            window._saveTimeout = null;
-            console.log(`[Smart Sync] Executing debounced cloud save for ${window._pendingSaveDate}...`);
-            const docRef = window.doc(window.db, "users", userId, "days", window._pendingSaveDate);
-            await window.setDoc(docRef, sanitizedState, { merge: true });
-
-        // 🌟 تحديث الملخص
+    
+    // 🌟 تحديث الملخص
         const latestBalancesSummary = {
             products: products || [],
             suppliers: suppliers || [],
@@ -3698,6 +3688,15 @@ async function saveCurrentStateByDate(dateString) {
         };
         
         const sanitizedSummary = sanitizeDataForFirebase(latestBalancesSummary);
+
+    window._pendingSaveFunction = async () => {
+        try {
+            window._saveTimeout = null;
+            console.log(`[Smart Sync] Executing debounced cloud save for ${window._pendingSaveDate}...`);
+            const docRef = window.doc(window.db, "users", userId, "days", window._pendingSaveDate);
+            await window.setDoc(docRef, sanitizedState, { merge: true });
+
+        
         const summaryDocRef = window.doc(window.db, "users", userId, "summaries", "latestBalances");
 
         const todayStr = typeof getTodayDateString === 'function' ? getTodayDateString() : new Date().toISOString().split('T')[0];
@@ -3742,7 +3741,15 @@ async function saveCurrentStateByDate(dateString) {
 
         showGlobalMessage(userMessage, isError, isInfo);
     }
-}, 3000);
+};
+    
+    if (immediate) {
+        if (window._saveTimeout) clearTimeout(window._saveTimeout);
+        window._saveTimeout = null;
+        await window._pendingSaveFunction();
+    } else {
+        window._saveTimeout = setTimeout(window._pendingSaveFunction, 3000);
+    }
 }
 
 function openBackupHistoryModal() {
@@ -3924,6 +3931,12 @@ function toggleAutoSave() {
     }
 }
 async function loadDataForDate(dateString) {
+    if (window._saveTimeout && window._pendingSaveFunction) {
+        console.log("Flushing pending save before loading new date...");
+        clearTimeout(window._saveTimeout);
+        window._saveTimeout = null;
+        await window._pendingSaveFunction();
+    }
     console.log(`--- بدء عملية التحميل والترحيل الذكي لتاريخ: ${dateString} ---`);
     const loadMsg = document.getElementById("load-message-alt");
     
@@ -4179,7 +4192,7 @@ async function loadDataForDate(dateString) {
 
             if (confirm(confirmationMsg)) {
                 loadState(importedData, finalDate);
-                saveCurrentStateByDate(finalDate); // حفظ فوري
+                saveCurrentStateByDate(finalDate, true); // حفظ فوري
                 updateUI();
                 
                 // تحديث الواجهة
@@ -9907,7 +9920,7 @@ if (d('redo-button')) { d('redo-button').addEventListener('click', redo); }
             saveButtonAlt.innerHTML = "جاري الحفظ...";
             saveButtonAlt.disabled = true;
             
-            await saveCurrentStateByDate(targetDate);
+            await saveCurrentStateByDate(targetDate, true);
             
             saveButtonAlt.innerHTML = originalHTML;
             saveButtonAlt.disabled = false;
@@ -15223,3 +15236,4 @@ window.addEventListener('beforeunload', (e) => {
 window.loadInvoiceDraft = function() { if(typeof showGlobalMessage === 'function') showGlobalMessage('ميزة المسودة قيد التطوير ولم تكتمل برمجتها بعد.', true); else alert('ميزة المسودة قيد التطوير ولم تكتمل برمجتها بعد.'); };
 window.loadQuickSellDraft = function() { if(typeof showGlobalMessage === 'function') showGlobalMessage('ميزة استعادة المسودة قيد التطوير ولم تكتمل برمجتها بعد.', true); else alert('ميزة المسودة قيد التطوير ولم تكتمل برمجتها بعد.'); };
 window.saveQuickSellDraft = function() { if(typeof showGlobalMessage === 'function') showGlobalMessage('ميزة حفظ المسودة قيد التطوير ولم تكتمل برمجتها بعد.', true); else alert('ميزة المسودة قيد التطوير ولم تكتمل برمجتها بعد.'); };
+
