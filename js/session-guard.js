@@ -214,12 +214,21 @@
   }
 
   async function assertCanWrite() {
-    if (!lockDocRef || !currentSessionId) return false;
+    if (!lockDocRef || !currentSessionId) {
+        alert("فشل الحفظ: الجلسة غير مهيأة (قد يكون الإنترنت مفصولاً أو تم تسجيل خروجك).");
+        return false;
+    }
 
     try {
       const snap = await window.getDoc(lockDocRef);
-      if (!snap.exists()) return false;
-
+      if (!snap.exists() || snap._unreachable) {
+          if (typeof window.showGlobalMessage === 'function') {
+              window.showGlobalMessage("فشل الحفظ: لا يمكن التأكد من الجلسة (قد يكون الإنترنت مقطوعاً). حاول مرة أخرى.", true, true);
+          } else {
+              alert("فشل الحفظ: لا يمكن التأكد من الجلسة (قد يكون الإنترنت مقطوعاً). حاول مرة أخرى.");
+          }
+          return false;
+      }
       const data = snap.data();
 
       if (data.sessionId !== currentSessionId) {
@@ -235,6 +244,8 @@
       if (e.code === "permission-denied" || (e.message && e.message.includes("permission"))) {
         showForceLogoutMessage("انتهت جلسة تسجيل الدخول أو فقدت الصلاحية. يرجى تحديث الصفحة وإعادة تسجيل الدخول.");
         stopHeartbeat();
+      } else {
+        alert("خطأ في الاتصال بالسحابة أو الجلسة غير صالحة. تأكد من الإنترنت! (" + e.message + ")");
       }
       return false;
     }

@@ -1,4 +1,4 @@
-/* 
+﻿/* 
     serials.js - Logic for the Standalone Serials Management Section 
 */
 
@@ -36,6 +36,7 @@
     // Independent Data Array
     let standaloneSerials = [];
     let isDataLoaded = false;
+    window.resetSerialsLoadState = () => { isDataLoaded = false; };
     let lastLoadedLength = -1;
 
     // Undo/Redo Integration

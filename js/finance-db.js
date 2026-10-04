@@ -299,8 +299,8 @@ window.syncDualWriteToDB = async function() {
     }
 };
 
-// تهيئة الحالة الأولية بعد ثانية من فتح البرنامج لتجنب رفع كل شيء كأنه جديد
-setTimeout(() => {
+// تهيئة الحالة المبدئية يجب أن تُستدعى صراحة بعد التحميل الكامل (مثلاً من loadDataForDate)
+window.initDualWriteState = function() {
     if (window.products) window.lastSyncedProductsState = JSON.stringify(window.products);
     if (window.debtors) window.lastSyncedDebtorsState = JSON.stringify(window.debtors);
-}, 3000);
+};

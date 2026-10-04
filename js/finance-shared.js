@@ -16,9 +16,9 @@
 
 // ── 1. تنسيق العملة ──────────────────────────────────────────────────────────
 window.formatCurrency = function formatCurrency(amount) {
-    const numAmount = Number(amount);
-    if (isNaN(numAmount)) return '0 ج.م';
-    return (numAmount % 1 === 0 ? numAmount : numAmount.toFixed(1)) + ' ج.م';
+    const n = Number(amount);
+    if (isNaN(n)) return '0 ج.م';
+    return Number(n.toFixed(2)).toString() + ' ج.م';
 };
 
 // ── 2. توحيد النص العربي للبحث ───────────────────────────────────────────────

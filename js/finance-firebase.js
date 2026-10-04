@@ -35,10 +35,10 @@ window.doc = function(dbInstance, ...paths) { return dbInstance.doc(paths.join('
 window.setDoc = function(docRef, data, options) { return docRef.set(data, options); };
 window.getDoc = async function(docRef) { 
     try {
-        // إضافة مؤقت زمني 5 ثواني لمنع توقف البرنامج إذا كانت الشبكة ضعيفة أو معلقة
+        // إضافة مؤقت زمني 10 ثواني لمنع توقف البرنامج إذا كانت الشبكة ضعيفة أو معلقة
         const snap = await Promise.race([
             docRef.get(),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Network Timeout')), 3000))
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Network Timeout')), 10000))
         ]);
         return {
             exists: () => snap.exists,
@@ -58,7 +58,7 @@ window.getDoc = async function(docRef) {
             };
         } catch (cacheError) {
             console.error("فشل القراءة من الذاكرة المحلية أيضاً:", cacheError);
-            return { exists: () => false, data: () => null, id: docRef.id, ref: docRef };
+            return { exists: () => false, data: () => null, id: docRef.id, ref: docRef, _unreachable: true };
         }
     }
 };

@@ -46,7 +46,7 @@ window.FinanceSync = (function () {
     }
 
     function _uid() {
-        return window.currentUser.uid;
+        return window.currentUser ? window.currentUser.uid : null;
     }
 
     // ── دالة مرجعية مساعدة ─────────────────────────────────────────────

@@ -366,6 +366,11 @@
 
         // تحديث القوائم
         populateLiabilityDatalist();
+        
+        // 🛡️ حفظ سحابي فوري لمنع ضياع الاستقطاع
+        if (typeof window.saveSystemToCloud === 'function') {
+            window.saveSystemToCloud().catch(e => console.error("Failed to save deduction:", e));
+        }
     };
 
     // ========================================================
@@ -424,6 +429,6 @@
     }
 
     // إعادة ملء القوائم عند تحديث البيانات
-    setInterval(populateLiabilityDatalist, 5000);
+    // setInterval(populateLiabilityDatalist, 5000); // Removed to prevent UI lag
 
 })();

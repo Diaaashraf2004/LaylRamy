@@ -74,10 +74,11 @@ window.renderDeptLogTimeline = function() {
         const timeOnly = timeParts.length > 1 ? timeParts[1] : log.timestamp;
         const dateOnly = timeParts[0];
         
-        let highlightedDetails = log.details;
+        let highlightedDetails = (log.details || '');
         if (textFilter) {
-            const regex = new RegExp(textFilter, 'gi');
-            highlightedDetails = log.details.replace(regex, match => `<span class="bg-yellow-200 text-yellow-900 font-bold px-1 rounded">${match}</span>`);
+            const safe = textFilter.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(safe, 'gi');
+            highlightedDetails = highlightedDetails.replace(regex, match => `<span class="bg-yellow-200 text-yellow-900 font-bold px-1 rounded">${match}</span>`);
         }
         
         const isPending = log.type && log.type.includes('بيع مؤقت');

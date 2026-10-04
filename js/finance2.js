@@ -791,6 +791,10 @@ async function executeCancelOrder() {
         // 2. رد التكلفة لرأس المال لأن العملية أُلغيت بالكامل والبضاعة عادت
         
 
+        if (totalCostOut > 0) {
+            window.liquidityLog = window.liquidityLog || [];
+            if (typeof addLogSafe === 'function') addLogSafe({ timestamp: new Date().toISOString(), type: "إرجاع تكلفة", details: `إرجاع تكلفة بضاعة ملغاة للعميل [${cleanName}]`, amount: totalCostOut, action: "return_cost" });
+        }
         addLogSafe({ timestamp: new Date().toISOString(), type: "إلغاء شامل", details: `إلغاء شحنة العميل [${cleanName}]`, amount: 0 });
         
     } else if (cancelType === "convert_return") {
@@ -826,6 +830,13 @@ async function executeCancelOrder() {
         // 2. رد التكلفة لرأس المال (لأن الأجهزة الجديدة عادت للمحل)
         
 
+        if (totalCostOut > 0) {
+            window.liquidityLog = window.liquidityLog || [];
+            if (typeof addLogSafe === 'function') {
+                addLogSafe({ timestamp: new Date().toISOString(), type: "إرجاع تكلفة", details: `إرجاع تكلفة أجهزة مستبدلة للمخزن - العميل [${cleanName}]`, amount: totalCostOut, action: "return_cost" });
+            }
+        }
+
         // 3. سحب قيمة الأجهزة المرتجعة للعميل من حساب المحل (لأنه هياخد فلوسه ويمشي)
         let payoutAmount = Number(o.rMainPrice) || 0;
         if(o.rAccs) o.rAccs.forEach(a => payoutAmount += (Number(a.price) || 0));
@@ -837,6 +848,22 @@ async function executeCancelOrder() {
         addLogSafe({ timestamp: new Date().toISOString(), type: "تحويل لاسترجاع", details: `العميل [${cleanName}] صرف مبلغ أجهزته المرتجعة`, amount: -payoutAmount });
     }
     
+    // 🔥 FIX: Refund money to customer if they had paid the difference previously
+    if (o.stages && o.stages.moneyCollected) {
+        const diffAmount = Number(o.diffAmount) || 0;
+        if (diffAmount > 0) { // Customer paid us, we must refund them
+            const liveAccounts = getAccounts();
+            const acc = liveAccounts.find(a => a.id === accId);
+            if(acc) acc.balance = (Number(acc.balance)||0) - diffAmount;
+            addLogSafe({ timestamp: new Date().toISOString(), type: "رد أموال", details: `رد الفارق للعميل [${cleanName}] بسبب إلغاء الطلب`, amount: -diffAmount });
+        } else if (diffAmount < 0) { // We paid the customer, they must refund us
+            const liveAccounts = getAccounts();
+            const acc = liveAccounts.find(a => a.id === accId);
+            if(acc) acc.balance = (Number(acc.balance)||0) - diffAmount; // diffAmount is negative, so this adds to balance
+            addLogSafe({ timestamp: new Date().toISOString(), type: "استرداد أموال", details: `استرداد الفارق من العميل [${cleanName}] بسبب الإلغاء`, amount: Math.abs(diffAmount) });
+        }
+    }
+
     window.pendingOrders.splice(orderIndex, 1);
     await finalizeSave();
     closeExModals();
@@ -858,8 +885,51 @@ window.confirmPendingOrder = async function(id) {
     triggerUndoSave();
     const liveAccounts = getAccounts();
     const acc = liveAccounts.find(a => a.id === accId);
-    if(acc) acc.balance = (Number(acc.balance)||0) + o.diffAmount;
-    addLogSafe({ timestamp: new Date().toISOString(), type: "إتمام تحصيل", details: `تحصيل مبلغ استبدال العميل [${cleanName}]`, amount: o.diffAmount });
+    
+    // Add money ONLY IF the money hasn't been collected yet!
+    if (!o.stages || !o.stages.moneyCollected) {
+        if(acc) acc.balance = (Number(acc.balance)||0) + (Number(o.diffAmount)||0);
+        addLogSafe({ timestamp: new Date().toISOString(), type: "إتمام تحصيل", details: `تحصيل مبلغ استبدال العميل [${cleanName}]`, amount: o.diffAmount });
+    }
+    
+    // Process Inventory Now for uncompleted stages
+    const liveProducts = getProducts();
+    const processReturn = (name, cost, price) => {
+        if(!name) return;
+        const cName = String(name).trim().toLowerCase();
+        let p = liveProducts.find(x => x && x.name && String(x.name).trim().toLowerCase() === cName);
+        if(!p) {
+            const newP = { id: "R-"+Date.now(), name: String(name).trim(), category: 'عام', quantity: 1, costPrice: Number(cost) || 0, price: Number(price) || 0 };
+            if (typeof window.injectProductToMain === 'function') window.injectProductToMain(newP); 
+            else liveProducts.push(newP);
+        } else {
+            p.quantity = (Number(p.quantity) || 0) + 1;
+            p.costPrice = Number(cost) || 0; 
+        }
+    };
+    const processOut = (name, cost, price) => {
+        if(!name) return;
+        const cName = String(name).trim().toLowerCase();
+        let p = liveProducts.find(x => x && x.name && String(x.name).trim().toLowerCase() === cName);
+        if(p) {
+            p.quantity = (Number(p.quantity) || 0) - 1;
+        } else {
+            const newP = { id: "N-"+Date.now(), name: String(name).trim(), category: "عام", quantity: -1, costPrice: Number(cost) || 0, price: Number(price) || 0 };
+            if (typeof window.injectProductToMain === 'function') window.injectProductToMain(newP); 
+            else liveProducts.push(newP);
+        }
+    };
+    
+    if (!o.stages || !o.stages.oldItemReceived) {
+        processReturn(o.rMainName, o.rMainCost, o.rMainPrice);
+        if(o.rAccs) o.rAccs.forEach(a => processReturn(a.name, a.cost, a.price));
+    }
+    
+    if (!o.stages || !o.stages.newItemShipped) {
+        processOut(o.nMainName, o.nMainCost, o.nMainPrice);
+        if(o.nAccs) o.nAccs.forEach(a => processOut(a.name, a.cost, a.price));
+    }
+
     window.pendingOrders.splice(orderIndex, 1);
     await finalizeSave();
 };
@@ -914,6 +984,9 @@ function revertInventoryEffect(o) {
 async function finalizeSave() {
     if (window.saveCurrentStateByDate) {
         await window.saveCurrentStateByDate(window.currentLoadedDate);
+        if (typeof window.saveSystemToCloud === 'function') {
+            await window.saveSystemToCloud();
+        }
         renderLocalPendingOrders();
         if (typeof window.refreshMainUI === 'function') {
             window.refreshMainUI();
@@ -1463,12 +1536,17 @@ window.deleteExpenseEntry = function(timestamp, source, amount) {
         window.expenses = Math.max(0, window.expenses - amount);
     }
 
-    if (foundAndDeleted) {
+        if (foundAndDeleted) {
         if (typeof window.saveStateToHistory === 'function') window.saveStateToHistory();
         if (typeof window.updateUI === 'function') window.updateUI();
         if (typeof window.saveCurrentStateByDate === 'function') {
             const d = typeof window.currentLoadedDate !== 'undefined' && window.currentLoadedDate ? window.currentLoadedDate : new Date().toISOString().split('T')[0];
             window.saveCurrentStateByDate(d);
+        }
+        
+        // Fix: Save to cloud directly after deleting an expense!
+        if (typeof window.saveSystemToCloud === 'function') {
+            window.saveSystemToCloud().catch(e => console.error("Cloud save failed after expense deletion", e));
         }
         
         if (typeof window.logOperation === 'function') {
