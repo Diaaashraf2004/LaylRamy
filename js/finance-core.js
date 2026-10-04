@@ -1,4 +1,4 @@
-// finance-core.js — Main Application Logic
+﻿// finance-core.js — Main Application Logic
 // Extracted from finance.html — DO NOT EDIT finance.html JS directly
 // All core functions, state, and event listeners live here.
     document.addEventListener("DOMContentLoaded", function() {
@@ -5013,6 +5013,7 @@ async function handleSaveInvoice(skipConfirmation = true) {
     const account = accounts.find(acc => acc.id === selectedAccountId);
 
     if (!isPending && !account) {
+        alert("الرجاء اختيار الخزنة (حساب الإيداع) أولاً قبل تأكيد الفاتورة.");
         showMessage(d('inv_validationError'), "يرجى اختيار حساب الإيداع.", true);
         restoreSaveBtn();
         return;
@@ -5173,7 +5174,7 @@ async function handleSaveInvoice(skipConfirmation = true) {
     if (isPending) {
         const pendingInvoiceData = {
             id: (isInvoiceFromPending || isEditingPendingInvoice) && pendingSaleOriginData ? pendingSaleOriginData.id : `pending-inv-${Date.now()}`,
-            createdAt: pendingSaleOriginData?.createdAt || new Date().toISOString(),
+            createdAt: pendingSaleOriginData?.createdAt || pendingSaleOriginData?.timestamp || new Date().toISOString(),
             timestamp: new Date().toISOString(),
             saleDate: pendingSaleOriginData?.saleDate || currentLoadedDate || new Date().toISOString().split('T')[0],
             customerName,
@@ -11027,7 +11028,8 @@ async function sellProduct(skipConfirmation = true) {
     }
 
     if (!isPendingSale && !account) {
-        showMessage(sellMessage, "يرجى اختيار الحساب.", true);
+        alert('الرجاء اختيار الخزنة أولاً.');
+        showMessage(sellMessage, 'الرجاء اختيار الخزنة.', true);
         return;
     }
 
@@ -13545,6 +13547,7 @@ window.confirmConvertPendingSaleToDebt = function() {
     }
 
     if (confirmSale && !accountId) {
+        alert("يجب اختيار الخزنة (حساب الإيداع) عند تأكيد البيعة.");
         showGlobalMessage("يجب اختيار حساب الإيداع عند تأكيد البيعة.", true);
         return;
     }
@@ -16074,6 +16077,8 @@ window.saveQuickSellDraft = function() { if(typeof showGlobalMessage === 'functi
         statShipped.textContent = shippedCount;
     }
 })();
+
+
 
 
 
