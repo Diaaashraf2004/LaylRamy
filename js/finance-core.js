@@ -12038,6 +12038,13 @@ if (toggleAllLiabilitiesCheckbox) {
         liquidityLog.push({ id: `liq-${Date.now()}`, timestamp: new Date().toISOString(), type: "remove", amount: totalPayment, description: `تسديد التزام مجمع لـ: ${summaryText}`, currentBalance: newTotalLiquidity, accountId: account.id });
         logOperation("تسديد التزام مجمع", `تسديد ${formatCurrency(totalPayment)} من حساب "${account.name}" إلى: ${summaryText}.`);
 
+        const isExpense = d('batch-liability-is-expense') ? d('batch-liability-is-expense').checked : false;
+        if (isExpense) {
+            expenses += totalPayment;
+            logOperation("تسجيل مصروف", `بقيمة ${formatCurrency(totalPayment)} - تسديد التزام مجمع (${summaryText}) من حساب "${account.name}".`);
+            d('batch-liability-is-expense').checked = false;
+        }
+
         showMessage(liabilitiesMessage, `تم تسديد دفعة مجمعة بقيمة ${formatCurrency(totalPayment)} بنجاح.`);
         updateUI();
         d('liability-payment-summary').classList.add('hidden');
@@ -13040,6 +13047,12 @@ if (confirmPartialLiabBtn) {
     let logText = `تسديد ${formatCurrency(amountToPay)} من التزام "${liability.name}" من حساب "${account.name}".`;
     if (paymentNote) logText += ` ملاحظات: ${paymentNote}`;
     logOperation("تسديد جزء من التزام", logText);
+
+    if (isExpense) {
+        expenses += amountToPay;
+        logOperation("تسجيل مصروف", `بقيمة ${formatCurrency(amountToPay)} - تسديد جزء من التزام (${liability.name}) من حساب "${account.name}".`);
+        d('partial-liability-is-expense').checked = false;
+    }
     
     // لا تحذف الالتزام بالكامل، فقط غير حالته
     if (liability.amount < 0.01) {
@@ -16077,6 +16090,8 @@ window.saveQuickSellDraft = function() { if(typeof showGlobalMessage === 'functi
         statShipped.textContent = shippedCount;
     }
 })();
+
+
 
 
 
