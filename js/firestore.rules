@@ -1,0 +1,40 @@
+﻿rules_version = '2';
+// =====================================================================
+// Firestore Security Rules — Finance App (Secure Edition)
+// =====================================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    function isReasonableSize() {
+      return request.method == 'delete' || 
+             (request.resource.data.keys().hasAny(['_hack', 'malicious']) == false &&
+              request.resource.data.keys().size() < 100); 
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    match /users/{userId}/days/{date} {
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId) && isReasonableSize();
+    }
+    
+    match /users/{userId}/purchase_archives/{docId} { allow read, write: if isOwner(userId); }
+    match /users/{userId}/summaries/{docId} { allow read, write: if isOwner(userId); }
+    match /users/{userId}/invoices/{docId} { allow read, write: if isOwner(userId); }
+    match /users/{userId}/settings/{docId} { allow read, write: if isOwner(userId); }
+    match /users/{userId}/meta/{docId} { allow read, write: if isOwner(userId); }
+    match /users/{userId}/customers/{docId} { allow read, write: if isOwner(userId); }
+    match /users/{userId}/debts/{docId} { allow read, write: if isOwner(userId); }
+    match /users/{userId}/products/{docId} { allow read, write: if isOwner(userId); }
+    match /users/{userId}/pending_sales/{docId} { allow read, write: if isOwner(userId); }
+    match /users/{userId}/sales/{docId} { allow read, write: if isOwner(userId); }
+    match /users/{userId}/salesToday/{docId} { allow read, write: if isOwner(userId); }
+  }
+}
