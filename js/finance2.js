@@ -1,4 +1,4 @@
-/**
+﻿/**
  * نظام الاستبدال وإدارة الفواتير المعلقة (ERP V10.5)
  * التحديث: إصلاح أخطاء الـ Null Pointer وتأمين دوال الحساب لضمان استقرار النظام.
  */
@@ -1052,7 +1052,14 @@ window.generateExpensesReportExternal = async function(deps) {
         try {
             const userId = window.currentUser ? window.currentUser.uid : null;
             if(!userId) return;
-            const daysSnapshot = await window.getDocs(window.collection(window.db, "users", userId, "days"));
+            const startDocId = yearMonth + "-01";
+            const endDocId = yearMonth + "-31";
+            const q = window.query(
+                window.collection(window.db, "users", userId, "days"),
+                window.where(firebase.firestore.FieldPath.documentId(), ">=", startDocId),
+                window.where(firebase.firestore.FieldPath.documentId(), "<=", endDocId)
+            );
+            const daysSnapshot = await window.getDocs(q);
             let allCloudDays = [];
 
             daysSnapshot.forEach(doc => {
@@ -1199,10 +1206,10 @@ window.generateExpensesReportExternal = async function(deps) {
                         <div class="text-xs text-gray-400">${timeStr}</div>
                     </td>
                     <td class="p-3 text-sm font-semibold text-blue-800">
-                        ${exp.type}
+                        ${window.escapeHTML ? window.escapeHTML(exp.type) : exp.type}
                         ${exp.isVerified ? `<br><span class="text-xs bg-red-100 text-red-800 px-2 py-1 rounded border border-red-200 mt-1 inline-block">مصروف معتمد</span>` : ''}
                     </td>
-                    <td class="p-3 text-sm text-gray-600">${exp.details}</td>
+                    <td class="p-3 text-sm text-gray-600">${window.escapeHTML ? window.escapeHTML(exp.details) : exp.details}</td>
                     <td class="p-3 text-sm text-center font-mono font-bold text-red-600">-</td>
                     <td class="p-3 text-sm text-center">
                         <button onclick="window.deleteExpenseEntry('${exp.timestamp}', '${exp.source}', ${exp.amount})" class="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded transition-colors" title="حذف المصروف">
@@ -1564,3 +1571,6 @@ window.deleteExpenseEntry = function(timestamp, source, amount) {
         alert("لم يتم العثور على المصروف في سجلات اليوم الحالي.");
     }
 };
+
+
+

@@ -201,7 +201,7 @@ window.getRealTimeISO = async function() {
     return new Date().toISOString();
 };
 
-// 🌟 دالة د. ضياء لتوليد المعرفات الفريدة الشاملة في السيستم
+// �� دالة د. ضياء لتوليد المعرفات الفريدة الشاملة في السيستم
 function generateGlobalID(prefix) {
     return prefix + "_" + Date.now() + "_" + Math.floor(Math.random() * 1000000);
 }
@@ -267,7 +267,7 @@ function resetAllData() {
     pendingReturns = [];
     pendingReturnsValue = 0;
 
-    // 🌟 السطر المحدث: تصفير كافة الفواتير المعلقة في نظام الاستبدال (ERP)
+    // �� السطر المحدث: تصفير كافة الفواتير المعلقة في نظام الاستبدال (ERP)
     window.pendingOrders = []; 
     
     // تصفير حالات التعديل
@@ -306,7 +306,7 @@ function resetAllData() {
     defaultAcc.balance = (Number(defaultAcc.balance) || 0) + amount;
     const totalLiq = accounts.reduce((s,a) => s + Number(a.balance||0), 0);
     const logEntry = {
-        id: `liq-${Date.now()}`,
+        id: generateId("liq"),
         timestamp: new Date().toISOString(),
         type: "add",
         amount: amount,
@@ -360,7 +360,8 @@ function formatCurrency(amount) { const numAmount = Number(amount); if (isNaN(nu
         .toLowerCase();
 }
 function generateId(prefix = "id") {
-    return `${prefix}_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+    try { return prefix + "_" + crypto.randomUUID(); }
+    catch (e) { return prefix + "_" + Date.now() + "_" + Math.random().toString(36).slice(2, 11); }
 }
 
 function getDebtorProfileById(customerId) {
@@ -723,7 +724,7 @@ function createStateSnapshot() {
         pendingPurchases: JSON.parse(JSON.stringify(pendingPurchases)),
         completedReturns: JSON.parse(JSON.stringify(completedReturns)),
         pendingReturns: JSON.parse(JSON.stringify(pendingReturns)),
-        // 🌟 السطر الجديد: أخذ لقطة من الفواتير المعلقة لنظام الاستبدال
+        // �� السطر الجديد: أخذ لقطة من الفواتير المعلقة لنظام الاستبدال
         pendingOrders: JSON.parse(JSON.stringify(window.pendingOrders || [])),
         standaloneSerials: typeof window.getStandaloneSerials === 'function' ? JSON.parse(JSON.stringify(window.getStandaloneSerials())) : []
     };
@@ -840,10 +841,10 @@ function loadStateFromSnapshot(snapshot) {
     completedReturns = snapshot.completedReturns || [];
     pendingReturns = snapshot.pendingReturns || [];
     
-    // 🌟 السطر المحدث: استرجاع الفواتير المعلقة الخاصة بنظام الاستبدال عند التراجع
+    // �� السطر المحدث: استرجاع الفواتير المعلقة الخاصة بنظام الاستبدال عند التراجع
     window.pendingOrders = snapshot.pendingOrders || [];
     
-    // 🌟 استرجاع حالة السيريالات
+    // �� استرجاع حالة السيريالات
     if (typeof window.setStandaloneSerials === 'function') {
         window.setStandaloneSerials(snapshot.standaloneSerials || []);
     } else {
@@ -865,7 +866,7 @@ function saveStateToHistory() {
     if (redoBtn) redoBtn.disabled = true;
 
     // اختياري: وضع حد لذاكرة التراجع لمنع استهلاك ذاكرة كبير جدًا
-    if (stateHistory.length > 50) {
+    if (stateHistory.length > 5) { // تم تقليص الحد لتقليل استهلاك الذاكرة
         stateHistory.shift(); // إزالة أقدم عنصر
     }
 }
@@ -1086,7 +1087,7 @@ function loadState(data, dateString) {
     pendingReturns = data.pendingReturns || [];
     pendingReturnsValue = data.pendingReturnsValue || 0;
 
-    // 🌟 السطر المحدث: تحميل الفواتير المعلقة لنظام الاستبدال ERP من البيانات
+    // �� السطر المحدث: تحميل الفواتير المعلقة لنظام الاستبدال ERP من البيانات
     window.pendingOrders = data.pendingOrders || [];
 
     // تحميل السيريالات المستقلة عند فتح اليوم
@@ -1139,7 +1140,7 @@ function resetState() {
     pendingReturnsValue = 0;
     completedReturns = [];
     
-    // 💡 ملاحظة محاسبية: window.pendingOrders لا يتم تصفيرها هنا 
+    // �� ملاحظة محاسبية: window.pendingOrders لا يتم تصفيرها هنا 
     // لأنها تمثل بضاعة خرجت ولم تُحصل أموالها بعد، فهي أصل مستمر عبر الأيام.
 
     // تصفير حالات التعديل
@@ -1248,7 +1249,7 @@ function calculateTotalPurchasesToday() {
              }
              // **** تحديث datalist لأسماء الموردين للبحث ****
              if(supplierNamesDatalist) {
-                 supplierNamesDatalist.innerHTML = suppliers.map(s => `<option value="${s.name}"></option>`).join('');
+                 supplierNamesDatalist.innerHTML = suppliers.map(s => `<option value="${window.escapeHTML(s.name)}"></option>`).join('');
              }
          }
         function updateSupplierDropdown(selectElementId, selectedSupplierId = null) { const selectElement = d(selectElementId); if (!selectElement) { /*console.warn(`Dropdown element #${selectElementId} not found yet.`);*/ return; } const currentVal = selectElement.value; selectElement.innerHTML = '<option value="">-- اختر المورد --</option>'; const sortedSuppliers = [...suppliers].sort((a, b) => a.name.localeCompare(b.name, 'ar')); sortedSuppliers.forEach(supplier => { const option = document.createElement('option'); option.value = supplier.id; option.textContent = supplier.name; if (selectedSupplierId && supplier.id === selectedSupplierId) { option.selected = true; } else if (!selectedSupplierId && supplier.id === currentVal) { // Retain current selection if not specifically overridden
@@ -1321,7 +1322,7 @@ function updateProductListDisplay() {
 
     // تحديث قائمة الإكمال التلقائي <datalist> في نموذج الإضافة
     if (categoryDatalist) {
-        categoryDatalist.innerHTML = allCategories.map(cat => `<option value="${cat}"></option>`).join('');
+        categoryDatalist.innerHTML = allCategories.map(cat => `<option value="${window.escapeHTML(cat)}"></option>`).join('');
     }
 
     // التأكد من تحميل كل العناصر قبل المتابعة
@@ -1338,7 +1339,7 @@ function updateProductListDisplay() {
 const filteredProducts = products.filter(product => {
     const nameMatch = !searchTerm || product.name.toLowerCase().includes(searchTerm);
     const categoryMatch = (selectedCategory === 'all') || (product.category === selectedCategory);
-    // 🌟 التعديل الجديد: إخفاء المنتجات التي كميتها صفر تلقائياً من شاشة العرض
+    // �� التعديل الجديد: إخفاء المنتجات التي كميتها صفر تلقائياً من شاشة العرض
     const qtyMatch = (Number(product.quantity) || 0) > 0; 
     
     return nameMatch && categoryMatch && qtyMatch;
@@ -1390,7 +1391,7 @@ const filteredProducts = products.filter(product => {
     // --- 5. تحديث قائمة الإكمال التلقائي لاسم المنتج (يجب أن تستخدم القائمة الكاملة دائمًا) ---
   // الداتاليست لازم تفضل تبعت الاسم فقط (هي للعرض/الإكمال النصي، مش بحث بالـ ID)
     if (productNamesDatalist) {
-        productNamesDatalist.innerHTML = products.map(p => `<option value="${p.name}">${p.name} (القسم: ${p.category || 'عام'}) - المتاح: ${p.quantity}</option>`).join('');
+        productNamesDatalist.innerHTML = products.map(p => `<option value="${window.escapeHTML(p.name)}">${window.escapeHTML(p.name)} (القسم: ${window.escapeHTML(p.category || 'عام')}) - المتاح: ${p.quantity}</option>`).join('');
     }
 }
 let currentLogCategory = 'all';
@@ -2485,7 +2486,7 @@ function handleConfirmInlineDebtPayment(debtorName, formElement) {
 }
 
 // ==========================================
-// 💡 دوال تحويل الالتزامات (Liability Transfer)
+// �� دوال تحويل الالتزامات (Liability Transfer)
 // ==========================================
 window.openTransferLiabilityModal = function(liabilityId) {
     const liability = liabilities.find(l => l.id === liabilityId);
@@ -2502,7 +2503,7 @@ window.openTransferLiabilityModal = function(liabilityId) {
     const datalist = document.getElementById('liability-names-list');
     if (datalist) {
         const uniqueNames = [...new Set(liabilities.map(l => l.name))];
-        datalist.innerHTML = uniqueNames.map(n => `<option value="${n}">`).join('');
+        datalist.innerHTML = uniqueNames.map(n => `<option value="${window.escapeHTML(n)}">`).join('');
     }
     
     // ربط التأكيد
@@ -2551,7 +2552,7 @@ window.processLiabilityTransfer = function(sourceLiabilityId) {
 
     // خصم من المصدر
     const oldSourceName = sourceLiability.name;
-    sourceLiability.amount -= transferAmount;
+    sourceLiability.amount = window.money(sourceLiability.amount - transferAmount);
     
     // إذا تبقى شيء، نتركه، وإلا يتم حذفه أو إخفاؤه
     if (sourceLiability.amount < 0.01) {
@@ -2567,7 +2568,7 @@ window.processLiabilityTransfer = function(sourceLiabilityId) {
     );
 
     if (existingTargetLiability) {
-        existingTargetLiability.amount += transferAmount;
+        existingTargetLiability.amount = window.money(existingTargetLiability.amount + transferAmount);
     } else {
         liabilities.push({
             id: generateId("LIA"),
@@ -2714,7 +2715,7 @@ function updatePendingSalesDisplay() {
         
         if (totalPaid > 0) {
             paymentBadge = `<span class="inline-block bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded font-bold mt-1 border border-yellow-200">
-                💰 مدفوع عربون: ${formatCurrency(totalPaid)}
+                �� مدفوع عربون: ${formatCurrency(totalPaid)}
             </span>`;
         }
 
@@ -2745,7 +2746,7 @@ function updatePendingSalesDisplay() {
                     <button data-pending-id="${sale.id}" class="edit-pending bg-blue-500 hover:bg-blue-600 text-white rounded px-2 py-1 text-xs border border-blue-700">تعديل</button>
                     <button data-pending-id="${sale.id}" class="confirm-pending bg-green-500 hover:bg-green-600 text-white rounded px-2 py-1 text-xs border border-green-700">تأكيد</button>
                     <button data-pending-id="${sale.id}" class="cancel-pending bg-red-500 hover:bg-red-600 text-white rounded px-2 py-1 text-xs border border-red-700">إلغاء</button>
-                    ${(sale.editHistory && sale.editHistory.length > 0) ? `<button onclick="window.showPendingEditHistory('${sale.id}')" class="bg-indigo-500 hover:bg-indigo-600 text-white rounded px-2 py-1 text-xs border border-indigo-700" title="عرض سجل التعديلات">📜 السجل</button>` : ''}
+                    ${(sale.editHistory && sale.editHistory.length > 0) ? `<button onclick="window.showPendingEditHistory('${sale.id}')" class="bg-indigo-500 hover:bg-indigo-600 text-white rounded px-2 py-1 text-xs border border-indigo-700" title="عرض سجل التعديلات">�� السجل</button>` : ''}
                 <button data-pending-id="${sale.id}" class="convert-pending-to-debt text-xs bg-purple-500 hover:bg-purple-600 text-white font-semibold py-1 px-3 rounded">
     تحويل إلى دين
 </button>
@@ -2784,7 +2785,7 @@ function updatePendingSalesDisplay() {
        
 // =======================================================
 
-// --- 🆕 دوال اختيار الأقسام للمرتجعات ---
+// --- �� دوال اختيار الأقسام للمرتجعات ---
 function renderReturnCategoriesUI() {
     const container = document.getElementById('return-categories-container');
     const list = document.getElementById('return-categories-list');
@@ -2935,7 +2936,7 @@ function updateUI() {
     if (d('summary-total-profit')) d('summary-total-profit').textContent = formatCurrency(totalProfit);
     if (d('summary-total-capital')) d('summary-total-capital').textContent = formatCurrency(totalCapital);
     
-    // 🌟 تحديث رقم رأس المال المتوقع ليشمل مبالغ الاستبدال المعلقة
+    // �� تحديث رقم رأس المال المتوقع ليشمل مبالغ الاستبدال المعلقة
     if (d('summary-expected-capital')) d('summary-expected-capital').textContent = formatCurrency(expectedCapital);
     
     if (d('summary-total-purchases')) d('summary-total-purchases').textContent = formatCurrency(totalPurchases);
@@ -2981,12 +2982,12 @@ renderLiabilityPaymentList();
             } 
         } 
     }
-    // 🆕 تحديث بطاقة المرتجعات المعلقة
+    // �� تحديث بطاقة المرتجعات المعلقة
     if (document.getElementById('summary-pending-returns')) {
         document.getElementById('summary-pending-returns').textContent = formatCurrency(calculatedPendingReturnsValue);
     }
 
-    // 🆕 تحديث بطاقة المشتريات المعلقة
+    // �� تحديث بطاقة المشتريات المعلقة
     if (document.getElementById('summary-pending-purchases')) {
         document.getElementById('summary-pending-purchases').textContent = formatCurrency(calculatedPendingPurchasesValue);
     }
@@ -3163,7 +3164,7 @@ window.convertPendingSaleToDebt = async function(pendingSaleId, debtMode, target
             type: 'invoice-from-pending',    
             convertedFromPending: true,
             migrated: false,
-            // 🌟 استخدام التاريخ الأصلي للبيعة المؤقتة 🌟
+            // �� استخدام التاريخ الأصلي للبيعة المؤقتة ��
             saleDate: saleData.saleDate || (saleData.createdAt ? saleData.createdAt.split('T')[0] : null) || (saleData.timestamp ? saleData.timestamp.split('T')[0] : null) || (typeof currentLoadedDate !== 'undefined' && currentLoadedDate ? currentLoadedDate : new Date().toISOString().split('T')[0]),
             date: new Date().toISOString().split('T')[0], 
             grandTotal: totalAmount, 
@@ -3172,8 +3173,8 @@ window.convertPendingSaleToDebt = async function(pendingSaleId, debtMode, target
             remainingAmount: remainingAmount, 
             profit: finalProfit,           
             items: normalizedItems,        
-            timestamp: saleData.timestamp || new Date().toISOString(), // 🌟 تثبيت الوقت القديم إن وجد 🌟
-            confirmedAt: new Date().toISOString(), // 🌟 تتبع وقت التأكيد الفعلي لمنع الأشباح في التراجع 🌟
+            timestamp: saleData.timestamp || new Date().toISOString(), // �� تثبيت الوقت القديم إن وجد ��
+            confirmedAt: new Date().toISOString(), // �� تتبع وقت التأكيد الفعلي لمنع الأشباح في التراجع ��
             accountId: accountId,
             status: 'completed'
         };
@@ -3184,7 +3185,7 @@ window.convertPendingSaleToDebt = async function(pendingSaleId, debtMode, target
         }
 
 
-        // 🌟 التوافق مع التراجع (Undo) وتجنب تلوث واجهة اليوم الحالي 🌟
+        // �� التوافق مع التراجع (Undo) وتجنب تلوث واجهة اليوم الحالي ��
         const activeDate = (typeof currentLoadedDate !== 'undefined' && currentLoadedDate) ? currentLoadedDate : new Date().toISOString().split('T')[0];
         if (confirmedInvoice.saleDate !== activeDate) {
             confirmedInvoice.isHiddenFromDaily = true;
@@ -3204,7 +3205,7 @@ window.convertPendingSaleToDebt = async function(pendingSaleId, debtMode, target
        
         
         if (typeof totalProfit !== 'undefined') {
-            totalProfit += finalProfit;
+            totalProfit = window.money(totalProfit + finalProfit);
         }
     }
 
@@ -3258,7 +3259,7 @@ window.convertPendingSaleToDebt = async function(pendingSaleId, debtMode, target
     // 5. التنظيف والإغلاق وتحديث الواجهة
     pendingSales.splice(pendingIndex, 1);
     
-    // 🌟 الإصلاح الثالث: حذف البيعة المؤقتة نهائياً من Firebase 🌟
+    // �� الإصلاح الثالث: حذف البيعة المؤقتة نهائياً من Firebase ��
     if (window.db && window.currentUser && typeof window.deleteDoc === 'function' && typeof window.doc === 'function') {
         try {
             window.deleteDoc(window.doc(window.db, "users", window.currentUser.uid, "pending_sales", String(pendingSaleId)));
@@ -3280,7 +3281,7 @@ window.convertPendingSaleToDebt = async function(pendingSaleId, debtMode, target
     }
 
     // مزامنة كافة التغييرات الأخرى (الديون والسيولة والمخزون) مع السحابة
-    // 🌟 حماية من التبخر السريع لو تم تحديث الصفحة 🌟
+    // �� حماية من التبخر السريع لو تم تحديث الصفحة ��
     try {
         localStorage.setItem("goodsMgmt_data_salesToday", JSON.stringify(typeof salesToday !== 'undefined' ? salesToday : []));
         localStorage.setItem("goodsMgmt_data_pendingSales", JSON.stringify(typeof pendingSales !== 'undefined' ? pendingSales : []));
@@ -3301,17 +3302,17 @@ function populateReturnProductSelect() {
     const productsInStock = products.filter(p => (p.quantity || 0) > 0);
     const sortedProducts = productsInStock.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
 
-    // 🌟 [تعديل د. ضياء]: جعل قائمة أصناف المرتجعات ترسل الـ ID الفريد لمنع تداخل الأصناف متشابهة الاسم
+    // �� [تعديل د. ضياء]: جعل قائمة أصناف المرتجعات ترسل الـ ID الفريد لمنع تداخل الأصناف متشابهة الاسم
     sortedProducts.forEach(p => {
         const option = document.createElement('option');
-        option.value = p.id || p.name; // 🆔 تمرير الـ ID الفريد كقيمة للخيار
+        option.value = p.id || p.name; // �� تمرير الـ ID الفريد كقيمة للخيار
         option.textContent = `${p.name} (القسم: ${p.category || 'عام'}) - المتاح: ${p.quantity}`;
         option.dataset.cost = p.costPrice;
         option.dataset.id = p.id || ""; // أمان إضافي لحفظ الـ ID في الداتا سيت
         returnProductSelect.appendChild(option);
     });
 
-    // 🌟 [تأمين د. ضياء]: التحقق بالـ ID أو الاسم لضمان بقاء المنتج المختار نشطاً دون مسحه أثناء التحديث
+    // �� [تأمين د. ضياء]: التحقق بالـ ID أو الاسم لضمان بقاء المنتج المختار نشطاً دون مسحه أثناء التحديث
     if (sortedProducts.some(p => (p.id && p.id === currentSelection) || p.name === currentSelection)) {
         returnProductSelect.value = currentSelection;
     }
@@ -3435,7 +3436,7 @@ function handleManualReturn() {
     }
     
     // =================================================================
-    // 🔥🔥 التعديل الجوهري هنا: حساب تكلفة البضاعة بناءً على خيارك 🔥🔥
+    // ���� التعديل الجوهري هنا: حساب تكلفة البضاعة بناءً على خيارك ����
     // =================================================================
     let costOfGoods = 0;
     let isFromPendingSale = false;
@@ -3472,7 +3473,7 @@ function handleManualReturn() {
             showMessage(returnMessage, `رصيد حساب "${account.name}" غير كافٍ.`, true); 
             return; 
         }
-        account.balance -= returnedAmount;
+        account.balance = window.money(account.balance - returnedAmount);
         logDetails = `إرجاع نقدي ${formatCurrency(returnedAmount)} للعميل "${customerName}" من حساب "${account.name}".`;
     } else if (financialType === 'credit') {
         liabilities.push({ id: generateId('liab'), name: `رصيد مرتجع للعميل: ${customerName}`, amount: returnedAmount });
@@ -3560,9 +3561,9 @@ function handleManualReturn() {
             }
         });
         
-        // 🌟 خصم الأرباح فوراً لأن المرتجع استُلم
+        // �� خصم الأرباح فوراً لأن المرتجع استُلم
         if (Math.abs(profitToReverse) > 0.001) {
-            totalProfit -= profitToReverse;
+            totalProfit = window.money(totalProfit - profitToReverse);
             logOperation("عكس أرباح مرتجع", `عكس أرباح بقيمة ${formatCurrency(profitToReverse)}.`);
         }
 
@@ -3596,7 +3597,7 @@ function handleManualReturn() {
     resetReturnForm();
     updateUI();
 
-    // 🛡️ حفظ سحابي فوري لمنع ضياع المرتجع
+    // ��️ حفظ سحابي فوري لمنع ضياع المرتجع
     if (typeof saveSystemToCloud === 'function') {
         saveSystemToCloud().catch(e => console.error("Failed to save manual return:", e));
     }
@@ -3697,7 +3698,7 @@ async function saveCurrentStateByDate(dateString, immediate = false) {
     window._pendingSaveDate = dateString;
 
     
-    // 🌟 تحديث الملخص
+    // �� تحديث الملخص
         const latestBalancesSummary = {
             products: products || [],
             suppliers: suppliers || [],
@@ -3800,7 +3801,7 @@ function openBackupHistoryModal() {
     
     let backups = [];
 
-    // 🔥 التغيير الجذري: مسح شامل لكل مفاتيح الذاكرة بدلاً من التخمين
+    // �� التغيير الجذري: مسح شامل لكل مفاتيح الذاكرة بدلاً من التخمين
     // هذا يتجاوز مشاكل ترتيب المفاتيح في كروم
     for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
@@ -3989,7 +3990,7 @@ async function loadDataForDate(dateString) {
             window._loadFailed = false;
             loadState(docSnap.data(), dateString);
             
-            // 🌟 تأمين تحميل الفواتير المعلقة لنظام الاستبدال
+            // �� تأمين تحميل الفواتير المعلقة لنظام الاستبدال
             window.pendingOrders = docSnap.data().pendingOrders || []; 
 
             migrateDebtorsToProfiles();
@@ -4038,7 +4039,7 @@ async function loadDataForDate(dateString) {
             }
 
             if (dataToMigrate) {
-                // 🛑🛑🛑 منطقة التطهير والتدقيق المالي 🛑🛑🛑
+                // ������ منطقة التطهير والتدقيق المالي ������
                 
                 // 1. تصفير السجلات اليومية (لا تنتقل لليوم الجديد)
                 dataToMigrate.salesToday = [];       
@@ -4056,7 +4057,7 @@ async function loadDataForDate(dateString) {
                 // 3. ✅ التأمين المالي للمشتريات (Goods in Transit)
                 dataToMigrate.pendingPurchases = dataToMigrate.pendingPurchases || [];
 
-                // 🌟 3.5 ✅ التأمين المالي لطلبيات الاستبدال المعلقة (ERP)
+                // �� 3.5 ✅ التأمين المالي لطلبيات الاستبدال المعلقة (ERP)
                 // الفواتير المعلقة بضاعة خرجت وفلوس لسه مجتش، لازم تترحل لليوم الجديد
                 dataToMigrate.pendingOrders = dataToMigrate.pendingOrders || [];
 
@@ -4083,7 +4084,7 @@ async function loadDataForDate(dateString) {
                 // تحميل البيانات المنقحة
                 loadState(dataToMigrate, dateString);
                 
-                // 🌟 تأمين تحميل الفواتير المعلقة في المتغير العالمي للواجهة
+                // �� تأمين تحميل الفواتير المعلقة في المتغير العالمي للواجهة
                 window.pendingOrders = dataToMigrate.pendingOrders || [];
 
                 // حفظ فوري لليوم الجديد بالسحابة لتثبيته كـ "يوم مفتوح"
@@ -4161,8 +4162,8 @@ async function loadDataForDate(dateString) {
         // 7. السجلات والتقارير
         expenses: expenses || 0,
         recordedLosses: recordedLosses || 0,
-        totalProfit: totalProfit || 0,
-        operationLog: operationLog || [],
+        profit: totalProfit || 0,
+        log: operationLog || [],
         liquidityLog: liquidityLog || [], // سجل الخزينة التفصيلي
         serialNumbersLog: serialNumbersLog || [],
         inboxTasks: inboxTasks || [],
@@ -4208,7 +4209,7 @@ async function loadDataForDate(dateString) {
                 throw new Error("صيغة الملف غير صالحة.");
             }
 
-            // 🛠️ الإصلاح: إذا لم يكن التاريخ موجوداً في الملف، نستخدم التاريخ المختار في الواجهة
+            // ��️ الإصلاح: إذا لم يكن التاريخ موجوداً في الملف، نستخدم التاريخ المختار في الواجهة
             const targetDateInput = document.getElementById("load-date-alt");
             let targetDate = targetDateInput ? targetDateInput.value : null;
 
@@ -4372,7 +4373,7 @@ function processMonthlyLiabilities() {
     logOperation("معالجة التزامات شهرية", `تمت إضافة التزامات شهر ${currentMonthStr} تلقائياً: ${addedItemsLog.join(', ')}.`);
     saveData(lsLastProcessedMonthKey, currentMonthStr); // Mark this month as processed
     
-    // 🛡️ حفظ سحابي فوري لمنع ضياع الالتزامات الشهرية
+    // ��️ حفظ سحابي فوري لمنع ضياع الالتزامات الشهرية
     if (typeof saveSystemToCloud === 'function') {
         saveSystemToCloud().catch(e => console.error("Failed to save monthly liabilities:", e));
     }
@@ -4453,7 +4454,7 @@ function processMonthlyLiabilities() {
         logOperation("تعديل رصيد يدوي", `تم تعديل رصيد حساب "${account.name}" إلى ${formatCurrency(newBalance)}. السبب: ${reason}.`);
         
         liquidityLog.push({
-            id: `liq-adj-${Date.now()}`,
+            id: generateId("liq-adj"),
             timestamp: new Date().toISOString(),
             type: "adjust",
             amount: adjustment,
@@ -4461,7 +4462,7 @@ function processMonthlyLiabilities() {
             currentBalance: newTotalLiquidity 
         });
 
-        // 🛡️ حفظ سحابي فوري
+        // ��️ حفظ سحابي فوري
         if (typeof saveSystemToCloud === 'function') {
             saveSystemToCloud().catch(e => console.error("Failed to save liquidity adjustment:", e));
         }
@@ -4597,7 +4598,7 @@ function processMonthlyLiabilities() {
     const currentSelectedValue = selectElement.value; // الاحتفاظ بالسيريال المختار حالياً إن وجد
     selectElement.innerHTML = ''; // مسح الخيارات القديمة
 
-    // 🌟 [تعديل د. ضياء الحصري]: العثور على كائن المنتج أولاً للفلترة بكوده الفريد واسمه بدقة
+    // �� [تعديل د. ضياء الحصري]: العثور على كائن المنتج أولاً للفلترة بكوده الفريد واسمه بدقة
     const product = products.find(p => p.id === productIdOrName || p.name === productIdOrName);
     const currentProductName = product ? product.name : productIdOrName;
     const currentProductId = product ? product.id : null;
@@ -4740,7 +4741,7 @@ function inv_addInvoiceItem() {
     newRow.dataset.itemPrice = price.toFixed(2);
     newRow.dataset.itemSubtotal = subtotal.toFixed(2);
     newRow.dataset.itemCost = currentCostPrice.toFixed(2);
-if (currentProduct) newRow.dataset.productId = currentProduct.id || ""; // 🌟 حفر كود المنتج الفريد في صف الجدول
+if (currentProduct) newRow.dataset.productId = currentProduct.id || ""; // �� حفر كود المنتج الفريد في صف الجدول
     // إضافة بيانات السيريال للصف
     if (selectedSerial && qty === 1) {
         newRow.dataset.itemSerial = selectedSerial;
@@ -4903,7 +4904,7 @@ function processInventoryAndCosts(items, isFromPending) {
 
     // 2. تجميع وخصم الملحقات (الهدايا)
     // يتم هذا فقط للفواتير الجديدة، لأن الفواتير القادمة من "معلق" تم خصم ملحقاتها مسبقاً
-   // 🌟 [تعديل د. ضياء]: جمع الملحقات المخصومة بالـ ID والاسم معاً لضمان عدم التداخل برمجياً
+   // �� [تعديل د. ضياء]: جمع الملحقات المخصومة بالـ ID والاسم معاً لضمان عدم التداخل برمجياً
     if (!isFromPending && inv_deductibleCostsContainer) {
         const checkedBoxes = inv_deductibleCostsContainer.querySelectorAll('input[type="checkbox"]:checked');
         checkedBoxes.forEach(checkbox => {
@@ -4916,7 +4917,7 @@ function processInventoryAndCosts(items, isFromPending) {
             const qtyToDeduct = parseInt(qtyInput?.value || '0');
             
             if (qtyToDeduct > 0) {
-                // 🆔 حفظ الـ id والاسم معاً داخل مصفوفة الملحقات
+                // �� حفظ الـ id والاسم معاً داخل مصفوفة الملحقات
                 deductedItemsData.push({ 
                     id: pId || null, 
                     name: pName, 
@@ -4932,7 +4933,7 @@ function processInventoryAndCosts(items, isFromPending) {
             }
         });
     }
-   // 🌟 [تعديل د. ضياء الحصري]: التنفيذ الفعلي للخصم المباشر من المخزن بالـ ID الفريد
+   // �� [تعديل د. ضياء الحصري]: التنفيذ الفعلي للخصم المباشر من المخزن بالـ ID الفريد
 if (!isFromPending) {
     items.forEach(item => {
         let productIndex = -1;
@@ -4943,7 +4944,13 @@ if (!isFromPending) {
             productIndex = products.findIndex(p => p.name.toLowerCase() === item.name.toLowerCase());
         }
         if (productIndex !== -1) {
-            products[productIndex].quantity -= item.quantity;
+            if (typeof window.adjustStock === 'function') {
+                if (!window.adjustStock(productIndex, -item.quantity, "بيع / تسوية")) {
+                    console.error("Failed to adjust stock");
+                }
+            } else {
+                products[productIndex].quantity -= item.quantity;
+            }
         }
     });
 }
@@ -4957,7 +4964,7 @@ if (!isFromPending) {
 function updateGlobalState(account, amountToCollect, customerName, grandTotal, depositPaid, accountId, items, isFromPending, pendingOrigin) {
     // 1. تحديث السيولة
     if (amountToCollect > 0 && account) {
-        account.balance += amountToCollect;
+        account.balance = window.money(account.balance + amountToCollect);
         const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
         
         let logDesc = `فاتورة مبيعات ${customerName}`;
@@ -4966,7 +4973,7 @@ function updateGlobalState(account, amountToCollect, customerName, grandTotal, d
         }
         
         liquidityLog.push({ 
-            id: `liq-${Date.now()}`, 
+            id: generateId("liq"), 
             timestamp: new Date().toISOString(), 
             type: "add", 
             amount: amountToCollect, 
@@ -5124,7 +5131,7 @@ async function handleSaveInvoice(skipConfirmation = true) {
     if ((isInvoiceFromPending || isEditingPendingInvoice) && pendingSaleOriginData) {
         let oldItemsToReturn = [];
         
-        // 🌟 1. إرجاع الأصناف الأساسية للبيعة المؤقتة القديمة للمخزن أولاً
+        // �� 1. إرجاع الأصناف الأساسية للبيعة المؤقتة القديمة للمخزن أولاً
         const oldMainItems = pendingSaleOriginData.items || (pendingSaleOriginData.invoiceData && pendingSaleOriginData.invoiceData.items) || [];
         if (Array.isArray(oldMainItems)) {
             oldItemsToReturn.push(...oldMainItems);
@@ -5134,7 +5141,7 @@ async function handleSaveInvoice(skipConfirmation = true) {
             oldItemsToReturn.push({ ...pendingSaleOriginData.mainProduct });
         }
 
-        // 🌟 2. إرجاع الأصناف والتكاليف الإضافية المستقطعة القديمة
+        // �� 2. إرجاع الأصناف والتكاليف الإضافية المستقطعة القديمة
         const oldExtraDeducted = (pendingSaleOriginData.invoiceData && pendingSaleOriginData.invoiceData.deductedItems) 
                                  ? pendingSaleOriginData.invoiceData.deductedItems 
                                  : (pendingSaleOriginData.deductedItems || []);
@@ -5167,7 +5174,13 @@ async function handleSaveInvoice(skipConfirmation = true) {
             productIndex = products.findIndex(p => String(p.name).trim().toLowerCase() === cleanName);
         }
         if (productIndex !== -1) {
-            products[productIndex].quantity -= Number(qty) || 0;
+            if (typeof window.adjustStock === 'function') {
+                if (!window.adjustStock(productIndex, -(Number(qty) || 0), "بيع / تسوية")) {
+                    console.error("Failed to adjust stock");
+                }
+            } else {
+                products[productIndex].quantity -= Number(qty) || 0;
+            }
         }
     });
 
@@ -5211,7 +5224,7 @@ async function handleSaveInvoice(skipConfirmation = true) {
         showMessage(globalMessage, "تم حفظ الفاتورة في قائمة المبيعات المؤقتة بنجاح.", false);
     } else {
         if (amountToCollectNow > 0) {
-            account.balance += amountToCollectNow;
+            account.balance = window.money(account.balance + amountToCollectNow);
             const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
             
             let logDesc = `فاتورة مبيعات ${customerName}`;
@@ -5220,7 +5233,7 @@ async function handleSaveInvoice(skipConfirmation = true) {
             }
 
             liquidityLog.push({ 
-                id: `liq-${Date.now()}`, 
+                id: generateId("liq"), 
                 timestamp: new Date().toISOString(), 
                 type: "add", 
                 amount: amountToCollectNow, 
@@ -5237,7 +5250,7 @@ async function handleSaveInvoice(skipConfirmation = true) {
             }
         });
 
-        totalProfit += (typeof netInvoiceProfit !== "undefined" ? netInvoiceProfit : finalInvoiceProfit);
+        totalProfit = window.money(totalProfit + (typeof netInvoiceProfit !== "undefined" ? netInvoiceProfit : finalInvoiceProfit));
 
         if ((isInvoiceFromPending || isEditingPendingInvoice) && pendingSaleOriginData && pendingSaleOriginData.id) {
             const idx = pendingSales.findIndex(s => String(s.id).trim() === String(pendingSaleOriginData.id).trim());
@@ -5901,7 +5914,7 @@ function printPendingSaleAsInvoice(pendingId) {
         inv_deductibleCostsContainer.appendChild(label);
     });
 }      // =====================================================================
-// 🌟 [تحديث د. ضياء]: دالة فتح مودال السيريالات بناءً على الـ ID الفريد منعاً للتداخل
+// �� [تحديث د. ضياء]: دالة فتح مودال السيريالات بناءً على الـ ID الفريد منعاً للتداخل
 // =====================================================================
 function openManageSerialsModal(productIdOrName) {
     let product = null;
@@ -5923,7 +5936,7 @@ function openManageSerialsModal(productIdOrName) {
 
     // تخزين المعرفات في كائن النظام الحالي لتعرف الدوال الأخرى أي منتج نقوم بإدارته
     currentManagingSerialsProduct = product.name; 
-    window.currentManagingSerialsProductID = product.id || null; // 🌟 حفظ الـ ID الفريد للمنتج الحالي
+    window.currentManagingSerialsProductID = product.id || null; // �� حفظ الـ ID الفريد للمنتج الحالي
 
     // تحديث معلومات الواجهة في المودال
     if (modal_productNameDisplay) modal_productNameDisplay.textContent = product.name;
@@ -5982,7 +5995,7 @@ function saveAddedSerialsFromModal() {
     saveStateToHistory();
     if (!currentManagingSerialsProduct || !modal_productSerialNumbers) return;
 
-    // 🌟 [تعديل د. ضياء]: جلب المنتج التابع له السيريال بالـ ID الفريد المخزن في النافذة حالياً لضمان الدقة
+    // �� [تعديل د. ضياء]: جلب المنتج التابع له السيريال بالـ ID الفريد المخزن في النافذة حالياً لضمان الدقة
     const product = window.currentManagingSerialsProductID ? products.find(p => p.id === window.currentManagingSerialsProductID) : products.find(p => p.name === currentManagingSerialsProduct);
     
     if (!product) {
@@ -5998,7 +6011,7 @@ function saveAddedSerialsFromModal() {
 
     const totalQty = Number(product.quantity) || 0;
 
-    // 🌟 [تعديل أمني]: تصفية السيريالات بالـ ID أولاً لضمان دقة العدّ وعدم تداخل الأصناف متشابهة الاسم
+    // �� [تعديل أمني]: تصفية السيريالات بالـ ID أولاً لضمان دقة العدّ وعدم تداخل الأصناف متشابهة الاسم
     const initialRegisteredSerials = serialNumbersLog.filter(log => {
         if (product.id && log.productId) return log.productId === product.id;
         return log.productName === currentManagingSerialsProduct;
@@ -6041,13 +6054,13 @@ function saveAddedSerialsFromModal() {
     const timestamp = new Date().toISOString();
     const supplierId = product.supplierId || ""; 
 
-    // 🌟 [تعديل د. ضياء]: ربط السيريال المضاف حديثاً بالـ ID الفريد للمنتج لمنع التداخل
+    // �� [تعديل د. ضياء]: ربط السيريال المضاف حديثاً بالـ ID الفريد للمنتج لمنع التداخل
     newSerials.forEach(serial => {
         serialNumbersLog.push({
                 id: generateId("SER"),
                 serial: serial, 
             productName: currentManagingSerialsProduct,
-            productId: product.id || "", // 🆔 حفظ الـ ID هنا خطوة حاسمة لمنع تداخل الأصناف متشابهة الاسم
+            productId: product.id || "", // �� حفظ الـ ID هنا خطوة حاسمة لمنع تداخل الأصناف متشابهة الاسم
             supplierId: supplierId, 
             addedTimestamp: timestamp, 
             status: "in_stock" 
@@ -6058,7 +6071,7 @@ function saveAddedSerialsFromModal() {
     showMessage(d('modal-serial-import-message'), `تم حفظ ${newSerials.length} رقم تسلسلي بنجاح.`, false);
     modal_productSerialNumbers.value = ''; // أفرغ الحقل بعد الحفظ
 
-    // 🌟 [تعديل أمني]: إعادة تحديث القائمة والعدادات بناءً على الـ ID بدقة
+    // �� [تعديل أمني]: إعادة تحديث القائمة والعدادات بناءً على الـ ID بدقة
     const updatedRegisteredSerials = serialNumbersLog.filter(log => {
         if (product.id && log.productId) return log.productId === product.id;
         return log.productName === currentManagingSerialsProduct;
@@ -6233,7 +6246,7 @@ function displaySalesReport(salesToDisplay) {
             // لون الربح
             const profitColor = profitAmount >= 0 ? '#16a34a' : '#dc2626';
 
-            // 🌟 إضافة زر الحذف (أيقونة سلة مهملات)
+            // �� إضافة زر الحذف (أيقونة سلة مهملات)
             tableHTML += `
                 <tr>
                     <td>
@@ -6277,7 +6290,7 @@ function displaySalesReport(salesToDisplay) {
     if(profitCardValue) profitCardValue.style.color = totalMonthProfit >= 0 ? '#047857' : '#dc2626';
 }
 // =======================================================
-// 🗑️ دالة حذف الفاتورة من التقرير فقط (بدون التأثير على الأرصدة)
+// ��️ دالة حذف الفاتورة من التقرير فقط (بدون التأثير على الأرصدة)
 window.removeSaleFromReportOnly = async function(saleId) {
     if(!confirm("⚠️ سيتم حذف هذا السجل من العرض (السحابة والتقرير) ولن يتم تعديل المخزون أو الأرصدة.\nهل أنت متأكد؟")) return;
 
@@ -6324,7 +6337,7 @@ window.removeSaleFromReportOnly = async function(saleId) {
     }
 };
 
-// 🌟 دالة الحذف النهائي للفواتير من التقرير والسحابة
+// �� دالة الحذف النهائي للفواتير من التقرير والسحابة
 
 window.deleteSaleRecord = async function(saleId) {
     if(!confirm("هل أنت متأكد من حذف هذه المبيعة؟ سيتم إرجاع المنتجات إلى المخزن.")) return;
@@ -6459,7 +6472,7 @@ window.processSaleDeletion = async function(sale, selectedAccount, refundAmount)
                 acc.balance = Number(acc.balance) - refundAmount;
                 const newTotalLiquidity = accounts.reduce((sum, a) => sum + Number(a.balance), 0);
                 liquidityLog.push({
-                    id: `liq-delete-${Date.now()}`,
+                    id: generateId("liq-delete"),
                     timestamp: new Date().toISOString(),
                     type: "remove",
                     amount: refundAmount,
@@ -6472,7 +6485,7 @@ window.processSaleDeletion = async function(sale, selectedAccount, refundAmount)
     }
 
     const saleProfit = Number(sale.profit !== undefined ? sale.profit : (sale.totalSellPrice - (sale.totalCost || 0)));
-    if (typeof totalProfit !== 'undefined') totalProfit -= saleProfit;
+    if (typeof totalProfit !== 'undefined') totalProfit = window.money(totalProfit - saleProfit);
 
     if (sale.invoiceNumber && typeof pendingReturns !== 'undefined') {
         const retIdx = pendingReturns.findIndex(r => r.fromInvoice === sale.invoiceNumber);
@@ -7568,7 +7581,7 @@ function fc_get_simulation_results() {
     const distributionMethod = document.querySelector('input[name="fc-distribution-method"]:checked').value;
     let productUpdates = [];
     
-    // 🌟 1. التوزيع حسب الكمية
+    // �� 1. التوزيع حسب الكمية
     if (distributionMethod === 'quantity') {
         let totalQty = 0; selectedProductsEls.forEach(p => totalQty += parseInt(p.dataset.qty));
         if (totalQty === 0) return { error: "مجموع كميات المنتجات صفر." };
@@ -7577,7 +7590,7 @@ function fc_get_simulation_results() {
             productUpdates.push({ id: p.dataset.id, name: p.dataset.name, addedCost: costPerItem });
         });
     } 
-    // 🌟 2. التوزيع حسب القيمة
+    // �� 2. التوزيع حسب القيمة
     else if (distributionMethod === 'value') {
         let totalValue = 0; selectedProductsEls.forEach(p => totalValue += parseFloat(p.dataset.value));
         if (totalValue === 0) return { error: "مجموع قيمة المنتجات صفر." };
@@ -7589,7 +7602,7 @@ function fc_get_simulation_results() {
             productUpdates.push({ id: p.dataset.id, name: p.dataset.name, addedCost: addedPerItem });
         });
     } 
-    // 🌟 3. التوزيع اليدوي
+    // �� 3. التوزيع اليدوي
     else if (distributionMethod === 'manual') {
         if (!fc_validate_percentages()) return { error: "مجموع النسب المئوية يجب أن يكون 100%." };
         selectedProductsEls.forEach(p => {
@@ -7643,7 +7656,7 @@ function fc_execute_cost_distribution() {
      // --- تحديث تكاليف المنتجات ---
     let logDetails = [];
     results.productUpdates.forEach(update => {
-        // 🌟 التعديل هنا: البحث بالـ ID لضمان تحديث المنتج الصحيح بدقة
+        // �� التعديل هنا: البحث بالـ ID لضمان تحديث المنتج الصحيح بدقة
         const productIndex = products.findIndex(p => p.id === update.id); 
         
         if (productIndex > -1) {
@@ -7853,7 +7866,7 @@ function handleInvoiceReturnConfirmation(invoiceId, invoiceNumber) {
     const customerName = strongEl && strongEl.nextSibling ? strongEl.nextSibling.textContent.trim() : 'غير محدد';
 
     // Process the return
-    account.balance -= totalReturnValue;
+    account.balance = window.money(account.balance - totalReturnValue);
 
     const profitToReverse = totalReturnValue - totalCostOfReturn;
 
@@ -7863,13 +7876,13 @@ function handleInvoiceReturnConfirmation(invoiceId, invoiceNumber) {
             if (productIndex !== -1) {
                 products[productIndex].quantity += item.quantity;
             } else {
-              // 🌟 [تعديل د. ضياء]: توليد ID فريد للمنتج الجديد لحمايته من التداخل
+              // �� [تعديل د. ضياء]: توليد ID فريد للمنتج الجديد لحمايته من التداخل
               const uniqueProductCodeReturn = "code_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
               products.push({ id: uniqueProductCodeReturn, name: item.name, quantity: item.quantity, costPrice: item.costPrice, supplierId: '' });
             }
         });
         if (typeof totalProfit !== 'undefined') {
-            totalProfit -= profitToReverse;
+            totalProfit = window.money(totalProfit - profitToReverse);
         }
         
         // Update the original sale in salesToday if it exists so daily reports are accurate
@@ -7892,7 +7905,7 @@ function handleInvoiceReturnConfirmation(invoiceId, invoiceNumber) {
         logOperation("مرتجع معلق من فاتورة", `إرجاع مبلغ ${formatCurrency(totalReturnValue)} للعميل من فاتورة ${invoiceNumber}. البضاعة قيد الاستلام.`);
     }
 
-    liquidityLog.push({ id: `liq-${Date.now()}`, timestamp: new Date().toISOString(), type: "remove", amount: totalReturnValue, description: `مرتجع من فاتورة ${invoiceNumber}`, currentBalance: accounts.reduce((sum, acc) => sum + acc.balance, 0), accountId: account.id });
+    liquidityLog.push({ id: generateId("liq"), timestamp: new Date().toISOString(), type: "remove", amount: totalReturnValue, description: `مرتجع من فاتورة ${invoiceNumber}`, currentBalance: accounts.reduce((sum, acc) => sum + acc.balance, 0), accountId: account.id });
 
     showMessage(returnMessage, "تم تسجيل عملية الإرجاع من الفاتورة بنجاح.", false);
     invoiceSearchResults.innerHTML = '';
@@ -7900,7 +7913,7 @@ function handleInvoiceReturnConfirmation(invoiceId, invoiceNumber) {
 }
 
 // =====================================================================
-// 🌟 [تحديث د. ضياء النهائي الموحد]: دالة تأكيد استلام المرتجع المعلق بالـ ID الفريد
+// �� [تحديث د. ضياء النهائي الموحد]: دالة تأكيد استلام المرتجع المعلق بالـ ID الفريد
 // =====================================================================
 function handleConfirmReceipt(pendingId) {
     saveStateToHistory();
@@ -7913,7 +7926,7 @@ function handleConfirmReceipt(pendingId) {
 
     const ret = pendingReturns.splice(returnIndex, 1)[0];
 
-    // --- 📦 إجراء لوجيستي ومخزني آمن بالكامل ---
+    // --- �� إجراء لوجيستي ومخزني آمن بالكامل ---
 
     // 1. خصم القيمة من "الأصول المعلقة" (إن كان المتغير معرفاً بالسيستم)
     if (typeof pendingReturnsValue !== 'undefined') {
@@ -7934,7 +7947,7 @@ function handleConfirmReceipt(pendingId) {
                 category: "مرتجع"
             });
         } else {
-            // 🌟 [التأمين بالأكواد]: البحث بالـ ID أولاً لضمان زيادة المنتج الصحيح
+            // �� [التأمين بالأكواد]: البحث بالـ ID أولاً لضمان زيادة المنتج الصحيح
             let pIndex = -1;
             if (item.id) {
                 pIndex = products.findIndex(p => p.id === item.id);
@@ -7970,9 +7983,9 @@ function handleConfirmReceipt(pendingId) {
     // 3. نقل المرتجع إلى قائمة المكتملة
     completedReturns.push({ id: generateId("RET"), ...ret, status: 'Completed', timestamp: new Date().toISOString() });
 
-    // 🌟 خصم الأرباح المؤجلة الآن لأن المرتجع استُلم فعلياً
+    // �� خصم الأرباح المؤجلة الآن لأن المرتجع استُلم فعلياً
     if (ret.profitToReverse && Math.abs(ret.profitToReverse) > 0.001) {
-        totalProfit -= ret.profitToReverse;
+        totalProfit = window.money(totalProfit - ret.profitToReverse);
         logOperation("عكس أرباح مرتجع مؤجل", `تم عكس أرباح مؤجلة بقيمة ${formatCurrency(ret.profitToReverse)} بعد تأكيد الاستلام.`);
     }
 
@@ -8257,7 +8270,7 @@ function handlePendingPurchaseActions(event) {
             // التكلفة النهائية للوحدة = السعر الأساسي + نصيبها من المصاريف الإضافية
             const finalUnitCost = item.cost + extraCostPerUnit;
 
-// 🌟 [تعديل د. ضياء الحصري]: البحث بالـ ID الممرر من الفاتورة لضمان خيارات الفصل والدمج
+// �� [تعديل د. ضياء الحصري]: البحث بالـ ID الممرر من الفاتورة لضمان خيارات الفصل والدمج
 const productIndex = products.findIndex(prod => (item.id && prod.id === item.id) || prod.name.toLowerCase() === item.name.toLowerCase());            
             if (productIndex !== -1) {
                 // تحديث منتج موجود
@@ -8274,10 +8287,10 @@ const productIndex = products.findIndex(prod => (item.id && prod.id === item.id)
                 if (item.category) existing.category = item.category;
             } else {
                 // إضافة منتج جديد تماماً
-            // 🌟 [تعديل د. ضياء]: توليد كود فريد للمنتج عند النقل
+            // �� [تعديل د. ضياء]: توليد كود فريد للمنتج عند النقل
 const uniqueProductCodeTransfer = "code_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
 products.push({ 
-    id: uniqueProductCodeTransfer, // 🆔 حفر الكود الفريد هنا
+    id: uniqueProductCodeTransfer, // �� حفر الكود الفريد هنا
     name: item.name, 
     quantity: item.quantity, 
     costPrice: finalUnitCost, 
@@ -8339,9 +8352,9 @@ products.push({
     if (purchase.deductedFromLiquidity && purchase.paidAmount > 0 && purchase.paidFromAccountId) {
         const accountToRefund = accounts.find(acc => acc.id === purchase.paidFromAccountId);
         if (accountToRefund) {
-            accountToRefund.balance += purchase.paidAmount;
+            accountToRefund.balance = window.money(accountToRefund.balance + purchase.paidAmount);
             liquidityLog.push({ 
-                id: `liq-${Date.now()}`, 
+                id: generateId("liq"), 
                 type: "add", 
                 amount: purchase.paidAmount, 
                 description: `إلغاء شراء وإرجاع عربون للفاتورة ${pendingId}`, 
@@ -8391,7 +8404,7 @@ async function pi_confirmPurchaseInvoice() {
             quantity: q, 
             cost: c, 
             serials: JSON.parse(row.dataset.serials || '[]'),
-            // 🌟 [تم التحديث]: قراءة قرار المودال الذكي (دمج / فصل / اسم جديد) المحفور في الـ DOM
+            // �� [تم التحديث]: قراءة قرار المودال الذكي (دمج / فصل / اسم جديد) المحفور في الـ DOM
             duplicateResolution: row.dataset.duplicateResolution || "" 
         };
     });
@@ -8453,7 +8466,7 @@ async function pi_confirmPurchaseInvoice() {
     };
 
     // =====================================================================
-        // 🛠️ [تعديل ذكي لـ د. ضياء] - اعتراض وفحص تكرار الأسماء داخل فاتورة المشتريات
+        // ��️ [تعديل ذكي لـ د. ضياء] - اعتراض وفحص تكرار الأسماء داخل فاتورة المشتريات
         // =====================================================================
         let hasDuplicateInInvoice = false;
 
@@ -8469,7 +8482,7 @@ async function pi_confirmPurchaseInvoice() {
                         continue;
                     }
 
-                    window.lastPurchaseDuplicateID = duplicate.id || null; // 🆔 حفظ كود صنف المشتريات المكرر في الذاكرة
+                    window.lastPurchaseDuplicateID = duplicate.id || null; // �� حفظ كود صنف المشتريات المكرر في الذاكرة
                     hasDuplicateInInvoice = true;
                     
                     window.pendingPurchaseInvoiceItem = {
@@ -8491,7 +8504,7 @@ async function pi_confirmPurchaseInvoice() {
                         document.getElementById("renameInputContainer").classList.add('hidden');
                         document.getElementById("newProductNameInput").value = item.name + " - جديد";
                     }
-                    return; // 🛑 إيقاف الحفظ الفوري للفاتورة لحين حل التكرار من خلال المودال
+                    return; // �� إيقاف الحفظ الفوري للفاتورة لحين حل التكرار من خلال المودال
                 }
             }
         }
@@ -8551,10 +8564,10 @@ async function pi_confirmPurchaseInvoice() {
 
         // تنفيذ الخصم المالي الفعلي من حساب السيولة
         if (invoiceData.paidAmount > 0 && deductFromLiquidity && account) {
-            account.balance -= invoiceData.paidAmount;
+            account.balance = window.money(account.balance - invoiceData.paidAmount);
             const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
             liquidityLog.push({ 
-                id: `liq-${Date.now()}`,
+                id: generateId("liq"),
                 timestamp: new Date().toISOString(),
                 type: "remove", 
                 amount: invoiceData.paidAmount, 
@@ -8612,7 +8625,7 @@ async function pi_confirmPurchaseInvoice() {
    if (invoiceData.remainingBalance > 0.001) {
     liabilities.push({ 
         id: generateId('liab'), 
-        // 🔥 هذا هو السطر الأهم للربط الذي يسمح بالحذف التلقائي عند الإلغاء
+        // �� هذا هو السطر الأهم للربط الذي يسمح بالحذف التلقائي عند الإلغاء
         purchaseInvoiceId: invoiceData.id, 
         name: `متبقي فاتورة لـ: ${supplier?.name || '-'}`, 
         amount: invoiceData.remainingBalance,
@@ -8621,7 +8634,7 @@ async function pi_confirmPurchaseInvoice() {
         type: "supplier" // لتحديد نوع الالتزام
     });
 }
-    // 🔥 أهم سطر: الأرشفة السحابية تعمل الآن في الحالتين
+    // �� أهم سطر: الأرشفة السحابية تعمل الآن في الحالتين
     try { await savePurchaseInvoiceToCloud(invoiceData); } catch(e) { console.error(e); if(typeof showMessage === "function") showMessage(piFormMessage, "تعذر الحفظ في السحابة. يرجى تحديث الصفحة للحفاظ على صحة البيانات.", true); return; }
 
     logOperation(goodsReceived ? "فاتورة شراء" : "شراء معلق", `فاتورة من ${supplier?.name} بقيمة ${formatCurrency(invoiceData.grandTotal)}.`);
@@ -8925,7 +8938,7 @@ function handleIncomeAddition() {
     }
     
     saveStateToHistory();
-    account.balance += amount;
+    account.balance = window.money(account.balance + amount);
     logOperation("إضافة إيراد", `إضافة ${formatCurrency(amount)} إلى حساب "${account.name}" تحت فئة "${category}".`);
     
     const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
@@ -8972,21 +8985,22 @@ function handleExpenseAddition() {
     // 3. التنفيذ
     
     // أ) خصم من الخزنة
-    account.balance -= amount;
+    account.balance = window.money(account.balance - amount);
 
     // ب) زيادة إجمالي المصروفات العام
-    expenses += amount;
+    expenses = window.money(expenses + amount);
 
     // ج) تسجيل الحركة في سجل السيولة (يظهر في حركة الخزينة)
     const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
     liquidityLog.push({
-        id: `liq-${Date.now()}`,
+        id: generateId("liq"),
         timestamp: new Date().toISOString(),
         type: "remove", // نوع remove عشان يظهر باللون الأحمر كسحب
         amount: amount,
         description: `صرف مصروف (${category})${descDetails} من حساب "${account.name}"`,
         currentBalance: newTotalLiquidity,
-        accountId: accountId
+        accountId: accountId,
+        isExpense: true
     });
 
     // د) [تعديل هام] توحيد صيغة السجل لتظهر في تقرير المصروفات
@@ -9029,8 +9043,8 @@ function handleTransfer() {
     }
     
     saveStateToHistory();
-    fromAccount.balance -= amount;
-    toAccount.balance += amount;
+    fromAccount.balance = window.money(fromAccount.balance - amount);
+    toAccount.balance = window.money(toAccount.balance + amount);
     logOperation("تحويل بين الحسابات", `تم تحويل ${formatCurrency(amount)} من "${fromAccount.name}" إلى "${toAccount.name}".`);
     
     const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
@@ -9139,10 +9153,7 @@ async function performSmartGlobalSearch() {
             const customerName = (inv.customerName || '').toLowerCase();
             const invoiceNum = (inv.invoiceNumber || '').toLowerCase();
             const notes = (inv.notes || '').toLowerCase();
-            const productsMatch = (inv.items || []).some(item => 
-                (item.name || '').toLowerCase().includes(term) || 
-                (item.serial || '').toLowerCase().includes(term)
-            );
+            const productsMatch = (inv.items || []).some(item => { if(!item) return false; return ((item.name || '').toLowerCase().includes(term) || (item.serial || '').toLowerCase().includes(term)); });
             return customerName.includes(term) || invoiceNum.includes(term) || productsMatch || notes.includes(term);
         });
 
@@ -9386,7 +9397,7 @@ if (piItemTotalCostInput) {
             return;
         }
 
-        // --- 🛠️ التصحيح الذاتي: إنشاء النافذة في HTML لو مش موجودة ---
+        // --- ��️ التصحيح الذاتي: إنشاء النافذة في HTML لو مش موجودة ---
         let modal = document.getElementById('depositModal');
         if (!modal) {
             console.log("جاري إنشاء نافذة العربون تلقائياً...");
@@ -9498,7 +9509,7 @@ if (piItemTotalCostInput) {
     // 3. تسجيل في السجل المالي
     const totalLiquidity = accounts.reduce((sum, a) => sum + (Number(a.balance) || 0), 0);
     liquidityLog.push({
-        id: `liq-dep-${Date.now()}`,
+        id: generateId("liq-dep"),
         timestamp: new Date().toISOString(),
         type: "add",
         amount: amount,
@@ -10018,7 +10029,7 @@ if (d('redo-button')) { d('redo-button').addEventListener('click', redo); }
 
                  if (clearLogButton) { clearLogButton.addEventListener("click", () => { if (confirm("هل أنت متأكد من رغبتك في مسح سجل عمليات اليوم الحالي المعروض؟ لن يتم حفظ هذا التغيير إلا بالضغط على زر الحفظ.")) { operationLog = []; updateLogDisplay(); showGlobalMessage("تم مسح سجل اليوم الحالي من العرض. اضغط 'حفظ' لتثبيت التغيير.", false, true); } }); }
 
-                // 🎯🎯🎯 الكود المعدل للزر الأحمر 🎯🎯🎯
+                // ������ الكود المعدل للزر الأحمر ������
 
 if (resetButtonAlt) { 
 
@@ -10077,7 +10088,7 @@ if (addProductButton) {
             return;
         }
 
-        // 🌟 [تنفيذ فكرة د. ضياء]: اعتراض تكرار الاسم وفتح مودال التوجيه الذكي بالـ ID
+        // �� [تنفيذ فكرة د. ضياء]: اعتراض تكرار الاسم وفتح مودال التوجيه الذكي بالـ ID
         // نتحقق من وجود منتج بنفس الاسم، مع استثناء المنتج الحالي الذي نعدله (سواء بالـ ID أو بالاسم القديم)
         const duplicateProduct = products.find(p => {
             if (p.name.toLowerCase() !== name.toLowerCase()) return false;
@@ -10109,7 +10120,7 @@ if (addProductButton) {
                 document.getElementById("renameInputContainer").classList.add('hidden');
                 document.getElementById("newProductNameInput").value = name + " - جديد";
             }
-            return; // 🛑 إيقاف الحفظ الفوري بانتظار قرارك من داخل المودال!
+            return; // �� إيقاف الحفظ الفوري بانتظار قرارك من داخل المودال!
         }
 
         // تصفير فلاج التخطي بعد العبور الآمن لفحص التكرار
@@ -10121,7 +10132,7 @@ if (addProductButton) {
             enteredSerials = serialNumbersInput.split(/[\n, ]+/).map(s => s.trim()).filter(Boolean);
         }
 
-        // 🌟 [التمييز الذكي لوضع التعديل بالـ ID والاسم معاً]
+        // �� [التمييز الذكي لوضع التعديل بالـ ID والاسم معاً]
         if (editingProductName || window.currentEditingProductID) {
             // =========================================================
             // وضع التعديل (Edit Mode) - معالجة السيريالات والتكلفة بالـ ID لمنع التداخل
@@ -10140,7 +10151,7 @@ if (addProductButton) {
             const oldQty = Number(oldProduct.quantity) || 0;
             const oldCost = Number(oldProduct.costPrice) || 0;
 
-            // 🌟 [مودال تقليص الكمية]: اعتراض عملية تقليص الكمية وفتح مودال التسوية المالية فوراً
+            // �� [مودال تقليص الكمية]: اعتراض عملية تقليص الكمية وفتح مودال التسوية المالية فوراً
             if (quantity < oldQty) {
                 const reducedQty = oldQty - quantity;
                 const totalRefundValue = reducedQty * oldCost; // احتساب الفارق بالتكلفة المقيدة حالياً بالسيستم
@@ -10174,7 +10185,7 @@ if (addProductButton) {
                     document.querySelector('input[name="decreaseAction"][value="deposit"]').checked = true;
                     document.getElementById("decreaseAccountContainer").classList.remove('hidden');
                 }
-                return; // 🛑 إيقاف الحفظ المباشر هنا بانتظار قرارك من داخل المودال!
+                return; // �� إيقاف الحفظ المباشر هنا بانتظار قرارك من داخل المودال!
             }
 
             // أ. التحقق من السيريالات في وضع التعديل (إذا زادت الكمية، يجب أن يطابق عدد السيريالات الفارق الزائد)
@@ -10186,7 +10197,7 @@ if (addProductButton) {
                 }
             }
 
-            // 🛠️ معالجة زيادة الكمية محاسبياً وحفظ الخزنة ومتوسط التكلفة
+            // ��️ معالجة زيادة الكمية محاسبياً وحفظ الخزنة ومتوسط التكلفة
             if (quantity > oldQty) {
                 const addedQty = quantity - oldQty;
 
@@ -10196,7 +10207,7 @@ if (addProductButton) {
                         showMessage(productMessage, `لا توجد سيولة كافية في حساب "${account.name}".`, true);
                         return;
                     }
-                    account.balance -= costToDeduct;
+                    account.balance = window.money(account.balance - costToDeduct);
                     logOperation("شراء بضاعة (تعديل كمية)", `خصم ${formatCurrency(costToDeduct)} من حساب "${account.name}" لزيادة كمية منتج "${name}" بمقدار ${addedQty} قطعة.`);
                     
                     liquidityLog.push({
@@ -10237,7 +10248,7 @@ if (addProductButton) {
                 });
             }
 
-            // 🛠️ تحديث اسم المنتج داخل سجل السيريالات القديمة لكي لا تنفصل عن المنتج بعد تعديل اسمه
+            // ��️ تحديث اسم المنتج داخل سجل السيريالات القديمة لكي لا تنفصل عن المنتج بعد تعديل اسمه
             if (editingProductName !== name) {
                 serialNumbersLog.forEach(s => {
                     if (s.productName === editingProductName) {
@@ -10260,7 +10271,7 @@ if (addProductButton) {
             // =========================================================
             // وضع الإضافة الجديدة (Add Mode)
             // =========================================================
-         // 🌟 [تعديل د. ضياء]: البحث والدمج بالـ ID أولاً لمنع دمج الصنف في القسم الخاطئ عند تشابه الأسماء
+         // �� [تعديل د. ضياء]: البحث والدمج بالـ ID أولاً لمنع دمج الصنف في القسم الخاطئ عند تشابه الأسماء
         let existingIndex = -1;
         if (window.currentDuplicateProductID) {
             existingIndex = products.findIndex(p => p.id === window.currentDuplicateProductID);
@@ -10290,7 +10301,7 @@ if (addProductButton) {
                         showMessage(productMessage, `لا توجد سيولة كافية في حساب "${account.name}".`, true);
                         return;
                     }
-                    account.balance -= costToDeduct;
+                    account.balance = window.money(account.balance - costToDeduct);
                     logOperation("شراء بضاعة", `خصم ${formatCurrency(costToDeduct)} من حساب "${account.name}" لشراء ${newQuantity}x ${name}.`);
                     liquidityLog.push({
                         id: 'liq-buy-' + Date.now(),
@@ -10338,7 +10349,7 @@ if (addProductButton) {
                         showMessage(productMessage, `لا توجد سيولة كافية في حساب "${account.name}".`, true);
                         return;
                     }
-                    account.balance -= costToDeduct;
+                    account.balance = window.money(account.balance - costToDeduct);
                     logOperation("شراء بضاعة جديدة", `خصم ${formatCurrency(costToDeduct)} من حساب "${account.name}" لشراء ${newQuantity}x ${name}.`);
                     liquidityLog.push({
                         id: 'liq-buy-new-' + Date.now(),
@@ -10351,7 +10362,7 @@ if (addProductButton) {
                     });
                 }
 
-                // 🆔 [توليد كود مخصص وحصري فريد]: منح كود فريد لكل منتج جديد يدخل النظام
+                // �� [توليد كود مخصص وحصري فريد]: منح كود فريد لكل منتج جديد يدخل النظام
                 const uniqueProductCode = "code_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
 
                 products.push({ 
@@ -10486,7 +10497,7 @@ if (productDeductLiquidityCheckbox) {
 
                  if (cancelEditProductButton) { cancelEditProductButton.addEventListener('click', resetProductForm); }
                  // =====================================================================
-// 🌟 [تنفيذ فكرة د. ضياء الشاملة] - تشغيل وإدارة عمليات مودال تسوية تقليل الكمية
+// �� [تنفيذ فكرة د. ضياء الشاملة] - تشغيل وإدارة عمليات مودال تسوية تقليل الكمية
 // =====================================================================
 
 const confirmDecreaseBtn = document.getElementById("confirmDecreaseBtn");
@@ -10532,7 +10543,7 @@ if (confirmDecreaseBtn) {
                 alert("يرجى اختيار حساب مالي صحيح لإيداع الفارق.");
                 return;
             }
-            account.balance += totalRefundValue;
+            account.balance = window.money(account.balance + totalRefundValue);
             logOperation("تسوية مخزن (إيداع)", `إضافة ${formatCurrency(totalRefundValue)} لحساب "${account.name}" مقابل مرتجع/تقليص كمية منتج "${name}" بمقدار ${reducedQty} قطعة.`);
               liquidityLog.push({
                   id: 'liq-adj-dep-' + Date.now(),
@@ -10562,7 +10573,7 @@ if (confirmDecreaseBtn) {
     });
 }
 // =====================================================================
-// 🌟 إدارة خيارات مودال اعتراض تكرار الأسماء (المخزون + المشتريات) - تطوير د. ضياء
+// �� إدارة خيارات مودال اعتراض تكرار الأسماء (المخزون + المشتريات) - تطوير د. ضياء
 // =====================================================================
 const confirmDuplicateBtn = document.getElementById("confirmDuplicateBtn");
 const cancelDuplicateModalBtn = document.getElementById("cancelDuplicateModalBtn");
@@ -10624,7 +10635,7 @@ if (confirmDuplicateBtn) {
                 if (data.deductLiquidity && data.quantity > 0 && account) {
                     const costToDeduct = data.quantity * data.costPrice;
                     if (costToDeduct <= account.balance) {
-                        account.balance -= costToDeduct;
+                        account.balance = window.money(account.balance - costToDeduct);
                         logOperation("شراء بضاعة (منفصلة الاسم)", `خصم ${formatCurrency(costToDeduct)} من حساب "${account.name}" لشراء منتج مستقل يحمل اسم مكرر "${data.name}".`);
                     liquidityLog.push({
                         id: 'liq-buy-sep-' + Date.now(),
@@ -10714,7 +10725,7 @@ if (confirmDuplicateBtn) {
 
             if (productToEdit && productNameInput && productQuantityInput && productCostPriceInput && productSupplierSelect && addProductButton && productFormTitle && cancelEditProductButton) {
                 editingProductName = productToEdit.name;
-                window.currentEditingProductID = productToEdit.id || null; // 🌟 حفظ الـ ID الفريد للمنتج الجاري تعديله حالياً
+                window.currentEditingProductID = productToEdit.id || null; // �� حفظ الـ ID الفريد للمنتج الجاري تعديله حالياً
                 
                 productNameInput.value = productToEdit.name;
                 productQuantityInput.value = productToEdit.quantity;
@@ -10764,7 +10775,7 @@ if (confirmDuplicateBtn) {
                     logOperation("حذف منتج", `تم حذف المنتج "${productName}" (الكمية: ${qty} قطعة، التكلفة الإجمالية المحذوفة من رأس المال: ${formatCurrency(totalCardValue)}).`);
                     showMessage(productMessage, `تم حذف المنتج "${productName}" و ${deletedSerialCount} رقم تسلسلي مرتبط بنجاح.`);
 
-                    // 🛠️ [التعديل الأهم]: الحذف الفعلي لعنصر واحد فقط من المصفوفة لمنع تدمير باقي المنتجات
+                    // ��️ [التعديل الأهم]: الحذف الفعلي لعنصر واحد فقط من المصفوفة لمنع تدمير باقي المنتجات
                     products.splice(productIndex, 1);
 
                     if (editingProductName === productName) {
@@ -11120,7 +11131,7 @@ async function sellProduct(skipConfirmation = true) {
         });
         return;
     }
-    if (typeof saveStateToHistory === 'function') saveStateToHistory(); // 🌟 تفعيل نظام التراجع للبيع السريع
+    if (typeof saveStateToHistory === 'function') saveStateToHistory(); // �� تفعيل نظام التراجع للبيع السريع
 
     if (selectedSerial) {
         if (serialIndex !== -1) {
@@ -11137,10 +11148,23 @@ async function sellProduct(skipConfirmation = true) {
         }
     }
 
-    products[mainProductIndex].quantity -= quantitySold;
+    // استخدام الدالة الآمنة لخصم المخزون بدل الخصم المباشر
+    if (typeof window.adjustStock === 'function') {
+        if (!window.adjustStock(mainProductIndex, -quantitySold, "بيع مباشر / معلق")) {
+            showMessage(sellMessage, "المخزون الحالي لا يكفي لإتمام البيع!", true);
+            if (typeof rollback === 'function') rollback();
+            return;
+        }
+    } else {
+        products[mainProductIndex].quantity -= quantitySold;
+    }
     
     additionalItemsToUpdate.forEach(item => {
-        products[item.index].quantity -= item.quantity;
+        if (typeof window.adjustStock === 'function') {
+            window.adjustStock(item.index, -item.quantity, "إكسسوارات مباعة");
+        } else {
+            products[item.index].quantity -= item.quantity;
+        }
     });
 
     let productNameWithSerial = mainProduct.name;
@@ -11188,10 +11212,10 @@ async function sellProduct(skipConfirmation = true) {
         logOperation("بيع مؤقت", `بيع مؤقت: ${productNameWithSerial}`);
         showMessage(sellMessage, "تم تسجيل البيع المؤقت بنجاح.");
     } else {
-        account.balance += totalSellPrice; totalProfit += (typeof netProfitForDisplay !== "undefined" ? netProfitForDisplay : profit);
+        account.balance = window.money(account.balance + totalSellPrice); totalProfit = window.money(totalProfit + (typeof netProfitForDisplay !== "undefined" ? netProfitForDisplay : profit));
         
         const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
-        liquidityLog.push({ id: `liq-${Date.now()}`, timestamp: new Date().toISOString(), type: "add", amount: totalSellPrice, description: `بيع بضاعة: ${productNameWithSerial}`, currentBalance: newTotalLiquidity, accountId: account.id });
+        liquidityLog.push({ id: generateId("liq"), timestamp: new Date().toISOString(), type: "add", amount: totalSellPrice, description: `بيع بضاعة: ${productNameWithSerial}`, currentBalance: newTotalLiquidity, accountId: account.id });
 
         const allItems = [
             { name: mainProduct.name, quantity: quantitySold, costPrice: mainProduct.costPrice, serial: selectedSerial },
@@ -11309,7 +11333,14 @@ function updatePendingSale(pendingId) {
     // =========================================================
     
     // خصم المنتج الرئيسي الجديد
-    products[newMainIndex].quantity -= newQuantitySold;
+    if (typeof window.adjustStock === 'function') {
+        if (!window.adjustStock(newMainIndex, -newQuantitySold, "استبدال منتج")) {
+            showMessage(replaceMessage, "المخزون الحالي للمنتج الجديد لا يكفي!", true);
+            return;
+        }
+    } else {
+        products[newMainIndex].quantity -= newQuantitySold;
+    }
     
     // حساب التكلفة الجديدة
     let newTotalCost = (Number(products[newMainIndex].costPrice) || 0) * newQuantitySold;
@@ -11330,7 +11361,14 @@ for (const checkbox of additionalCheckboxes) {
     
     if (attIndex !== -1) {
         if (products[attIndex].quantity >= qtyToDeduct) {
-            products[attIndex].quantity -= qtyToDeduct;
+            if (typeof window.adjustStock === 'function') {
+                if (!window.adjustStock(attIndex, -qtyToDeduct, "إكسسوارات استبدال")) {
+                    showMessage(replaceMessage, "مخزون الملحقات لا يكفي!", true);
+                    return;
+                }
+            } else {
+                products[attIndex].quantity -= qtyToDeduct;
+            }
             newTotalCost += (Number(products[attIndex].costPrice) || 0) * qtyToDeduct;
             
             newAdditionalItemsData.push({
@@ -11515,14 +11553,14 @@ if (attFailed) {
                  if (addLiquidityButton) { addLiquidityButton.addEventListener("click", () => {saveStateToHistory();
                      const amount = parseInputNumber(addLiquidityAmountInput); const source = addLiquiditySourceInput.value.trim(); if (isNaN(amount) || amount <= 0) { showMessage(liquidityMessage, "يرجى إدخال مبلغ صحيح (> 0) للإضافة.", true); return; } if (!source) { showMessage(liquidityMessage, "يرجى إدخال مصدر السيولة.", true); return; } 
                      const targetAcc = accounts[0];
-                     targetAcc.balance += amount; const totalLiq = accounts.reduce((sum, a) => sum + a.balance, 0); const logEntry = { id: `liq-${Date.now()}`, timestamp: new Date().toISOString(), type: "add", amount: amount, description: source, currentBalance: totalLiq }; liquidityLog.push(logEntry); logOperation("إضافة سيولة", `إضافة ${formatCurrency(amount)} من "${source}". الرصيد الحالي: ${formatCurrency(totalLiq)}`); updateUI(); addLiquidityAmountInput.value = "0"; addLiquiditySourceInput.value = ""; addLiquiditySourceInput.focus(); // Focus source for next entry
+                     targetAcc.balance = window.money(targetAcc.balance + amount); const totalLiq = accounts.reduce((sum, a) => sum + a.balance, 0); const logEntry = { id: generateId("liq"), timestamp: new Date().toISOString(), type: "add", amount: amount, description: source, currentBalance: totalLiq }; liquidityLog.push(logEntry); logOperation("إضافة سيولة", `إضافة ${formatCurrency(amount)} من "${source}". الرصيد الحالي: ${formatCurrency(totalLiq)}`); updateUI(); addLiquidityAmountInput.value = "0"; addLiquiditySourceInput.value = ""; addLiquiditySourceInput.focus(); // Focus source for next entry
                      showMessage(liquidityMessage, `تمت إضافة ${formatCurrency(amount)} من "${source}".`); }); }
                  if (removeLiquidityButton) { removeLiquidityButton.addEventListener("click", () => {
                     saveStateToHistory();
                      const amount = parseInputNumber(removeLiquidityAmountInput); const reason = removeLiquidityReasonInput.value.trim(); if (isNaN(amount) || amount <= 0) { showMessage(liquidityMessage, "يرجى إدخال مبلغ صحيح (> 0) للسحب.", true); return; } if (!reason) { showMessage(liquidityMessage, "يرجى إدخال سبب السحب.", true); return; } 
                      const targetAcc = accounts[0];
                      if (amount > targetAcc.balance) { showMessage(liquidityMessage, `المبلغ المطلوب (${formatCurrency(amount)}) أكبر من السيولة المتاحة في الخزنة الرئيسية (${formatCurrency(targetAcc.balance)}).`, true); return; } 
-                     targetAcc.balance -= amount; const totalLiq = accounts.reduce((sum, a) => sum + a.balance, 0); const logEntry = { id: `liq-${Date.now()}`, timestamp: new Date().toISOString(), type: "remove", amount: amount, description: reason, currentBalance: totalLiq }; liquidityLog.push(logEntry); logOperation("سحب سيولة", `سحب ${formatCurrency(amount)} بسبب "${reason}". الرصيد الحالي: ${formatCurrency(totalLiq)}`); updateUI(); removeLiquidityAmountInput.value = "0"; removeLiquidityReasonInput.value = ""; removeLiquidityReasonInput.focus(); showMessage(liquidityMessage, `تم سحب ${formatCurrency(amount)} بسبب "${reason}".`); }); }
+                     targetAcc.balance = window.money(targetAcc.balance - amount); const totalLiq = accounts.reduce((sum, a) => sum + a.balance, 0); const logEntry = { id: generateId("liq"), timestamp: new Date().toISOString(), type: "remove", amount: amount, description: reason, currentBalance: totalLiq }; liquidityLog.push(logEntry); logOperation("سحب سيولة", `سحب ${formatCurrency(amount)} بسبب "${reason}". الرصيد الحالي: ${formatCurrency(totalLiq)}`); updateUI(); removeLiquidityAmountInput.value = "0"; removeLiquidityReasonInput.value = ""; removeLiquidityReasonInput.focus(); showMessage(liquidityMessage, `تم سحب ${formatCurrency(amount)} بسبب "${reason}".`); }); }
                  // <<< جديد: مستمع حدث لزر تعديل السيولة >>>
                 if (adjustLiquidityButton) {
     adjustLiquidityButton.addEventListener('click', () => {
@@ -11555,19 +11593,20 @@ if (addExpenseButton) {
         saveStateToHistory();
 
         // تنفيذ العمليات
-        expenses += amount;
-        account.balance -= amount;
+        expenses = window.money(expenses + amount);
+        account.balance = window.money(account.balance - amount);
         
         const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
         
         liquidityLog.push({ 
-            id: `liq-${Date.now()}`, 
+            id: generateId("liq"), 
             timestamp: new Date().toISOString(), 
             type: "remove", 
             amount: amount, 
             description: `تسجيل مصروف من حساب "${account.name}"`, 
             currentBalance: newTotalLiquidity,
-            accountId: selectedAccountId
+            accountId: selectedAccountId,
+            isExpense: true
         });
         
         logOperation("تسجيل مصروف", `تسجيل مصروف بقيمة ${formatCurrency(amount)}. تم خصمه من حساب "${account.name}".`);
@@ -11603,12 +11642,12 @@ if (removeExpenseButton) {
 
         // تنفيذ العمليات (عكس الإضافة)
         expenses -= amount;
-        account.balance += amount;
+        account.balance = window.money(account.balance + amount);
 
         const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
         
         liquidityLog.push({ 
-            id: `liq-${Date.now()}`, 
+            id: generateId("liq"), 
             timestamp: new Date().toISOString(), 
             type: "add", 
             amount: amount, 
@@ -11711,9 +11750,9 @@ if (existingDebtIndex !== -1) {
         addDebtButton.disabled = false;
         // --- ✅ كود جديد: الخصم من الحساب المحدد ---
         if (deductLiquidity) {
-            account.balance -= amount;
+            account.balance = window.money(account.balance - amount);
             const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
-            liquidityLog.push({ id: `liq-${Date.now()}`, timestamp: new Date().toISOString(), type: "remove", amount: amount, description: `سلفة لـ ${name} من حساب "${account.name}"`, currentBalance: newTotalLiquidity, accountId: account.id });
+            liquidityLog.push({ id: generateId("liq"), timestamp: new Date().toISOString(), type: "remove", amount: amount, description: `سلفة لـ ${name} من حساب "${account.name}"`, currentBalance: newTotalLiquidity, accountId: account.id });
             logMsg += ` وتم خصمه كسلفة من حساب "${account.name}".`;
         }
         
@@ -11787,12 +11826,12 @@ if (receivePaymentButton) {
 
         saveStateToHistory();
 
-        account.balance += totalPayment;
+        account.balance = window.money(account.balance + totalPayment);
         debtors = debtors.filter(d => !paidDebtIds.includes(d.id));
 
         const summaryText = Array.from(paidDebtorsSummary.entries()).map(([name, amount]) => `${name} (${formatCurrency(amount)})`).join('، ');
         const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
-        liquidityLog.push({ id: `liq-${Date.now()}`, timestamp: new Date().toISOString(), type: "add", amount: totalPayment, description: `سداد مجمع من: ${summaryText}`, currentBalance: newTotalLiquidity, accountId: account.id });
+        liquidityLog.push({ id: generateId("liq"), timestamp: new Date().toISOString(), type: "add", amount: totalPayment, description: `سداد مجمع من: ${summaryText}`, currentBalance: newTotalLiquidity, accountId: account.id });
         logOperation("استلام سداد مجمع", `استلام ${formatCurrency(totalPayment)} في حساب "${account.name}" من: ${summaryText}.`);
 
         showMessage(debtsMessage, `تم استلام دفعة مجمعة بقيمة ${formatCurrency(totalPayment)} بنجاح.`);
@@ -11889,12 +11928,12 @@ if (addLiabilityButton) {
 
         // إضافة السيولة للحساب المختار
         if (receivedCash) {
-            account.balance += amount; // الإضافة للحساب المختار وليس 'main'
+            account.balance = window.money(account.balance + amount); // الإضافة للحساب المختار وليس 'main'
             
             const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
             
             const liqLogEntry = {
-                id: `liq-${Date.now()}`,
+                id: generateId("liq"),
                 timestamp: new Date().toISOString(),
                 type: "add",
                 amount: amount,
@@ -12014,7 +12053,7 @@ if (toggleAllLiabilitiesCheckbox) {
 
         saveStateToHistory();
 
-        account.balance -= totalPayment;
+        account.balance = window.money(account.balance - totalPayment);
         
         // تسديد الالتزامات بدلاً من مسحها، وحفظ التاريخ
         paidLiabilityIds.forEach(id => {
@@ -12035,13 +12074,13 @@ if (toggleAllLiabilitiesCheckbox) {
         });
         const summaryText = Array.from(paidCreditorsSummary.entries()).map(([name, amount]) => `${name} (${formatCurrency(amount)})`).join('، ');
         const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
-        liquidityLog.push({ id: `liq-${Date.now()}`, timestamp: new Date().toISOString(), type: "remove", amount: totalPayment, description: `تسديد التزام مجمع لـ: ${summaryText}`, currentBalance: newTotalLiquidity, accountId: account.id });
+        liquidityLog.push({ id: generateId("liq"), timestamp: new Date().toISOString(), type: "remove", amount: totalPayment, description: `تسديد التزام مجمع لـ: ${summaryText}`, currentBalance: newTotalLiquidity, accountId: account.id });
         logOperation("تسديد التزام مجمع", `تسديد ${formatCurrency(totalPayment)} من حساب "${account.name}" إلى: ${summaryText}.`);
 
         const isExpense = d('batch-liability-is-expense') ? d('batch-liability-is-expense').checked : false;
         if (isExpense) {
-            expenses += totalPayment;
-            logOperation("تسجيل مصروف", `بقيمة ${formatCurrency(totalPayment)} - تسديد التزام مجمع (${summaryText}) من حساب "${account.name}".`);
+            expenses = window.money(expenses + totalPayment);
+            logOperation("تسجيل مصروف", `تسديد التزام مجمع (${summaryText}) بقيمة ${formatCurrency(totalPayment)} من حساب "${account.name}".`);
             d('batch-liability-is-expense').checked = false;
         }
 
@@ -12136,10 +12175,10 @@ if (ppConfirmBtn) {
                 if (item.category) existing.category = item.category;
             } else {
                 // ✅ إضافة منتج جديد بالتصنيف والتكلفة الشاملة
-              // 🌟 [تعديل د. ضياء]: تأمين البضاعة الجديدة الناتجة عن توزيع المصاريف بكود فريد
+              // �� [تعديل د. ضياء]: تأمين البضاعة الجديدة الناتجة عن توزيع المصاريف بكود فريد
 const uniqueProductCodeOverhead = "code_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
 products.push({ 
-    id: uniqueProductCodeOverhead, // 🆔 إضافة الـ ID لمنع الكراش والتداخل مستقبلاً
+    id: uniqueProductCodeOverhead, // �� إضافة الـ ID لمنع الكراش والتداخل مستقبلاً
     name: item.name, 
     quantity: item.quantity, 
     costPrice: finalCostWithOverhead, 
@@ -12166,11 +12205,11 @@ products.push({
         });
 
         // --- 3. المعالجة المالية (الخصم من الخزنة) ---
-        account.balance -= purchase.remainingBalance;
+        account.balance = window.money(account.balance - purchase.remainingBalance);
         const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
         
         liquidityLog.push({ 
-            id: `liq-${Date.now()}`, 
+            id: generateId("liq"), 
             timestamp: new Date().toISOString(),
             type: "remove", 
             amount: purchase.remainingBalance, 
@@ -12457,7 +12496,7 @@ if (smartSearchInput) {
                         // إغلاق النافذة
                         backupHistoryModal.style.display = 'none';
                         
-                        // 🔥 خطوة ذكية: حفظ النسخة المستعادة فوراً للسحابة لتثبيتها 🔥
+                        // �� خطوة ذكية: حفظ النسخة المستعادة فوراً للسحابة لتثبيتها ��
                         await saveCurrentStateByDate(dateStr);
                         
                         alert("تمت الاستعادة بنجاح! وتمت مزامنة البيانات المستعادة مع السحابة.");
@@ -12547,7 +12586,7 @@ if (accountForm) {
                 alert('اسم الحساب موجود بالفعل.');
                 return;
             }
-            const newAccount = { id: `acc-${Date.now()}`, name: name, balance: balance };
+            const newAccount = { id: generateId("acc"), name: name, balance: balance };
             if (!newAccount.id) newAccount.id = generateId("ACC");
             accounts.push(newAccount);
             logOperation("إضافة حساب", `تم إنشاء حساب جديد "${name}" برصيد افتتاحي ${formatCurrency(balance)}.`);
@@ -12770,7 +12809,7 @@ if (d('liabilities-list-container')) {
         const target = e.target.closest('.view-purchase-invoice-btn');
         if (target) {
             const invoiceId = target.dataset.purchaseInvoiceId;
-            console.log("🔍 جاري محاولة جلب الفاتورة رقم:", invoiceId);
+            console.log("�� جاري محاولة جلب الفاتورة رقم:", invoiceId);
 
             if (!invoiceId) {
                 alert("تنبيه: هذه الفاتورة قديمة ولا تملك معرّفاً سحابياً.");
@@ -12798,7 +12837,7 @@ if (d('liabilities-list-container')) {
 
             if (invoice) {
                 // عرض التفاصيل (نفس منطق Alert السابق)
-                let details = `📦 تفاصيل الفاتورة من الأرشيف:\n----------------------------\n`;
+                let details = `�� تفاصيل الفاتورة من الأرشيف:\n----------------------------\n`;
                 details += `رقمها: ${invoice.invoiceNumber || 'N/A'}\nإجمالي: ${formatCurrency(invoice.grandTotal)}\n`;
                 details += `المتبقي: ${formatCurrency(invoice.remainingBalance)}\n\nالبنود:\n`;
                 invoice.items.forEach(item => details += `- ${item.quantity}x ${item.name} (${formatCurrency(item.cost)})\n`);
@@ -12866,7 +12905,7 @@ if (d('liabilities-list-container')) {
     const mainContent = d('main-content');
     const logoutBtn = d('logout-btn');
     const loginBtn = d('login-btn');
-    const registerBtn = d('register-btn');
+    const forgotPasswordLink = d('forgot-password-link');
     const authError = d('auth-error');
 
     // 2. ربط أزرار المصادقة بوظائفها
@@ -12879,13 +12918,17 @@ if (d('liabilities-list-container')) {
                 .catch(error => { showMessage(authError, "فشل تسجيل الدخول: " + error.message, true); });
         });
     }
-    if (registerBtn) {
-        registerBtn.addEventListener('click', () => {
-            if(!authError) return;
+    if (forgotPasswordLink) {
+        forgotPasswordLink.addEventListener('click', (e) => {
+            e.preventDefault();
             const email = d('auth-email').value;
-            const password = d('auth-password').value;
-            window.createUserWithEmailAndPassword(window.auth, email, password)
-                .catch(error => { showMessage(authError, "فشل التسجيل: " + error.message, true); });
+            if(!email) {
+                showMessage(authError, "الرجاء إدخال البريد الإلكتروني أولاً", true);
+                return;
+            }
+            window.auth.sendPasswordResetEmail(email)
+                .then(() => showMessage(authError, "تم إرسال رابط إعادة تعيين كلمة المرور إلى بريدك الإلكتروني", false))
+                .catch(error => showMessage(authError, "حدث خطأ: " + error.message, true));
         });
     }
   if (logoutBtn) {
@@ -12907,10 +12950,7 @@ if (window.onAuthStateChanged) {
 
         window.currentUser = user;
 
-        if (!window.appInitialized) {
-            initializeApp();
-            window.appInitialized = true;
-        }
+        if (!window.__appInitDone) { window.__appInitDone = true; initializeApp(); window.appInitialized = true; } else { window.appInitialized = true; }
     } else {
         if (authContainer) authContainer.classList.remove('hidden');
         if (mainContent) mainContent.classList.add('hidden');
@@ -12918,6 +12958,8 @@ if (window.onAuthStateChanged) {
 
         window.currentUser = null;
         window.appInitialized = false;
+        // لو البرنامج كان شغال ثم حصل خروج: إعادة تحميل لبدء نظيف (يمنع تكرار الأزرار والحفظ ببيانات قديمة)
+        if (window.__appInitDone) { location.reload(); return; }
     }
 });
 }
@@ -13010,8 +13052,8 @@ if (confirmPartialLiabBtn) {
     saveStateToHistory("تسديد جزء من التزام");
 
     // Process payment
-    liability.amount -= amountToPay;
-    account.balance -= amountToPay;
+    liability.amount = window.money(liability.amount - amountToPay);
+    account.balance = window.money(account.balance - amountToPay);
     
     // Add to liquidityLog so it's captured in the Expenses Report if isExpense is true
     let liquidityLogMsg = `تسديد ${formatCurrency(amountToPay)} من التزام "${liability.name}" من حساب "${account.name}".`;
@@ -13049,8 +13091,8 @@ if (confirmPartialLiabBtn) {
     logOperation("تسديد جزء من التزام", logText);
 
     if (isExpense) {
-        expenses += amountToPay;
-        logOperation("تسجيل مصروف", `بقيمة ${formatCurrency(amountToPay)} - تسديد جزء من التزام (${liability.name}) من حساب "${account.name}".`);
+        expenses = window.money(expenses + amountToPay);
+        logOperation("تسجيل مصروف", `تسديد التزام (${liability.name}) بقيمة ${formatCurrency(amountToPay)} من حساب "${account.name}".`);
         d('partial-liability-is-expense').checked = false;
     }
     
@@ -13196,14 +13238,14 @@ if (confirmPartialDebtBtn) {
     saveStateToHistory(); // For Undo functionality
 
     // Process payment
-    debt.amount -= amountToPay;
-    account.balance += amountToPay;
+    debt.amount = window.money(debt.amount - amountToPay);
+    account.balance = window.money(account.balance + amountToPay);
 
     const summaryText = `سداد جزئي من ${debt.name} (${debt.reason})`;
     logOperation("استلام سداد جزئي", `استلام ${formatCurrency(amountToPay)} في حساب "${account.name}" من دين "${debt.name}".`);
     
     const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
-    liquidityLog.push({ id: `liq-${Date.now()}`, timestamp: new Date().toISOString(), type: "add", amount: amountToPay, description: summaryText, currentBalance: newTotalLiquidity, accountId: account.id });
+    liquidityLog.push({ id: generateId("liq"), timestamp: new Date().toISOString(), type: "add", amount: amountToPay, description: summaryText, currentBalance: newTotalLiquidity, accountId: account.id });
 
     // Remove debt if it's fully paid
     if (debt.amount < 0.01) {
@@ -13834,6 +13876,8 @@ async function _internalSaveSystemToCloud() {
     }
     const sanitizedState = JSON.parse(stateString);
 
+    if (typeof window.measureDocumentSize === 'function') { window.measureDocumentSize(sanitizedState); }
+
     try {
         // 1. حفظ بيانات اليوم
         await window.setDoc(window.doc(window.db, "users", userId, "days", dateStr), sanitizedState, { merge: true });
@@ -13942,9 +13986,9 @@ window.cleanCurrentDayData = async function() {
 
     // تقرير النتيجة
     let report = `✅ تمت عملية التنظيف لملف ${targetDate} بنجاح.\n\n`;
-    report += `🗑️ تم حذف ${removedSales} فاتورة بيع قديمة.\n`;
-    report += `🗑️ تم حذف ${removedPurchases} فاتورة شراء قديمة.\n`;
-    report += `🗑️ تم حذف ${removedLogs} سجل قديم.\n\n`;
+    report += `��️ تم حذف ${removedSales} فاتورة بيع قديمة.\n`;
+    report += `��️ تم حذف ${removedPurchases} فاتورة شراء قديمة.\n`;
+    report += `��️ تم حذف ${removedLogs} سجل قديم.\n\n`;
     report += `الآن تقارير هذا اليوم ستكون نظيفة ودقيقة.`;
 
     alert(report);
@@ -14038,13 +14082,13 @@ function refreshNamesDatalists() {
     const debtorDatalist = document.getElementById('debtor-names-datalist');
     if (debtorDatalist) {
         const uniqueNames = [...new Set(debtorProfiles.map(p => p.name))];
-        debtorDatalist.innerHTML = uniqueNames.map(name => `<option value="${name}">`).join('');
+        debtorDatalist.innerHTML = uniqueNames.map(name => `<option value="${window.escapeHTML(name)}">`).join('');
     }
     // تحديث قائمة الدائنين
     const creditorDatalist = document.getElementById('creditor-names-datalist');
     if (creditorDatalist) {
         const uniqueCreditors = [...new Set(liabilities.map(l => l.name))];
-        creditorDatalist.innerHTML = uniqueCreditors.map(name => `<option value="${name}">`).join('');
+        creditorDatalist.innerHTML = uniqueCreditors.map(name => `<option value="${window.escapeHTML(name)}">`).join('');
     }
 }
 
@@ -14101,7 +14145,7 @@ window.confirmRefundAndCancel = async function() {
     const confirmMsg = `هل أنت متأكد من خصم ${formatCurrency(amount)} من الحساب المختار وإلغاء العملية؟`;
     
     if (confirm(confirmMsg)) {
-        // 💡 ملاحظة: تم إزالة saveStateToHistory من هنا لمنع الحفظ المزدوج
+        // �� ملاحظة: تم إزالة saveStateToHistory من هنا لمنع الحفظ المزدوج
         // لأننا أضفناها بالفعل داخل executeCancellation لتشمل كل حالات الإلغاء
 
         try {
@@ -14129,7 +14173,7 @@ window.executeCancellation = async function(saleId, accountId, amount) {
 
     const sale = pendingSales[saleIndex];
 
-    // 🌟 1. أخذ لقطة للحالة قبل التنفيذ لكي يعمل زر التراجع (Undo)
+    // �� 1. أخذ لقطة للحالة قبل التنفيذ لكي يعمل زر التراجع (Undo)
     if (typeof saveStateToHistory === 'function') {
         saveStateToHistory();
     }
@@ -14141,7 +14185,7 @@ window.executeCancellation = async function(saleId, accountId, amount) {
             if (acc) {
                 acc.balance = Number(acc.balance) - Number(amount);
                 liquidityLog.push({
-                    id: `liq-refund-${Date.now()}`,
+                    id: generateId("liq-refund"),
                     timestamp: new Date().toISOString(),
                     type: "remove",
                     amount: Number(amount),
@@ -14193,7 +14237,7 @@ window.executeCancellation = async function(saleId, accountId, amount) {
             if (sLog) sLog.status = 'in_stock';
         }
     } else {
-        // 🛡️ حماية حرجـة لرأس المال: إذا قمت بحذف المنتج يدوياً سابقاً ولم يجده البرنامج
+        // ��️ حماية حرجـة لرأس المال: إذا قمت بحذف المنتج يدوياً سابقاً ولم يجده البرنامج
         // نقوم بإعادة إنشائه وضخه في المخزن فوراً بتكلفته الأصلية حتى لا يقل رأس المال
         products.push({
             id: item.id || "P-" + Date.now() + Math.floor(Math.random() * 100),
@@ -14230,7 +14274,7 @@ window.executeCancellation = async function(saleId, accountId, amount) {
         if (typeof renderPendingSales === 'function') renderPendingSales(); 
         if (typeof renderDashboard === 'function') renderDashboard(); 
 
-        // 🌟 2. تحديث وتفعيل أزرار التراجع بعد إتمام العملية بنجاح
+        // �� 2. تحديث وتفعيل أزرار التراجع بعد إتمام العملية بنجاح
         if (typeof updateUndoRedoButtons === 'function') {
             updateUndoRedoButtons();
         }
@@ -14299,7 +14343,7 @@ window.injectSaleToMain = function(saleObj) {
     window.updateUndoRedoButtons = (typeof updateUndoRedoButtons === 'function') ? updateUndoRedoButtons : null;
     window.calculateTotalCapital = (typeof calculateTotalCapital === 'function') ? calculateTotalCapital : null;
 
-    // 🌟🌟 الإضافة الحاسمة هنا: ربط دالة الحفظ السحابي لكي يقرأها محرك البحث الشامل 🌟🌟
+    // ���� الإضافة الحاسمة هنا: ربط دالة الحفظ السحابي لكي يقرأها محرك البحث الشامل ����
     window.saveInvoiceToFirestore = (typeof saveInvoiceToFirestore === 'function') ? saveInvoiceToFirestore : null;
 
     window.refreshMainUI = () => {
@@ -14320,7 +14364,7 @@ window.injectSaleToMain = function(saleObj) {
 
     console.log("✅ تم تفعيل جسر ERP V10.5 بنجاح - توافق تام مع البصمة البصرية والأرشيف السحابي");
 } catch (globalError) {
-    console.error("🚨 فشل في تفعيل الجسر:", globalError);
+    console.error("�� فشل في تفعيل الجسر:", globalError);
 }
 // --- 1. دوال تحويل الدين ---
 window.openTransferDebtModal = function(debtId) {
@@ -14376,7 +14420,7 @@ function processTransfer(sourceDebtId) {
 
     // خصم من المصدر
     const oldSourceName = sourceDebt.name;
-    sourceDebt.amount -= transferAmount;
+    sourceDebt.amount = window.money(sourceDebt.amount - transferAmount);
     if (sourceDebt.amount < 0.01) window.debtors.splice(sourceIndex, 1);
 
     // إضافة للمستلم (أو دمج إذا كان لديه نفس السبب)
@@ -14387,7 +14431,7 @@ function processTransfer(sourceDebtId) {
     );
 
     if (existingDebt) {
-        existingDebt.amount += transferAmount;
+        existingDebt.amount = window.money(existingDebt.amount + transferAmount);
     } else {
         window.debtors.push({
             id: generateId('debt'),
@@ -14406,7 +14450,7 @@ function processTransfer(sourceDebtId) {
 
 // --- 2. دوال الحذف والاسترداد ---
 // =====================================================================
-// 🌟 نظام السداد المرن للديون (تحديد عدة بنود والسداد الجماعي)
+// �� نظام السداد المرن للديون (تحديد عدة بنود والسداد الجماعي)
 // =====================================================================
 
 // --- 1. السداد الانتقائي داخل بطاقة العميل ---
@@ -14462,7 +14506,7 @@ window.paySelectedDebtsForCustomer = function(customerId) {
         if (typeof saveStateToHistory === 'function') saveStateToHistory();
         
         // تحديث الحساب
-        account.balance += totalAmount;
+        account.balance = window.money(account.balance + totalAmount);
         
         const customerProfile = debtorProfiles.find(p => p.id === customerId);
         const customerName = customerProfile ? customerProfile.name : "عميل";
@@ -14645,7 +14689,7 @@ window.confirmBulkDebtPayment = function() {
         if (typeof saveStateToHistory === 'function') saveStateToHistory();
         
         // تحديث الخزنة
-        account.balance += totalAmount;
+        account.balance = window.money(account.balance + totalAmount);
         
         // إزالة الديون المسددة
         window.debtors = window.debtors.filter(d => !paidDebtIds.includes(d.id));
@@ -14678,7 +14722,7 @@ window.deleteDebtItem = function(debtId) {
         const account = window.accounts.find(a => a.id === select.value);
         if (account) {
             saveStateToHistory();
-            account.balance += debt.amount; // إضافة المبلغ للحساب
+            account.balance = window.money(account.balance + debt.amount); // إضافة المبلغ للحساب
             window.debtors = window.debtors.filter(d => d.id !== debtId); // حذف الدين
             logOperation("إلغاء دين", `إعادة ${formatCurrency(debt.amount)} لحساب ${account.name} بعد حذف دين ${debt.name}`);
             updateUI();
@@ -14833,7 +14877,7 @@ window.usm_calculateLiveProfit = function() {
     profitDisplay.className = finalExpectedProfit >= 0 ? "text-xl font-bold text-green-700 font-mono" : "text-xl font-bold text-red-600 font-mono";
 };
 
-// 🚀 الدالة التنفيذية الكبرى: تضخ البيانات فورياً وتضغط على أزرار الحفظ الأصلية لسيستمك!
+// �� الدالة التنفيذية الكبرى: تضخ البيانات فورياً وتضغط على أزرار الحفظ الأصلية لسيستمك!
 window.usm_applySelectionToOrigin = function() {
     let selectedItems = [];
     let totalItemsPrice = 0;
@@ -14868,7 +14912,7 @@ window.usm_applySelectionToOrigin = function() {
     const targetAccountId = document.getElementById('usm_account_select').value;
     const isPending = (document.getElementById('usm_sale_type').value === 'pending');
     
-    // 🟩 [الوضع 1]: تحويل وتنفيذ فوري للبيع السريع
+    // �� [الوضع 1]: تحويل وتنفيذ فوري للبيع السريع
     if (window.usm_currentOrigin === 'quick') {
         const firstItem = selectedItems[0];
         document.getElementById('sell-product-name').value = firstItem.name;
@@ -14922,7 +14966,7 @@ window.usm_applySelectionToOrigin = function() {
         
         window.closeUnifiedSellModal();
         
-        // 🚀 إطلاق قذيفة التنفيذ الفوري والحفظ لقاعدة البيانات وسيرفر Firebase!
+        // �� إطلاق قذيفة التنفيذ الفوري والحفظ لقاعدة البيانات وسيرفر Firebase!
         if (typeof sellProduct === 'function') {
             sellProduct(); 
         } else {
@@ -14930,7 +14974,7 @@ window.usm_applySelectionToOrigin = function() {
             if (nativeBtn) nativeBtn.click();
         }
         
-    // 🟦 [الوضع 2]: تحويل وتنفيذ فوري للفاتورة التفصيلية
+    // �� [الوضع 2]: تحويل وتنفيذ فوري للفاتورة التفصيلية
     } else if (window.usm_currentOrigin === 'invoice') {
         const itemsBody = document.getElementById('inv_invoiceItemsBody');
         if (itemsBody) {
@@ -14968,7 +15012,7 @@ window.usm_applySelectionToOrigin = function() {
             
             window.closeUnifiedSellModal();
             
-            // 🚀 إطلاق قذيفة الحفظ النهائي للفاتورة والمزامنة السحابية مع الأرشيف!
+            // �� إطلاق قذيفة الحفظ النهائي للفاتورة والمزامنة السحابية مع الأرشيف!
             if (typeof handleSaveInvoice === 'function') {
                 handleSaveInvoice();
             } else {
@@ -15086,7 +15130,7 @@ window.fixMyOldReturns = function() {
     if (typeof saveStateToHistory === 'function') saveStateToHistory();
     if (typeof saveSystemToCloud === 'function') saveSystemToCloud();
     
-    alert("تم تنفيذ السحر! 🧙‍♂️\nتم حذف المرتجعات المعلقة واستعادتها كبيعات مؤقتة بنجاح، وتم حفظها في السحابة!");
+    alert("تم تنفيذ السحر! ��‍♂️\nتم حذف المرتجعات المعلقة واستعادتها كبيعات مؤقتة بنجاح، وتم حفظها في السحابة!");
 };
 }); // End DOMContentLoaded
 
@@ -15106,7 +15150,7 @@ window.showPendingEditHistory = function(pendingId) {
             try { dateStr = new Date(entry.date).toLocaleString("ar-EG"); } catch(e) { dateStr = entry.date; }
             var items = (entry.changes || []).map(function(c){ return '<li style="margin:3px 0;">' + c + '</li>'; }).join("");
             return '<div style="margin-bottom:12px;padding:12px;border-radius:8px;border:1px solid #c7d2fe;background:#eef2ff;">'
-                + '<div style="font-size:0.78rem;font-weight:700;color:#4338ca;margin-bottom:6px;">🕐 ' + dateStr + '</div>'
+                + '<div style="font-size:0.78rem;font-weight:700;color:#4338ca;margin-bottom:6px;">�� ' + dateStr + '</div>'
                 + '<ul style="margin:0;padding-right:18px;font-size:0.87rem;color:#334155;">' + items + '</ul>'
                 + '</div>';
         }).join("");
@@ -15337,7 +15381,7 @@ if (confirmPrBtn) confirmPrBtn.addEventListener('click', async () => {
                 account.balance = parseFloatSafe(account.balance) + cashToRefund;
                 const newTotalLiquidity = accounts.reduce((sum, a) => sum + parseFloatSafe(a.balance), 0);
                 liquidityLog.push({
-                    id: `liq-pr-${Date.now()}`,
+                    id: generateId("liq-pr"),
                     timestamp: new Date().toISOString(),
                     type: "add",
                     amount: cashToRefund,
@@ -15970,7 +16014,7 @@ window.saveQuickSellDraft = function() { if(typeof showGlobalMessage === 'functi
             const isPending = (log.saleStatus === 'pending');
             const saleBadgeClass = isSold ? 'bg-slate-100 text-slate-600 border-slate-200' : (isPending ? 'bg-amber-100 text-amber-700 border-amber-200' : 'bg-emerald-50 text-emerald-600 border-emerald-100');
             const saleBadgeIcon = isSold ? 'fa-box-archive' : (isPending ? 'fa-clock' : 'fa-check');
-            const saleBadgeText = isSold ? 'مباع 📦' : (isPending ? 'معلق' : 'متاح');
+            const saleBadgeText = isSold ? 'مباع ��' : (isPending ? 'معلق' : 'متاح');
 
             // Highlighting
             let rowClass = "hover:bg-slate-50 transition-colors ";
@@ -16053,7 +16097,7 @@ window.saveQuickSellDraft = function() { if(typeof showGlobalMessage === 'functi
                         <!-- Actions Dropdown or Buttons -->
                         <div class="flex items-center justify-center gap-1.5 opacity-60 group-hover:opacity-100 transition-opacity">
                             ${isSold ? `
-                                <button onclick="window.restoreSoldSerialByIndex(${serialIndex})" class="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 hover:text-indigo-700 flex items-center justify-center transition-colors" title="إرجاع للمتاح 🔄">
+                                <button onclick="window.restoreSoldSerialByIndex(${serialIndex})" class="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 hover:text-indigo-700 flex items-center justify-center transition-colors" title="إرجاع للمتاح ��">
                                     <i class="fas fa-undo"></i>
                                 </button>
                                 <button onclick="window.deleteStandaloneSerialByIndex(${serialIndex})" class="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 flex items-center justify-center transition-colors" title="حذف نهائي">
@@ -16063,7 +16107,7 @@ window.saveQuickSellDraft = function() { if(typeof showGlobalMessage === 'functi
                                 <button onclick="window.toggleSaleStatusByIndex(${serialIndex})" class="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 hover:bg-amber-100 hover:text-amber-700 flex items-center justify-center transition-colors" title="تعليق البيع / إتاحة">
                                     <i class="fas fa-hand-holding-usd"></i>
                                 </button>
-                                <button onclick="window.markSoldFinallyByIndex(${serialIndex})" class="w-7 h-7 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-800 flex items-center justify-center transition-colors" title="أرشفة كمباع 📦">
+                                <button onclick="window.markSoldFinallyByIndex(${serialIndex})" class="w-7 h-7 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-800 flex items-center justify-center transition-colors" title="أرشفة كمباع ��">
                                     <i class="fas fa-box-archive"></i>
                                 </button>
                                 <button onclick="window.editStandaloneRecordByIndex(${serialIndex})" class="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-700 flex items-center justify-center transition-colors" title="تعديل">
@@ -16090,6 +16134,38 @@ window.saveQuickSellDraft = function() { if(typeof showGlobalMessage === 'functi
         statShipped.textContent = shippedCount;
     }
 })();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

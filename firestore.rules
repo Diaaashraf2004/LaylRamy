@@ -1,51 +1,40 @@
-rules_version = '2';
+﻿rules_version = '2';
 // =====================================================================
 // Firestore Security Rules — Finance App (Secure Edition)
-//
-// الفلسفة:
-//   • كل مستخدم يصل فقط إلى بيانات نفسه: users/{uid}/...
-//   • لا توجد بيانات مشتركة بين المستخدمين.
-//   • المستخدم يجب أن يكون مسجلاً (request.auth != null).
-//   • حماية ضد الهجمات العشوائية وحجم البيانات المفرط.
 // =====================================================================
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // دالة مساعدة للتأكد من هوية المستخدم
     function isOwner(userId) {
       return request.auth != null && request.auth.uid == userId;
     }
 
-    // دالة مساعدة لمنع إرسال بيانات ضخمة جداً (Denial of Wallet)
     function isReasonableSize() {
-      // التأكد من أن التحديث لا يضيف كميات هائلة من الحقول غير المنطقية
-      return request.resource.data.keys().hasAny(['_hack', 'malicious']) == false;
+      return request.method == 'delete' || 
+             (request.resource.data.keys().hasAny(['_hack', 'malicious']) == false &&
+              request.resource.data.keys().size() < 100); 
     }
 
-    // ❌ امنع أي وصول خارج مسار users/{uid}
     match /{document=**} {
       allow read, write: if false;
     }
 
-    // ✅ مسار حفظ اليوميات (المسار الذي يحفظ فيه التطبيق بياناته)
     match /users/{userId}/days/{date} {
       allow read: if isOwner(userId);
-      allow write: if isOwner(userId) 
-                   && isReasonableSize()
-                   // حماية إضافية: التأكد من عدم تغيير المعرفات بشكل خبيث
-                   && request.auth.uid == userId;
+      allow write: if isOwner(userId) && isReasonableSize();
     }
     
-    // ✅ مسار أرشيف المشتريات
-    match /users/{userId}/purchase_archives/{docId} {
-      allow read: if isOwner(userId);
-      allow write: if isOwner(userId);
-    }
-
-    // ✅ أي ملفات أخرى تحت المستخدم
-    match /users/{userId}/{document=**} {
-      allow read, write: if isOwner(userId);
-    }
+    match /users/{userId}/purchase_archives/{docId} { allow read, write: if isOwner(userId); }
+    match /users/{userId}/summaries/{docId} { allow read, write: if isOwner(userId); }
+    match /users/{userId}/invoices/{docId} { allow read, write: if isOwner(userId); }
+    match /users/{userId}/settings/{docId} { allow read, write: if isOwner(userId); }
+    match /users/{userId}/meta/{docId} { allow read, write: if isOwner(userId); }
+    match /users/{userId}/customers/{docId} { allow read, write: if isOwner(userId); }
+    match /users/{userId}/debts/{docId} { allow read, write: if isOwner(userId); }
+    match /users/{userId}/products/{docId} { allow read, write: if isOwner(userId); }
+    match /users/{userId}/pending_sales/{docId} { allow read, write: if isOwner(userId); }
+    match /users/{userId}/sales/{docId} { allow read, write: if isOwner(userId); }
+    match /users/{userId}/salesToday/{docId} { allow read, write: if isOwner(userId); }
   }
 }
