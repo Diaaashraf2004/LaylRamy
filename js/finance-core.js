@@ -1,4 +1,4 @@
-﻿// finance-core.js — Main Application Logic
+// finance-core.js — Main Application Logic
 // Extracted from finance.html — DO NOT EDIT finance.html JS directly
 // All core functions, state, and event listeners live here.
     document.addEventListener("DOMContentLoaded", function() {
@@ -12080,7 +12080,6 @@ if (toggleAllLiabilitiesCheckbox) {
         const isExpense = d('batch-liability-is-expense') ? d('batch-liability-is-expense').checked : false;
         if (isExpense) {
             expenses = window.money(expenses + totalPayment);
-            logOperation("تسجيل مصروف", `تسديد التزام مجمع (${summaryText}) بقيمة ${formatCurrency(totalPayment)} من حساب "${account.name}".`);
             d('batch-liability-is-expense').checked = false;
         }
 
@@ -13092,7 +13091,6 @@ if (confirmPartialLiabBtn) {
 
     if (isExpense) {
         expenses = window.money(expenses + amountToPay);
-        logOperation("تسجيل مصروف", `تسديد التزام (${liability.name}) بقيمة ${formatCurrency(amountToPay)} من حساب "${account.name}".`);
         d('partial-liability-is-expense').checked = false;
     }
     
