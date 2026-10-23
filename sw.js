@@ -1,4 +1,4 @@
-const CACHE_NAME = 'finance-erp-v94'; // upgraded from CACHE_NAME = 'finance-erp-v16' and v93
+const CACHE_NAME = 'finance-erp-v95'; // upgraded from CACHE_NAME = 'finance-erp-v16' and v94 for cloud sync parallelization & preconnect
 const ASSETS_TO_CACHE = [
   './finance.html',
   './css/finance.css',

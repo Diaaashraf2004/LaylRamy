@@ -3086,8 +3086,8 @@ async function _internalSaveSystemToCloud() {
     if (typeof window.measureDocumentSize === 'function') { window.measureDocumentSize(sanitizedState); }
 
     try {
-        // 1. حفظ بيانات اليوم في مجموعة الأيام
-        await window.setDoc(window.doc(window.db, "users", userId, "days", dateStr), sanitizedState, { merge: true });
+        // 1. إعداد حفظ بيانات اليوم في مجموعة الأيام
+        const saveDayPromise = window.setDoc(window.doc(window.db, "users", userId, "days", dateStr), sanitizedState, { merge: true });
         
         // 2. بناء كائن الملخص الخفيف (latestBalances) بدون السجلات اليومية الزائلة لتوفير المساحة ومنع التضخم المزدوج
         const latestBalancesData = {
@@ -3103,9 +3103,10 @@ async function _internalSaveSystemToCloud() {
         };
 
         const todayStr = typeof getTodayDateString === 'function' ? getTodayDateString() : (typeof getCairoDateString === 'function' ? getCairoDateString() : new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' }));
+        let saveSummaryPromise = Promise.resolve();
         if (dateStr === todayStr) {
             if (isStateMeaningful(latestBalancesData)) {
-                await window.setDoc(
+                saveSummaryPromise = window.setDoc(
                     window.doc(window.db, "users", userId, "summaries", "latestBalances"),
                     latestBalancesData,
                     { merge: true }
@@ -3115,8 +3116,11 @@ async function _internalSaveSystemToCloud() {
             }
         } else {
             console.log("تم منع التحديث الكامل، سيتم حساب وتطبيق الفروقات."); 
-            await processSmartDeltaRollover(sanitizedState, dateStr);
+            saveSummaryPromise = processSmartDeltaRollover(sanitizedState, dateStr);
         }
+
+        // 3. تنفيذ حفظ وثيقة اليوم وحفظ الملخص بالتوازي لتوفير نصف وقت الشبكة
+        await Promise.all([saveDayPromise, saveSummaryPromise]);
 
         console.log("✅ تمت المزامنة السحابية بنجاح.");
         if (window.SaveGuard && typeof window.SaveGuard.recordLoadedState === 'function') {
