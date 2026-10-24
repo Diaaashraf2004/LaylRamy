@@ -74,16 +74,10 @@ window.processSaleDeletion = async function(sale, selectedAccount, refundAmount)
     if (typeof saveStateToHistory === 'function') saveStateToHistory();
     
     const saleId = sale.id;
-    let itemsToReturn = [];
-    if (sale.mainProduct) {
-        itemsToReturn.push(sale.mainProduct);
-        if (sale.additionalItems && Array.isArray(sale.additionalItems)) itemsToReturn.push(...sale.additionalItems);
-    } else {
-        if (sale.items && Array.isArray(sale.items)) itemsToReturn.push(...sale.items);
-        else if (sale.invoiceData && sale.invoiceData.items && Array.isArray(sale.invoiceData.items)) itemsToReturn.push(...sale.invoiceData.items);
-    }
+    let itemsToReturn = sale.mainProduct ? [sale.mainProduct, ...(Array.isArray(sale.additionalItems) ? sale.additionalItems : [])]
+        : (Array.isArray(sale.items) ? sale.items : (sale.invoiceData && Array.isArray(sale.invoiceData.items) ? sale.invoiceData.items : []));
     if (sale.deductedItems && Array.isArray(sale.deductedItems)) itemsToReturn.push(...sale.deductedItems);
-    else if (sale.invoiceData && sale.invoiceData.deductedItems && Array.isArray(sale.invoiceData.deductedItems)) itemsToReturn.push(...sale.invoiceData.deductedItems);
+    else if (sale.invoiceData && Array.isArray(sale.invoiceData.deductedItems)) itemsToReturn.push(...sale.invoiceData.deductedItems);
     
     const restoreItemSerials = (it) => {
         if (!it || typeof serialNumbersLog === 'undefined' || !Array.isArray(serialNumbersLog)) return;
@@ -227,17 +221,10 @@ window.processSaleDeletion = async function(sale, selectedAccount, refundAmount)
 
 window.performDirectSearch = async function performDirectSearch() {
     if (!reportMonthYearInput || !reportMessage || !reportSearchInput || !window.currentUser) return;
-
     const yearMonth = reportMonthYearInput.value;
     const searchTerm = reportSearchInput.value.trim().toLowerCase();
-
-    if (!yearMonth) {
-        showMessage(reportMessage, "يرجى اختيار الشهر للبحث فيه.", true); return;
-    }
-    if (!searchTerm) {
-        showMessage(reportMessage, "يرجى كتابة ما تريد البحث عنه أولاً.", true); return;
-    }
-
+    if (!yearMonth) { showMessage(reportMessage, "يرجى اختيار الشهر للبحث فيه.", true); return; }
+    if (!searchTerm) { showMessage(reportMessage, "يرجى كتابة ما تريد البحث عنه أولاً.", true); return; }
     showMessage(reportMessage, `جاري البحث المباشر عن "${searchTerm}" في شهر ${yearMonth}...`, false, true);
     displaySalesReport([]); // عرض جدول فارغ مبدئيًا
 
@@ -307,84 +294,94 @@ function searchInvoiceByName() {
             }
 
 function displaySearchResults(results) {
-                 if (!searchResultsListContainer || !searchMessageContainer) return;
+    if (!searchResultsListContainer || !searchMessageContainer) return;
+    window.lastSearchResults = Array.isArray(results) ? results : [];
+    if (!results || results.length === 0) {
+        searchResultsListContainer.innerHTML = '<p class="text-center text-slate-400 py-6">لم يتم العثور على فواتير مطابقة.</p>';
+        showMessage(searchMessageContainer, "لم يتم العثور على نتائج.", false, true);
+        return;
+    }
+    searchResultsListContainer.innerHTML = `<div class="space-y-3">${results.map((sale, idx) => {
+        const invNum = escapeHTML(sale.invoiceNumber || sale.id || 'N/A');
+        const dt = (typeof formatDateTime === 'function') ? formatDateTime(sale.timestamp) : (sale.timestamp || '');
+        const cust = escapeHTML(sale.customerName || 'عميل نقدي');
+        const total = (typeof formatCurrency === 'function') ? formatCurrency(sale.grandTotal || sale.totalSellPrice || 0) : (sale.grandTotal || 0);
+        const profit = (typeof formatCurrency === 'function') ? formatCurrency(sale.profit || sale.potentialProfit || 0) : 0;
+        const cost = (typeof formatCurrency === 'function') ? formatCurrency(sale.totalCost || 0) : 0;
+        const hasDeductions = (sale.deductedItems && sale.deductedItems.length > 0) || (Number(sale.deductionAmount) > 0);
+        const dedAmt = hasDeductions ? ((typeof formatCurrency === 'function') ? formatCurrency(sale.deductionAmount || 0) : sale.deductionAmount) : null;
+        return `<div class="p-3.5 bg-white border border-slate-200 rounded-xl shadow-xs hover:border-indigo-300 transition-all flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+            <div class="space-y-1 flex-1">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <span class="bg-indigo-50 text-indigo-700 font-mono font-bold text-xs px-2.5 py-0.5 rounded-md border border-indigo-100">#${invNum}</span>
+                    <span class="text-xs text-slate-400">${dt}</span>
+                    ${hasDeductions ? `<span class="bg-amber-50 text-amber-800 text-[11px] font-bold px-2 py-0.5 rounded border border-amber-200">تكاليف إضافية: ${dedAmt}</span>` : ''}
+                </div>
+                <div class="text-sm font-bold text-slate-800 flex items-center gap-1.5"><i class="fas fa-user-circle text-slate-400"></i> ${cust}</div>
+                <div class="flex items-center gap-3 text-xs flex-wrap pt-0.5">
+                    <span class="text-slate-600 bg-slate-50 px-2 py-0.5 rounded border border-slate-100 font-medium">التكلفة: <strong class="text-rose-600 font-mono">${cost}</strong></span>
+                    <span class="text-slate-600 bg-slate-50 px-2 py-0.5 rounded border border-slate-100 font-medium">صافي الربح: <strong class="text-emerald-600 font-mono">${profit}</strong></span>
+                </div>
+            </div>
+            <div class="flex flex-row md:flex-col items-end justify-between w-full md:w-auto gap-2 border-t md:border-t-0 pt-2 md:pt-0">
+                <div class="font-black text-slate-900 text-lg font-mono">${total}</div>
+                <div class="flex items-center gap-1.5">
+                    <button type="button" onclick="window.viewSearchInvoiceByIndex(${idx})" data-invoice-id="${sale.id || invNum}" class="view-invoice-details-btn bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-1.5 px-3 rounded-lg shadow-xs flex items-center gap-1 cursor-pointer transition-colors"><i class="fas fa-eye"></i> تفاصيل الفاتورة</button>
+                    <button type="button" onclick="window.printCustomerInvoiceByIndex(${idx})" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-1.5 px-3 rounded-lg border border-slate-200 flex items-center gap-1 cursor-pointer transition-colors"><i class="fas fa-print"></i> طباعة للعميل</button>
+                </div>
+            </div>
+        </div>`;
+    }).join('')}</div>`;
+    showMessage(searchMessageContainer, `تم العثور على ${results.length} فاتورة/فواتير.`, false);
+}
 
-                 if (results.length === 0) {
-                     searchResultsListContainer.innerHTML = '<p class="text-center text-gray-500">لم يتم العثور على فواتير مطابقة.</p>';
-                     showMessage(searchMessageContainer, "لم يتم العثور على نتائج.", false, true); // Use info style
-                     return;
-                 }
+window.viewSearchInvoiceByIndex = function(idx) {
+    const inv = (window.lastSearchResults || globalSearchResults || salesToday || [])[idx];
+    if (inv && window.openInvoiceViewModal) window.openInvoiceViewModal(inv);
+    else if (inv && window.inv_printInvoice) window.inv_printInvoice(inv);
+};
 
-                 // Simple list display for now
-                 searchResultsListContainer.innerHTML = `
-                     <ul class="space-y-3">
-                         ${results.map(sale => `
-                             <li class="p-3 border rounded-md bg-gray-50 shadow-sm">
-                                 <div class="flex justify-between items-center flex-wrap gap-2">
-                                     <div>
-                                         <strong class="text-blue-600">رقم: ${escapeHTML(sale.invoiceNumber || 'N/A')}</strong> |
-                                         <span class="text-xs text-gray-500">${formatDateTime(sale.timestamp)}</span> <br>
-                                         <span>العميل: ${escapeHTML(sale.customerName || '-')}</span>
-                                     </div>
-                                     <div class="font-semibold text-red-600 text-lg">
-                                         ${formatCurrency(sale.grandTotal || sale.totalSellPrice || 0)}
-                                     </div>
-                                 </div>
-                                 <div class="text-sm mt-1 text-gray-600">
-                                     الربح: ${formatCurrency(sale.profit || 0)} | التكلفة: ${formatCurrency(sale.totalCost || 0)}
-                                 </div>
-                                 <button data-invoice-id="${sale.id}" class="view-invoice-details-btn text-xs bg-teal-500 hover:bg-teal-600 text-white font-semibold py-1 px-2 rounded mt-2 border border-teal-600">عرض التفاصيل</button>
-                             </li>
-                         `).join('')}
-                     </ul>`;
-                  showMessage(searchMessageContainer, `تم العثور على ${results.length} فاتورة/فواتير.`, false);
-             }
+window.printCustomerInvoiceByIndex = function(idx) {
+    const inv = (window.lastSearchResults || globalSearchResults || salesToday || [])[idx];
+    if (inv && window.inv_printInvoice) window.inv_printInvoice(inv);
+    else if (inv && window.openInvoiceViewModal) window.openInvoiceViewModal(inv);
+};
 
 async function viewInvoiceDetails(invoiceId) {
-     // 1. محاولة العثور عليها في مبيعات اليوم الحالي
-     let invoice = salesToday.find(s => s.id === invoiceId);
+    let invoice = (window.lastSearchResults && Array.isArray(window.lastSearchResults)) ? window.lastSearchResults.find(s => String(s.id) === String(invoiceId) || String(s.invoiceNumber) === String(invoiceId)) : null;
+    if (!invoice) invoice = (typeof salesToday !== 'undefined' ? salesToday.find(s => String(s.id) === String(invoiceId) || String(s.invoiceNumber) === String(invoiceId)) : null)
+        || (typeof globalSearchResults !== 'undefined' ? globalSearchResults.find(s => String(s.id) === String(invoiceId) || String(s.invoiceNumber) === String(invoiceId)) : null)
+        || (typeof currentMonthlySalesData !== 'undefined' ? currentMonthlySalesData.find(s => String(s.id) === String(invoiceId) || String(s.invoiceNumber) === String(invoiceId)) : null);
+    if (invoice) {
+        if (typeof window.openInvoiceViewModal === 'function') window.openInvoiceViewModal(invoice);
+        else if (typeof inv_printInvoice === 'function') inv_printInvoice(invoice);
+        return;
+    }
+    if (window.currentUser) {
+        try {
+            const docSnap = await window.getDoc(window.doc(window.db, "users", window.currentUser.uid, "invoices", invoiceId));
+            if (docSnap.exists()) {
+                invoice = docSnap.data();
+                if (typeof window.openInvoiceViewModal === 'function') window.openInvoiceViewModal(invoice);
+                else if (typeof inv_printInvoice === 'function') inv_printInvoice(invoice);
+            } else { alert("عذراً، لم يتم العثور على بيانات هذه الفاتورة."); }
+        } catch (e) { alert("حدث خطأ أثناء محاولة جلب تفاصيل الفاتورة."); }
+    } else { alert("يرجى تسجيل الدخول لعرض تفاصيل الفواتير."); }
+}
 
-     // 2. محاولة العثور عليها في نتائج البحث الشامل (المتغير الجديد)
-     if (!invoice && typeof globalSearchResults !== 'undefined') {
-         invoice = globalSearchResults.find(s => s.id === invoiceId);
-     }
-
-     // 3. محاولة العثور عليها في تقرير المبيعات الشهري (إذا كان مفتوحاً)
-     if (!invoice && typeof currentMonthlySalesData !== 'undefined') {
-        invoice = currentMonthlySalesData.find(s => s.id === invoiceId);
-     }
-
-     // 4. إذا وجدناها محلياً، اعرضها فوراً
-     if (invoice) {
-         inv_printInvoice(invoice);
-         return;
-     }
-
-     // 5. الحل الجذري: إذا لم توجد في الذاكرة، اجلبها من قاعدة البيانات مباشرة
-     if (window.currentUser) {
-         try {
-            // عرض رسالة تحميل صغيرة
-             const msgBox = document.getElementById('global-message');
-             if(msgBox) showMessage(msgBox, "جاري جلب تفاصيل الفاتورة من الخادم...", false, true);
-
-             const docRef = window.doc(window.db, "users", window.currentUser.uid, "invoices", invoiceId);
-             const docSnap = await window.getDoc(docRef);
-             
-             if (docSnap.exists()) {
-                 invoice = docSnap.data();
-                 inv_printInvoice(invoice); // عرض الفاتورة
-                 if(msgBox) showMessage(msgBox, ""); // إخفاء الرسالة
-             } else {
-                 alert("عذراً، لم يتم العثور على بيانات هذه الفاتورة في قاعدة البيانات.");
-             }
-         } catch (error) {
-             console.error("Error fetching invoice:", error);
-             alert("حدث خطأ أثناء محاولة جلب تفاصيل الفاتورة.");
-         }
-     } else {
-         alert("يرجى تسجيل الدخول لعرض تفاصيل الفواتير المؤرشفة.");
-     }
- }
+window.printCustomerInvoice = async function(invoiceId) {
+    let invoice = (typeof salesToday !== 'undefined' ? salesToday.find(s => s.id === invoiceId) : null)
+        || (typeof globalSearchResults !== 'undefined' ? globalSearchResults.find(s => s.id === invoiceId) : null)
+        || (typeof currentMonthlySalesData !== 'undefined' ? currentMonthlySalesData.find(s => s.id === invoiceId) : null);
+    if (!invoice && window.currentUser) {
+        try {
+            const docSnap = await window.getDoc(window.doc(window.db, "users", window.currentUser.uid, "invoices", invoiceId));
+            if (docSnap.exists()) invoice = docSnap.data();
+        } catch (e) {}
+    }
+    if (invoice && typeof window.inv_printInvoice === 'function') window.inv_printInvoice(invoice);
+    else alert("تعذر العثور على بيانات الفاتورة للطباعة.");
+};
 
 window.showPendingSaleDetails = function(pendingId) {
     const sale = pendingSales.find(s => s.id === pendingId);

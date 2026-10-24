@@ -661,12 +661,11 @@ if (smartSearchInput) {
         }
     });
 }
-                 if(searchResultsListContainer) {
-                     searchResultsListContainer.addEventListener('click', (event) => {
-                         const button = event.target.closest('.view-invoice-details-btn');
-                         if (button && button.dataset.invoiceId) {
-                             viewInvoiceDetails(button.dataset.invoiceId);
-                         }
+                 const sResultsList = document.getElementById('search-results-list');
+                 if (sResultsList) {
+                     sResultsList.addEventListener('click', (event) => {
+                         const btn = event.target.closest('.view-invoice-details-btn');
+                         if (btn && btn.dataset.invoiceId) viewInvoiceDetails(btn.dataset.invoiceId);
                      });
                  }
               // --- كود تشغيل نافذة الطوارئ والاستعادة ---

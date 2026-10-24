@@ -1,4 +1,4 @@
-const CACHE_NAME = 'finance-erp-v95'; // upgraded from CACHE_NAME = 'finance-erp-v16' and v94 for cloud sync parallelization & preconnect
+const CACHE_NAME = 'finance-erp-v97'; // upgraded from CACHE_NAME = 'finance-erp-v16' and v96 for invoice viewer click and modal fix
 const ASSETS_TO_CACHE = [
   './finance.html',
   './css/finance.css',
@@ -49,6 +49,7 @@ const ASSETS_TO_CACHE = [
   './js/customers/customers-core.js',
   './js/accounts/accounts-core.js',
   './js/invoices/invoices-core.js',
+  './js/invoices/invoices-viewer.js',
   './js/core/core-bootstrap.js',
   './js/logs/logs-department.js',
   './js/deductions/deductions-core.js',

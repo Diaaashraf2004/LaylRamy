@@ -405,90 +405,112 @@ function printPendingSaleAsInvoice(pendingId) {
                   <html lang="ar" dir="rtl">
                   <head>
                       <meta charset="UTF-8">
-
-                      <title>فاتورة بيع - ${invoiceNumber}</title>
+                      <title>فاتورة مبيعات - ${escapeHTML(invoiceNumber)}</title>
                       <style>
-                          body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 15px; font-size: 10pt; line-height: 1.4; color: #333; }
-                          .invoice-box { max-width: 800px; margin: auto; padding: 15px; border: 1px solid #eee; box-shadow: 0 0 8px rgba(0, 0, 0, 0.1); }
-                          .invoice-header { text-align: center; margin-bottom: 20px; }
-                          .invoice-header h1 { margin: 0; color: #000; font-size: 1.4em; }
-                          .invoice-meta, .customer-info { margin-bottom: 15px; font-size: 9pt; }
-                          .invoice-meta div, .customer-info div { margin-bottom: 4px; }
-                          .invoice-meta span, .customer-info span { display: inline-block; min-width: 80px; font-weight: bold; margin-left: 5px;}
-                          .customer-info { border-top: 1px solid #eee; padding-top: 10px; }
-                          h3 { margin-top: 20px; margin-bottom: 8px; color:#000; border-bottom: 1px solid #eee; padding-bottom: 3px; font-size: 1.1em;}
-                          table.items-table { width: 100%; line-height: inherit; text-align: right; border-collapse: collapse; margin-top: 5px; }
-                          table.items-table th, table.items-table td { padding: 5px; border: 1px solid #ddd; vertical-align: top; }
-                          table.items-table th { background: #f2f2f2; font-weight: bold; text-align: center; }
-                          table.items-table td.num { text-align: center; font-family: monospace;}
-                          table.items-table tr.total-row td { border-top: 2px solid #aaa; font-weight: bold; }
-                          table.items-table tr.grand-total td { border-top: 2px solid #333; font-weight: bold; font-size: 1.1em; }
-                          .text-left { text-align: left; }
-                          .notes-section { margin-top: 20px; padding-top: 10px; border-top: 1px dashed #ccc; font-size: 9pt; }
-                          .notes-section h4 { margin-top: 0; margin-bottom: 5px; font-size: 1em; }
-                          .notes-section p { white-space: pre-wrap; margin: 0; }
-                          .serial-display-print { font-size: 0.8em; color: #555; display: block; margin-top: 2px; } /* Style for printed serial */
+                          * { box-sizing: border-box; }
+                          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Tahoma, Arial, sans-serif; margin: 0; padding: 24px; color: #1e293b; background: #fff; font-size: 13px; line-height: 1.5; }
+                          .inv-card { max-width: 820px; margin: auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+                          .inv-head { background: #0f172a; color: #fff; padding: 22px 28px; display: flex; justify-content: space-between; align-items: center; }
+                          .inv-title { margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -0.5px; }
+                          .inv-sub { margin: 3px 0 0; color: #94a3b8; font-size: 11px; }
+                          .inv-badge { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.15); padding: 8px 16px; border-radius: 8px; text-align: left; }
+                          .inv-badge-lbl { font-size: 10px; color: #cbd5e1; }
+                          .inv-badge-num { font-size: 16px; font-weight: 800; font-family: monospace; color: #38bdf8; }
+                          .inv-info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 20px 28px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; }
+                          .info-box { background: #fff; padding: 12px 16px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 12px; }
+                          .info-box-title { font-weight: 700; color: #0f172a; margin-bottom: 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 4px; font-size: 11px; text-transform: uppercase; }
+                          .info-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
+                          .info-lbl { color: #64748b; }
+                          .info-val { font-weight: 600; color: #0f172a; }
+                          .inv-body { padding: 24px 28px; }
+                          table.items-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+                          table.items-table th { background: #1e293b; color: #fff; padding: 9px 12px; font-size: 12px; font-weight: 700; }
+                          table.items-table td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; font-size: 12px; }
+                          table.items-table tr:nth-child(even) td { background: #f8fafc; }
+                          .serial-pill { display: inline-block; font-size: 11px; font-family: monospace; background: #e2e8f0; color: #334155; padding: 2px 6px; border-radius: 4px; margin-top: 3px; }
+                          .num-col { text-align: center; font-family: monospace; font-size: 13px; font-weight: 600; }
+                          .total-pane { margin-top: 20px; display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; }
+                          .notes-box { flex: 1; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 16px; font-size: 11px; color: #475569; }
+                          .totals-tbl { width: 280px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; background: #f8fafc; }
+                          .t-row { display: flex; justify-content: space-between; padding: 8px 14px; font-size: 12px; border-bottom: 1px solid #f1f5f9; }
+                          .t-grand { background: #0f172a; color: #fff; font-size: 14px; font-weight: 800; border-bottom: none; }
+                          .t-grand .num-val { color: #38bdf8; font-family: monospace; font-size: 16px; }
+                          .inv-footer { margin-top: 28px; padding-top: 14px; border-top: 1px dashed #cbd5e1; display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #94a3b8; }
                           @media print {
-                              body { margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                              .invoice-box { border: none; box-shadow: none; margin: 0; max-width: 100%; padding: 0; }
-                              .serial-display-print { display: block !important; } /* Ensure serial shows in print */
+                              body { padding: 0; background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                              .inv-card { border: none; box-shadow: none; max-width: 100%; border-radius: 0; }
+                              .inv-head { background: #0f172a !important; color: #fff !important; }
+                              .t-grand { background: #0f172a !important; color: #fff !important; }
                           }
                       </style>
                   </head>
                   <body>
-                 
-                      <div class="invoice-box">
-                          <div class="invoice-header">
-                              <h1>فاتورة بيع</h1>
+                      <div class="inv-card">
+                          <div class="inv-head">
+                              <div>
+                                  <h1 class="inv-title">فاتورة مبيعات</h1>
+                                  <div class="inv-sub">المؤسسة لإدارة المبيعات والتجارة</div>
+                              </div>
+                              <div class="inv-badge">
+                                  <div class="inv-badge-lbl">رقم الفاتورة:</div>
+                                  <div class="inv-badge-num">${escapeHTML(invoiceNumber)}</div>
+                              </div>
                           </div>
-                          <div class="invoice-meta">
-                              <div><span>رقم الفاتورة:</span> ${escapeHTML(invoiceNumber)}</div>
-                              <div><span>تاريخ الفاتورة:</span> ${formattedDate} ${formattedTime}</div>
-                              ${warranty ? `<div><span>مدة الضمان:</span> ${escapeHTML(warranty)}</div>` : ''}
+                          <div class="inv-info-grid">
+                              <div class="info-box">
+                                  <div class="info-box-title">بيانات العميل</div>
+                                  <div class="info-row"><span class="info-lbl">الاسم:</span><span class="info-val">${escapeHTML(customerName || 'عميل نقدي')}</span></div>
+                                  ${phones.length > 0 ? `<div class="info-row"><span class="info-lbl">الهاتف:</span><span class="info-val" style="font-family:monospace;">${phones.map(escapeHTML).join(' / ')}</span></div>` : ''}
+                                  ${customerAddress ? `<div class="info-row"><span class="info-lbl">العنوان:</span><span class="info-val">${escapeHTML(customerAddress)}</span></div>` : ''}
+                              </div>
+                              <div class="info-box">
+                                  <div class="info-box-title">تفاصيل الإصدار</div>
+                                  <div class="info-row"><span class="info-lbl">التاريخ:</span><span class="info-val">${formattedDate}</span></div>
+                                  <div class="info-row"><span class="info-lbl">الوقت:</span><span class="info-val">${formattedTime}</span></div>
+                                  ${warranty ? `<div class="info-row"><span class="info-lbl">مدة الضمان:</span><span class="info-val">${escapeHTML(warranty)}</span></div>` : ''}
+                              </div>
                           </div>
-                          <div class="customer-info">
-                              <h3 style="margin-top:0;">بيانات العميل:</h3>
-                              <div><span>الاسم:</span> ${escapeHTML(customerName || 'غير محدد')}</div>
-                              ${customerAddress ? `<div><span>العنوان:</span> ${escapeHTML(customerAddress)}</div>` : ''}
-                              ${phones.length > 0 ? `<div><span>الهواتف:</span> ${phones.map(escapeHTML).join(' / ')}</div>` : ''}
-                          </div>
-                          <h3>تفاصيل البنود:</h3>
-                          <table class="items-table">
-                              <thead>
-                                  <tr>
-                                      <th>البند</th>
-                                      <th>الكمية</th>
-                                      <th>سعر الوحدة</th>
-                                      <th>الإجمالي الفرعي</th>
-                                  </tr>
-                              </thead>
-                              <tbody>
-                                  ${items.map(item => `<tr>
-                                      <td>
-                                          ${escapeHTML(item.name)}
-                                          ${item.serial ? `<span class="serial-display-print">(S/N: ${escapeHTML(item.serial)})</span>` : ''}
-                                      </td>
-                                      <td class="num">${item.quantity}</td>
-                                      <td class="num">${formatCurrency(item.unitPrice)}</td>
-                                      <td class="num">${formatCurrency(item.subtotal)}</td>
-                                      </tr>`).join('')}
-                                  <tr class="total-row">
-                                      <td colspan="3" class="text-left">إجمالي البضاعة</td>
-                                      <td class="num">${formatCurrency(totalGoodsPriceForPrint)}</td>
-                                  </tr>
-                                  ${shippingCost > 0 ? `<tr class="total-row">
-                                      <td colspan="3" class="text-left">قيمة الشحن</td>
-                                      <td class="num">${formatCurrency(shippingCost)}</td>
-                                      </tr>` : ''}
-                                  <tr class="grand-total">
-                                      <td colspan="3" class="text-left">الإجمالي الكلي المطلوب</td>
-                                      <td class="num">${formatCurrency(grandTotal)}</td>
-                                  </tr>
-                              </tbody>
-                          </table>
-                          ${notes ? `<div class="notes-section"><h4>ملاحظات:</h4><p>${escapeHTML(notes).replace(/\n/g, '<br>')}</p></div>` : ''}
-                          <div style="margin-top: 30px; text-align: center; font-size: 9pt; color: #666;">
-                              --- شكراً لتعاملكم معنا ---
+                          <div class="inv-body">
+                              <table class="items-table">
+                                  <thead>
+                                      <tr>
+                                          <th style="width:36px; text-align:center;">#</th>
+                                          <th style="text-align:right;">بيان الصنف</th>
+                                          <th style="text-align:center; width:70px;">الكمية</th>
+                                          <th style="text-align:center; width:120px;">سعر الوحدة</th>
+                                          <th style="text-align:left; width:130px;">الإجمالي</th>
+                                      </tr>
+                                  </thead>
+                                  <tbody>
+                                      ${items.map((item, idx) => `
+                                          <tr>
+                                              <td class="num-col" style="color:#94a3b8;">${idx + 1}</td>
+                                              <td>
+                                                  <strong>${escapeHTML(item.name)}</strong>
+                                                  ${item.serial ? `<br><span class="serial-pill">S/N: ${escapeHTML(item.serial)}</span>` : ''}
+                                              </td>
+                                              <td class="num-col">${item.quantity}</td>
+                                              <td class="num-col">${formatCurrency(item.unitPrice)}</td>
+                                              <td class="num-col" style="text-align:left; font-weight:700;">${formatCurrency(item.subtotal)}</td>
+                                          </tr>
+                                      `).join('')}
+                                  </tbody>
+                              </table>
+                              <div class="total-pane">
+                                  <div class="notes-box">
+                                      <strong>شروط وملاحظات:</strong>
+                                      <div style="margin-top:4px; line-height:1.6;">${notes ? escapeHTML(notes).replace(/\n/g, '<br>') : 'البضاعة المباعة تخضع لسياسة الضمان المعتمدة. يرجى الاحتفاظ بنسخة الفاتورة.'}</div>
+                                  </div>
+                                  <div class="totals-tbl">
+                                      <div class="t-row"><span>إجمالي البضاعة:</span><strong style="font-family:monospace;">${formatCurrency(totalGoodsPriceForPrint)}</strong></div>
+                                      ${shippingCost > 0 ? `<div class="t-row"><span>تكلفة الشحن:</span><strong style="font-family:monospace;">${formatCurrency(shippingCost)}</strong></div>` : ''}
+                                      <div class="t-row t-grand"><span>الإجمالي النهائي:</span><span class="num-val">${formatCurrency(grandTotal)}</span></div>
+                                  </div>
+                              </div>
+                              <div class="inv-footer">
+                                  <div>ختم واعتماد المؤسسة: ____________________</div>
+                                  <div>✨ شكراً لتعاملكم معنا ونسعد بخدمتكم ✨</div>
+                              </div>
                           </div>
                       </div>
                   </body>
