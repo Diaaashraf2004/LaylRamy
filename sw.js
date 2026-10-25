@@ -1,4 +1,4 @@
-const CACHE_NAME = 'finance-erp-v97'; // upgraded from CACHE_NAME = 'finance-erp-v16' and v96 for invoice viewer click and modal fix
+const CACHE_NAME = 'finance-erp-v99'; // upgraded from CACHE_NAME = 'finance-erp-v16' and v98 for returns deductible items duplication fix
 const ASSETS_TO_CACHE = [
   './finance.html',
   './css/finance.css',
@@ -93,7 +93,7 @@ self.addEventListener('fetch', (event) => {
     }
     
     event.respondWith(
-        caches.match(event.request).then((response) => {
+        caches.match(event.request, { ignoreSearch: true }).then((response) => {
             return response || fetch(event.request);
         })
     );

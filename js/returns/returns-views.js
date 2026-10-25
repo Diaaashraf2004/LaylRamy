@@ -337,11 +337,11 @@ window.extractPendingSaleReturnItems = function(sourceData) {
     }
 
     const rawExtras = [];
-    if (Array.isArray(sourceData.additionalItems)) rawExtras.push(...sourceData.additionalItems);
-    if (Array.isArray(sourceData.deductedItems)) rawExtras.push(...sourceData.deductedItems);
-    if (sourceData.invoiceData && Array.isArray(sourceData.invoiceData.deductedItems)) {
-        rawExtras.push(...sourceData.invoiceData.deductedItems);
-    }
+    const sourceDeducted = (Array.isArray(sourceData.deductedItems) && sourceData.deductedItems.length > 0)
+        ? sourceData.deductedItems
+        : (sourceData.invoiceData && Array.isArray(sourceData.invoiceData.deductedItems) ? sourceData.invoiceData.deductedItems : []);
+    if (sourceDeducted.length > 0) rawExtras.push(...sourceDeducted);
+    else if (Array.isArray(sourceData.additionalItems) && sourceData.additionalItems.length > 0) rawExtras.push(...sourceData.additionalItems);
 
     rawExtras.forEach(item => {
         if (!item || !item.name) return;
