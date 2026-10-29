@@ -199,7 +199,12 @@ window.openDeptLogModal = function(category, title, subtitle, iconClass) {
     const t = document.getElementById('dept-log-title'); if(t) t.innerText = title || 'سجل القسم';
     const s = document.getElementById('dept-log-subtitle'); if(s) s.innerText = subtitle || 'تتبع العمليات';
     const i = document.getElementById('dept-log-icon'); if(i) i.className = iconClass || 'fas fa-list-alt';
-    const d = document.getElementById('dept-log-date-filter'); if(d) d.value = '';
+    const activeDate = window.currentLoadedDate || (typeof window.getTodayDateString === 'function' ? window.getTodayDateString() : new Date().toLocaleDateString('en-CA'));
+    const d = document.getElementById('dept-log-date-filter'); 
+    if(d) {
+        d.value = '';
+        d.max = activeDate;
+    }
     const txt = document.getElementById('dept-log-text-filter'); if(txt) txt.value = '';
     
     if(typeof window.renderDeptSubFilterTabs === 'function') window.renderDeptSubFilterTabs(category);
@@ -228,7 +233,39 @@ window.setDeptLogSubFilter = function(subType) {
     }
 };
 
-window.renderDeptLogTimeline = function() {
+window._deptLogDaysCache = window._deptLogDaysCache || {};
+window._deptLogReqSeq = 0;
+
+window.getDeptActiveLogs = async function(targetDate) {
+    const activeDate = window.currentLoadedDate || (typeof window.getTodayDateString === 'function' ? window.getTodayDateString() : new Date().toLocaleDateString('en-CA'));
+    if (!targetDate || targetDate === activeDate) {
+        return (typeof window.getOperationLog === 'function') ? window.getOperationLog() : ((typeof operationLog !== 'undefined' && Array.isArray(operationLog)) ? operationLog : []);
+    }
+    if (window._deptLogDaysCache && window._deptLogDaysCache[targetDate]) {
+        return window._deptLogDaysCache[targetDate];
+    }
+    try {
+        if (!window.currentUser || !window.currentUser.uid || !window.db || !window.doc || !window.getDoc) {
+            return [];
+        }
+        const docRef = window.doc(window.db, "users", window.currentUser.uid, "days", targetDate);
+        const docSnap = await window.getDoc(docRef);
+        if (docSnap && docSnap.exists()) {
+            const dayData = docSnap.data() || {};
+            const logs = Array.isArray(dayData.log) ? dayData.log : (Array.isArray(dayData.operationLog) ? dayData.operationLog : []);
+            window._deptLogDaysCache[targetDate] = logs;
+            return logs;
+        } else {
+            window._deptLogDaysCache[targetDate] = [];
+            return [];
+        }
+    } catch (err) {
+        console.error("Error fetching logs for date:", targetDate, err);
+        return [];
+    }
+};
+
+window.renderDeptLogTimeline = async function() {
     const container = document.getElementById('dept-log-timeline-container');
     const countBadge = document.getElementById('dept-log-count');
     const headerCountBadge = document.getElementById('dept-log-count-header');
@@ -241,7 +278,22 @@ window.renderDeptLogTimeline = function() {
 
     if (!container) return;
 
-    let logs = (typeof window.getOperationLog === 'function') ? window.getOperationLog() : ((typeof operationLog !== 'undefined' && Array.isArray(operationLog)) ? operationLog : []);
+    const activeDate = window.currentLoadedDate || (typeof window.getTodayDateString === 'function' ? window.getTodayDateString() : new Date().toLocaleDateString('en-CA'));
+    const isPastDate = !!(dateFilter && dateFilter !== activeDate);
+
+    if (isPastDate && (!window._deptLogDaysCache || !window._deptLogDaysCache[dateFilter])) {
+        const safeDate = typeof escapeHTML === 'function' ? escapeHTML(dateFilter) : dateFilter;
+        container.innerHTML = `
+            <div class="flex flex-col items-center justify-center py-14 px-4 text-center">
+                <div class="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-3"></div>
+                <h3 class="text-sm font-bold text-slate-700 mb-1">جاري تحميل سجلات يوم ${safeDate}...</h3>
+                <p class="text-xs text-slate-400">يتم جلب البيانات المؤرشفة من السحابة</p>
+            </div>`;
+    }
+
+    const currentReq = ++window._deptLogReqSeq;
+    const logs = await window.getDeptActiveLogs(dateFilter);
+    if (currentReq !== window._deptLogReqSeq) return;
 
     let filteredLogs = logs.filter(log => {
         const matchesCat = typeof window.isLogMatchingDepartment === 'function' 
@@ -253,8 +305,11 @@ window.renderDeptLogTimeline = function() {
             : true;
 
         let matchesDate = true;
-        if (dateFilter) { 
-            matchesDate = log.timestamp && log.timestamp.includes(dateFilter); 
+        if (dateFilter && !isPastDate) { 
+            if (log.timestamp) {
+                const cDate = typeof window.getCairoDateString === 'function' ? window.getCairoDateString(log.timestamp) : '';
+                matchesDate = (cDate === dateFilter) || log.timestamp.includes(dateFilter);
+            }
         }
 
         let matchesText = true;
@@ -272,29 +327,42 @@ window.renderDeptLogTimeline = function() {
     if (headerCountBadge) headerCountBadge.innerText = totalCount;
 
     if (totalCount === 0) {
+        const safeDate = typeof escapeHTML === 'function' ? escapeHTML(dateFilter) : dateFilter;
+        const noDataTitle = isPastDate 
+            ? `لا توجد حركات مسجلة لهذا القسم في أرشيف ${safeDate}` 
+            : 'لا توجد حركات مسجلة تطابق التصفية';
+        const noDataSub = isPastDate
+            ? 'لم يُعثر على حركات خاصة بهذا القسم في هذا اليوم المؤرشف.'
+            : 'يتم تسجيل جميع حركات إضافة البضائع، المشتريات، تعديل الكميات، وتتبع السيريالات تلقائياً هنا فور حدوثها.';
         container.innerHTML = `
             <div class="flex flex-col items-center justify-center py-14 px-4 text-center">
                 <div class="w-16 h-16 bg-white rounded-2xl flex items-center justify-center text-slate-400 text-3xl mb-3 border border-slate-200 shadow-sm">
                     <i class="fas fa-boxes-stacked text-slate-300"></i>
                 </div>
-                <h3 class="text-base font-bold text-slate-700 mb-1">لا توجد حركات مسجلة تطابق التصفية</h3>
-                <p class="text-xs text-slate-500 max-w-sm mb-4 leading-relaxed">
-                    يتم تسجيل جميع حركات إضافة البضائع، المشتريات، تعديل الكميات، وتتبع السيريالات تلقائياً هنا فور حدوثها.
-                </p>
+                <h3 class="text-base font-bold text-slate-700 mb-1">${noDataTitle}</h3>
+                <p class="text-xs text-slate-500 max-w-sm mb-4 leading-relaxed">${noDataSub}</p>
                 <button onclick="document.getElementById('dept-log-date-filter').value=''; document.getElementById('dept-log-text-filter').value=''; setDeptLogSubFilter('all');" 
                     class="text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 px-4 py-2 rounded-xl font-bold border border-blue-200 transition shadow-sm flex items-center gap-1.5">
-                    <i class="fas fa-redo-alt"></i> إظهار كافة الحركات المسجلة
+                    <i class="fas fa-redo-alt"></i> ${isPastDate ? 'العودة لسجل اليوم الحالي' : 'إظهار كافة الحركات المسجلة'}
                 </button>
             </div>`;
         return;
     }
 
     filteredLogs = [...filteredLogs].reverse();
-    let html = '<div class="space-y-3">';
+    let html = '';
+    if (isPastDate) {
+        const safeDate = typeof escapeHTML === 'function' ? escapeHTML(dateFilter) : dateFilter;
+        html += `<div class="mb-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between text-xs text-amber-800">
+            <span class="font-bold flex items-center gap-1.5"><i class="fas fa-history text-amber-600"></i> عرض سجلات مؤرشفة ليوم: ${safeDate}</span>
+            <button onclick="document.getElementById('dept-log-date-filter').value=''; renderDeptLogTimeline();" class="text-amber-700 hover:text-amber-900 underline font-semibold">العودة لليوم الحالي</button>
+        </div>`;
+    }
+    html += '<div class="space-y-3">';
     filteredLogs.forEach((log, index) => {
         const timeParts = log.timestamp ? log.timestamp.split(' - ') : ['', ''];
         const timeOnly = timeParts.length > 1 ? timeParts[1] : (log.timestamp ? new Date(log.timestamp).toLocaleTimeString('ar-EG') : '');
-        const dateOnly = timeParts[0] || (log.timestamp ? new Date(log.timestamp).toLocaleDateString('en-CA') : '');
+        const dateOnly = (typeof window.getCairoDateString === 'function' && log.timestamp ? window.getCairoDateString(log.timestamp) : null) || timeParts[0] || (log.timestamp ? new Date(log.timestamp).toLocaleDateString('en-CA') : '');
 
         let highlightedDetails = typeof escapeHTML === 'function' ? escapeHTML(log.details || '') : (log.details || '');
         if (textFilter) {
@@ -371,7 +439,7 @@ window.printDeptLog = function() {
         return;
     }
 
-    const htmlContent = '<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>' + title + '</title><style>body{font-family:Arial,sans-serif;direction:rtl;padding:25px;color:#1e293b;}h1{color:#1e40af;font-size:22px;border-bottom:2px solid #2563eb;padding-bottom:10px;margin-bottom:20px;}</style></head><body><h1>' + title + '</h1><div>' + container.innerHTML + '</div></body></html>';
+    const htmlContent = '<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>' + title + '</title><style>body{font-family:Arial,sans-serif;direction:rtl;padding:25px;color:#1e293b;}h1{color:#1e40af;font-size:22px;border-bottom:2px solid #2563eb;padding-bottom:10px;margin-bottom:20px;}button{display:none !important;}</style></head><body><h1>' + title + '</h1><div>' + container.innerHTML + '</div></body></html>';
 
     printWin.document.open();
     printWin.document.write(htmlContent);
@@ -379,15 +447,17 @@ window.printDeptLog = function() {
     setTimeout(() => { printWin.print(); }, 250);
 };
 
-window.exportDeptLogCSV = function() {
-    let logs = (typeof window.getOperationLog === 'function') ? window.getOperationLog() : ((typeof operationLog !== 'undefined' && Array.isArray(operationLog)) ? operationLog : []);
-    const c = window.currentDeptLogCategory;
-    
+window.exportDeptLogCSV = async function() {
     const filterEl = document.getElementById('dept-log-date-filter');
     const textFilterEl = document.getElementById('dept-log-text-filter');
     const dateFilter = filterEl ? filterEl.value : '';
     const textFilter = textFilterEl ? textFilterEl.value.toLowerCase().trim() : '';
     const subFilter = window.currentDeptLogSubFilter || 'all';
+    const c = window.currentDeptLogCategory;
+    const activeDate = window.currentLoadedDate || (typeof window.getTodayDateString === 'function' ? window.getTodayDateString() : new Date().toLocaleDateString('en-CA'));
+    const isPastDate = !!(dateFilter && dateFilter !== activeDate);
+
+    let logs = await window.getDeptActiveLogs(dateFilter);
 
     let filtered = logs.filter(log => {
         const matchesCat = typeof window.isLogMatchingDepartment === 'function' 
@@ -399,8 +469,11 @@ window.exportDeptLogCSV = function() {
             : true;
 
         let matchesDate = true;
-        if (dateFilter) { 
-            matchesDate = log.timestamp && log.timestamp.includes(dateFilter); 
+        if (dateFilter && !isPastDate) { 
+            if (log.timestamp) {
+                const cDate = typeof window.getCairoDateString === 'function' ? window.getCairoDateString(log.timestamp) : '';
+                matchesDate = (cDate === dateFilter) || log.timestamp.includes(dateFilter);
+            }
         }
 
         let matchesText = true;
@@ -429,8 +502,11 @@ window.exportDeptLogCSV = function() {
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `سجل_${c || 'المخزون'}_${new Date().toLocaleDateString('en-CA')}.csv`;
+    const deptNameMap = { sales: 'المبيعات', purchases: 'المشتريات', products: 'المخزون', treasury: 'الخزينة', debts: 'الديون', liabilities: 'الالتزامات', returns: 'المرتجعات', supplier_returns: 'مرتجعات_الموردين', expenses: 'المصروفات' };
+    const deptTitle = deptNameMap[c] || c || 'القسم';
+    link.download = `سجل_${deptTitle}_${dateFilter || activeDate}.csv`;
     link.click();
+    setTimeout(() => { if (typeof URL.revokeObjectURL === 'function') URL.revokeObjectURL(link.href); }, 1000);
 };
 
 // Keyboard listener for Escape key to close modal

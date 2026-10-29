@@ -1,4 +1,4 @@
-const CACHE_NAME = 'finance-erp-v99'; // upgraded from CACHE_NAME = 'finance-erp-v16' and v98 for returns deductible items duplication fix
+const CACHE_NAME = 'finance-erp-v100'; // upgraded from CACHE_NAME = 'finance-erp-v16' and v99 for department logs multi-day fetching support
 const ASSETS_TO_CACHE = [
   './finance.html',
   './css/finance.css',
