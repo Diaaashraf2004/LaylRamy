@@ -2907,7 +2907,7 @@
     <script src="js/invoices/invoices-core.js?v=2.2.0" defer></script>
     <script src="js/invoices/invoices-viewer.js?v=2.2.6" defer></script>
     <script src="js/core/core-bootstrap.js?v=2.7.2" defer></script>
-    <script src="js/logs/logs-department.js?v=2.7.2" defer></script>
+    <script src="js/logs/logs-department.js?v=2.7.3" defer></script>
     <script src="js/deductions/deductions-core.js?v=2.2.0" defer></script>
     <script src="js/exchanges/exchanges-ui.js?v=2.2.0" defer></script>
     <script src="js/exchanges/exchanges-calc.js?v=2.2.2" defer></script>
@@ -4369,17 +4369,24 @@
                             onkeyup="renderDeptLogTimeline()">
                     </div>
 
-                    <!-- Date Picker -->
-                    <div class="flex items-center gap-2 bg-white border border-slate-300/90 rounded-xl px-3 py-1.5 shadow-sm">
-                        <i class="far fa-calendar-alt text-slate-400 text-sm"></i>
-                        <input type="date" id="dept-log-date-filter" 
-                            class="text-sm text-slate-700 outline-none bg-transparent font-sans" 
-                            onchange="renderDeptLogTimeline()">
+                    <!-- Smart Date Selector with List & Picker -->
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <div class="flex items-center gap-1.5 bg-white border border-slate-300/90 rounded-xl px-2.5 py-1.5 shadow-sm" title="قائمة التواريخ - التواريخ التي بها حركات مميزة بعلامة خضراء 🟢">
+                            <i class="far fa-calendar-alt text-blue-600 text-sm"></i>
+                            <select id="dept-log-date-select" class="text-xs sm:text-sm font-bold text-slate-700 outline-none bg-transparent cursor-pointer max-w-[210px]" onchange="onDeptLogDateSelectChange(this.value)">
+                                <option value="">📅 كل التواريخ (اليوم الحالي)</option>
+                            </select>
+                        </div>
+                        <div class="flex items-center gap-1.5 bg-white border border-slate-300/90 rounded-xl px-2.5 py-1.5 shadow-sm" title="أو حدد تاريخ مخصص من التقويم">
+                            <input type="date" id="dept-log-date-filter" 
+                                class="text-xs sm:text-sm text-slate-700 outline-none bg-transparent font-sans" 
+                                onchange="onDeptLogDateInputChange(this.value)">
+                        </div>
                     </div>
 
                     <!-- Action Buttons -->
                     <div class="flex items-center gap-2">
-                        <button onclick="document.getElementById('dept-log-date-filter').value=''; document.getElementById('dept-log-text-filter').value=''; if(window.setDeptLogSubFilter) window.setDeptLogSubFilter('all'); else renderDeptLogTimeline();" 
+                        <button onclick="document.getElementById('dept-log-date-filter').value=''; if(document.getElementById('dept-log-date-select')) document.getElementById('dept-log-date-select').value=''; document.getElementById('dept-log-text-filter').value=''; if(window.setDeptLogSubFilter) window.setDeptLogSubFilter('all'); else renderDeptLogTimeline();" 
                             class="text-xs bg-slate-200/80 hover:bg-slate-300 text-slate-700 px-3 py-2 rounded-xl font-bold transition flex items-center gap-1.5 shadow-sm" title="إعادة تعيين الفلاتر">
                             <i class="fas fa-redo-alt text-xs"></i>
                             <span>إعادة ضبط</span>
@@ -4422,6 +4429,9 @@
                         <span id="dept-log-count" class="text-blue-700 font-mono font-black">0</span>
                     </div>
                 </div>
+
+                <!-- Row 3: Quick Active Days Pills Bar -->
+                <div id="dept-log-quick-days-bar" class="flex items-center gap-1.5 overflow-x-auto pt-2 pb-0.5 text-xs border-t border-slate-200/60"></div>
             </div>
 
             <!-- Timeline Content Container -->

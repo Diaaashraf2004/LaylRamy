@@ -1,5 +1,5 @@
 // finance-dept-logs.js
-// Logic for displaying Department Logs (Section Logs) with Enhanced UI
+// Logic for displaying Department Logs (Section Logs) with Enhanced UI & Smart Date Intelligence
 
 window.currentDeptLogCategory = '';
 window.currentDeptLogSubFilter = 'all';
@@ -7,84 +7,31 @@ window.currentDeptLogSubFilter = 'all';
 window.isLogMatchingDepartment = function(log, deptCategory) {
     if (!log || !log.type) return false;
     const type = String(log.type).trim();
-
     switch (deptCategory) {
         case 'sales':
-            // سجل المبيعات: يختص حصراً بعمليات البيع وفواتير المبيعات والعربون وإلغاء/حذف البيع
-            if (type.includes('مرتجع')) return false;
-            if (type.includes('شراء')) return false;
-            if (type.includes('مورد')) return false;
-            return type.includes('بيع') || 
-                   type.includes('مبيعات') || 
-                   type.includes('عربون') || 
-                   type === 'فاتورة' ||
-                   (type.includes('فاتورة') && !type.includes('شراء'));
-
+            if (type.includes('مرتجع') || type.includes('شراء') || type.includes('مورد')) return false;
+            return type.includes('بيع') || type.includes('مبيعات') || type.includes('عربون') || type === 'فاتورة' || (type.includes('فاتورة') && !type.includes('شراء'));
         case 'purchases':
-            // سجل المشتريات: يختص حصراً بعمليات الشراء وتوريد واستلام البضاعة
-            if (type.includes('مرتجع')) return false;
-            if (type.includes('بيع') || type.includes('مبيعات')) return false;
-            return type.includes('شراء') || 
-                   type.includes('توريد') || 
-                   type.includes('استلام بضاعة');
-
+            if (type.includes('مرتجع') || type.includes('بيع') || type.includes('مبيعات')) return false;
+            return type.includes('شراء') || type.includes('توريد') || type.includes('استلام بضاعة');
         case 'products':
-            // سجل المخزون: يختص حصراً ببطاقات الأصناف، السيريالات، وتسويات المخزن المباشرة
-            if (type.includes('بيع') || type.includes('مبيعات')) return false;
-            if (type.includes('شراء') || type.includes('توريد')) return false;
-            if (type.includes('مرتجع')) return false;
-            return type.includes('منتج') || 
-                   type.includes('مخزن') || 
-                   type.includes('مخزون') || 
-                   type.includes('سيريال') || 
-                   type.includes('صنف') || 
-                   type.includes('تصنيف');
-
+            if (type.includes('بيع') || type.includes('مبيعات') || type.includes('شراء') || type.includes('توريد') || type.includes('مرتجع')) return false;
+            return type.includes('منتج') || type.includes('مخزن') || type.includes('مخزون') || type.includes('سيريال') || type.includes('صنف') || type.includes('تصنيف');
         case 'treasury':
-            // سجل الخزينة: يختص حصراً بحركات السيولة المباشرة والخزائن والحسابات
-            if (type.includes('بيع') || type.includes('مبيعات')) return false;
-            if (type.includes('شراء')) return false;
-            if (type.includes('مصروف')) return false;
-            if (type.includes('مرتجع')) return false;
-            if (type.includes('دين') || type.includes('التزام')) return false;
-            return type.includes('سيولة') || 
-                   type.includes('خزينة') || 
-                   type.includes('حساب') || 
-                   type.includes('إيراد') || 
-                   type.includes('تعديل رصيد') || 
-                   type.includes('تصفير شامل');
-
+            if (type.includes('بيع') || type.includes('مبيعات') || type.includes('شراء') || type.includes('مصروف') || type.includes('مرتجع') || type.includes('دين') || type.includes('التزام')) return false;
+            return type.includes('سيولة') || type.includes('خزينة') || type.includes('حساب') || type.includes('إيراد') || type.includes('تعديل رصيد') || type.includes('تصفير شامل');
         case 'expenses':
-            // سجل المصروفات: يختص بالمصروفات التشغيلية فقط
             return type.includes('مصروف');
-
         case 'debts':
-            // سجل الديون: يختص بديون العملاء وسداداتها والتحويل والمقاصة
-            if (type.includes('مرتجع')) return false;
-            if (type.includes('التزام') || type.includes('مورد')) return false;
-            return type.includes('دين') || 
-                   type.includes('سداد ديون') || 
-                   type.includes('استلام سداد') || 
-                   type.includes('مقاصة');
-
+            if (type.includes('مرتجع') || type.includes('التزام') || type.includes('مورد')) return false;
+            return type.includes('دين') || type.includes('سداد ديون') || type.includes('استلام سداد') || type.includes('مقاصة');
         case 'liabilities':
-            // سجل الالتزامات: يختص بالتزامات الموردين وإدارتها وسدادها
-            if (type.includes('مرتجع')) return false;
-            if (type.includes('دين') && !type.includes('التزام') && !type.includes('مورد')) return false;
-            return type.includes('التزام') || 
-                   type.includes('دائن') || 
-                   type.includes('مورد') || 
-                   type.includes('استقطاع مخفي');
-
+            if (type.includes('مرتجع') || (type.includes('دين') && !type.includes('التزام') && !type.includes('مورد'))) return false;
+            return type.includes('التزام') || type.includes('دائن') || type.includes('مورد') || type.includes('استقطاع مخفي');
         case 'returns':
-            // سجل المرتجعات: يختص بمرتجعات العملاء والمبيعات
-            if (type.includes('مورد') || type.includes('شراء')) return false;
-            return type.includes('مرتجع');
-
+            return !type.includes('مورد') && !type.includes('شراء') && type.includes('مرتجع');
         case 'supplier_returns':
-            // سجل مرتجعات الموردين: يختص بمرتجعات البضاعة للموردين/المشتريات
             return type.includes('مرتجع') && (type.includes('مورد') || type.includes('شراء'));
-
         default:
             return type.includes(deptCategory);
     }
@@ -93,7 +40,6 @@ window.isLogMatchingDepartment = function(log, deptCategory) {
 window.matchesDeptSubFilter = function(log, subFilter, deptCategory) {
     if (!subFilter || subFilter === 'all') return true;
     const type = String(log.type || '');
-
     if (deptCategory === 'sales') {
         if (subFilter === 'invoice') return type.includes('فاتورة') && !type.includes('مؤقت');
         if (subFilter === 'pending') return type.includes('مؤقت');
@@ -117,104 +63,71 @@ window.matchesDeptSubFilter = function(log, subFilter, deptCategory) {
         if (subFilter === 'supplier') return type.includes('مورد');
         if (subFilter === 'cancel') return type.includes('حذف') || type.includes('إلغاء');
     }
-
     if (subFilter === 'purchase') return type.includes('شراء') || type.includes('توريد');
     if (subFilter === 'edit') return type.includes('تعديل') || type.includes('تسوية');
     if (subFilter === 'serials') return type.includes('سيريال');
     if (subFilter === 'delete' || subFilter === 'cancel') return type.includes('حذف') || type.includes('إلغاء') || type.includes('مسح');
-
     return true;
+};
+
+const DEPT_SUB_TABS_CONFIG = {
+    sales: [
+        { id: 'invoice', title: 'فواتير معتمدة', icon: 'fas fa-file-invoice text-emerald-600' },
+        { id: 'pending', title: 'مبيعات مؤقتة', icon: 'fas fa-clock text-amber-600' },
+        { id: 'deposit', title: 'عربون', icon: 'fas fa-hand-holding-dollar text-purple-600' },
+        { id: 'cancel', title: 'إلغاء وحذف', icon: 'fas fa-trash-alt text-rose-600' }
+    ],
+    purchases: [
+        { id: 'invoice', title: 'فواتير شراء', icon: 'fas fa-file-invoice text-emerald-600' },
+        { id: 'pending', title: 'شراء معلق', icon: 'fas fa-clock text-amber-600' },
+        { id: 'receive', title: 'استلام بضاعة', icon: 'fas fa-truck-ramp-box text-blue-600' },
+        { id: 'cancel', title: 'ملغي', icon: 'fas fa-ban text-rose-600' }
+    ],
+    products: [
+        { id: 'edit', title: 'إضافة وتعديل', icon: 'fas fa-edit text-blue-600' },
+        { id: 'serials', title: 'سيريالات', icon: 'fas fa-barcode text-purple-600' },
+        { id: 'delete', title: 'حذف وتوالف', icon: 'fas fa-trash-alt text-rose-600' }
+    ],
+    treasury: [
+        { id: 'liquidity', title: 'سيولة وإيداع', icon: 'fas fa-coins text-emerald-600' },
+        { id: 'transfer', title: 'تحويلات', icon: 'fas fa-exchange-alt text-blue-600' },
+        { id: 'account', title: 'إدارة الحسابات', icon: 'fas fa-university text-indigo-600' }
+    ],
+    debts: [
+        { id: 'payment', title: 'سداد وتحصيل', icon: 'fas fa-hand-holding-usd text-emerald-600' },
+        { id: 'offset', title: 'مقاصة', icon: 'fas fa-balance-scale text-blue-600' },
+        { id: 'cancel', title: 'شطب وإلغاء', icon: 'fas fa-trash-alt text-rose-600' }
+    ],
+    liabilities: [
+        { id: 'payment', title: 'سداد التزامات', icon: 'fas fa-money-check-alt text-emerald-600' },
+        { id: 'supplier', title: 'موردين', icon: 'fas fa-truck text-amber-600' },
+        { id: 'cancel', title: 'شطب وحذف', icon: 'fas fa-trash-alt text-rose-600' }
+    ],
+    returns: [
+        { id: 'edit', title: 'تأكيد واستلام', icon: 'fas fa-check-circle text-emerald-600' },
+        { id: 'delete', title: 'إلغاء وحذف', icon: 'fas fa-trash-alt text-rose-600' }
+    ],
+    supplier_returns: [
+        { id: 'edit', title: 'تأكيد واستلام', icon: 'fas fa-check-circle text-emerald-600' },
+        { id: 'delete', title: 'إلغاء وحذف', icon: 'fas fa-trash-alt text-rose-600' }
+    ]
 };
 
 window.renderDeptSubFilterTabs = function(category) {
     const container = document.getElementById('dept-log-sub-filters');
     if (!container) return;
-
-    let tabs = [{ id: 'all', title: 'الكل', icon: 'fas fa-list' }];
-
-    if (category === 'sales') {
-        tabs.push(
-            { id: 'invoice', title: 'فواتير معتمدة', icon: 'fas fa-file-invoice text-emerald-600' },
-            { id: 'pending', title: 'مبيعات مؤقتة', icon: 'fas fa-clock text-amber-600' },
-            { id: 'deposit', title: 'عربون', icon: 'fas fa-hand-holding-dollar text-purple-600' },
-            { id: 'cancel', title: 'إلغاء وحذف', icon: 'fas fa-trash-alt text-rose-600' }
-        );
-    } else if (category === 'purchases') {
-        tabs.push(
-            { id: 'invoice', title: 'فواتير شراء', icon: 'fas fa-file-invoice text-emerald-600' },
-            { id: 'pending', title: 'شراء معلق', icon: 'fas fa-clock text-amber-600' },
-            { id: 'receive', title: 'استلام بضاعة', icon: 'fas fa-truck-ramp-box text-blue-600' },
-            { id: 'cancel', title: 'ملغي', icon: 'fas fa-ban text-rose-600' }
-        );
-    } else if (category === 'products') {
-        tabs.push(
-            { id: 'edit', title: 'إضافة وتعديل', icon: 'fas fa-edit text-blue-600' },
-            { id: 'serials', title: 'سيريالات', icon: 'fas fa-barcode text-purple-600' },
-            { id: 'delete', title: 'حذف وتوالف', icon: 'fas fa-trash-alt text-rose-600' }
-        );
-    } else if (category === 'treasury') {
-        tabs.push(
-            { id: 'liquidity', title: 'سيولة وإيداع', icon: 'fas fa-coins text-emerald-600' },
-            { id: 'transfer', title: 'تحويلات', icon: 'fas fa-exchange-alt text-blue-600' },
-            { id: 'account', title: 'إدارة الحسابات', icon: 'fas fa-university text-indigo-600' }
-        );
-    } else if (category === 'debts') {
-        tabs.push(
-            { id: 'payment', title: 'سداد وتحصيل', icon: 'fas fa-hand-holding-usd text-emerald-600' },
-            { id: 'offset', title: 'مقاصة', icon: 'fas fa-balance-scale text-blue-600' },
-            { id: 'cancel', title: 'شطب وإلغاء', icon: 'fas fa-trash-alt text-rose-600' }
-        );
-    } else if (category === 'liabilities') {
-        tabs.push(
-            { id: 'payment', title: 'سداد التزامات', icon: 'fas fa-money-check-alt text-emerald-600' },
-            { id: 'supplier', title: 'موردين', icon: 'fas fa-truck text-amber-600' },
-            { id: 'cancel', title: 'شطب وحذف', icon: 'fas fa-trash-alt text-rose-600' }
-        );
-    } else if (category === 'returns' || category === 'supplier_returns') {
-        tabs.push(
-            { id: 'edit', title: 'تأكيد واستلام', icon: 'fas fa-check-circle text-emerald-600' },
-            { id: 'delete', title: 'إلغاء وحذف', icon: 'fas fa-trash-alt text-rose-600' }
-        );
-    } else {
-        tabs.push(
-            { id: 'edit', title: 'تعديل', icon: 'fas fa-sliders-h text-blue-600' },
-            { id: 'delete', title: 'حذف وإلغاء', icon: 'fas fa-trash-alt text-rose-600' }
-        );
-    }
-
+    const extra = DEPT_SUB_TABS_CONFIG[category] || [
+        { id: 'edit', title: 'تعديل', icon: 'fas fa-sliders-h text-blue-600' },
+        { id: 'delete', title: 'حذف وإلغاء', icon: 'fas fa-trash-alt text-rose-600' }
+    ];
+    const tabs = [{ id: 'all', title: 'الكل', icon: 'fas fa-list' }, ...extra];
     container.innerHTML = tabs.map(tab => {
         const isActive = tab.id === window.currentDeptLogSubFilter;
         const activeClass = isActive 
             ? 'dept-subfilter-btn active-pill px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1 bg-blue-600 text-white shadow-sm'
             : 'dept-subfilter-btn px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200';
-        return `<button onclick="setDeptLogSubFilter('${tab.id}')" data-subfilter="${tab.id}" class="${activeClass}">
-            <i class="${tab.icon}"></i> ${tab.title}
-        </button>`;
+        return `<button onclick="setDeptLogSubFilter('${tab.id}')" data-subfilter="${tab.id}" class="${activeClass}"><i class="${tab.icon}"></i> ${tab.title}</button>`;
     }).join('');
-};
-
-window.openDeptLogModal = function(category, title, subtitle, iconClass) {
-    window.currentDeptLogCategory = category;
-    window.currentDeptLogSubFilter = 'all';
-    const t = document.getElementById('dept-log-title'); if(t) t.innerText = title || 'سجل القسم';
-    const s = document.getElementById('dept-log-subtitle'); if(s) s.innerText = subtitle || 'تتبع العمليات';
-    const i = document.getElementById('dept-log-icon'); if(i) i.className = iconClass || 'fas fa-list-alt';
-    const activeDate = window.currentLoadedDate || (typeof window.getTodayDateString === 'function' ? window.getTodayDateString() : new Date().toLocaleDateString('en-CA'));
-    const d = document.getElementById('dept-log-date-filter'); 
-    if(d) {
-        d.value = '';
-        d.max = activeDate;
-    }
-    const txt = document.getElementById('dept-log-text-filter'); if(txt) txt.value = '';
-    
-    if(typeof window.renderDeptSubFilterTabs === 'function') window.renderDeptSubFilterTabs(category);
-    if(typeof window.renderDeptLogTimeline === 'function') window.renderDeptLogTimeline();
-    
-    const m = document.getElementById('dept-log-modal'); if(m) m.classList.remove('hidden');
-};
-
-window.closeDeptLogModal = function() {
-    const m = document.getElementById('dept-log-modal'); if(m) m.classList.add('hidden');
 };
 
 window.setDeptLogSubFilter = function(subType) {
@@ -222,19 +135,20 @@ window.setDeptLogSubFilter = function(subType) {
     const buttons = document.querySelectorAll('#dept-log-sub-filters .dept-subfilter-btn');
     buttons.forEach(btn => {
         const isMatch = btn.dataset.subfilter === window.currentDeptLogSubFilter;
-        if (isMatch) {
-            btn.className = 'dept-subfilter-btn active-pill px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1 bg-blue-600 text-white shadow-sm';
-        } else {
-            btn.className = 'dept-subfilter-btn px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200';
-        }
+        btn.className = isMatch
+            ? 'dept-subfilter-btn active-pill px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1 bg-blue-600 text-white shadow-sm'
+            : 'dept-subfilter-btn px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200';
     });
-    if (typeof window.renderDeptLogTimeline === 'function') {
-        window.renderDeptLogTimeline();
-    }
+    if (typeof window.renderDeptLogTimeline === 'function') window.renderDeptLogTimeline();
+};
+
+window.closeDeptLogModal = function() {
+    const m = document.getElementById('dept-log-modal'); if(m) m.classList.add('hidden');
 };
 
 window._deptLogDaysCache = window._deptLogDaysCache || {};
 window._deptLogReqSeq = 0;
+window._allAvailableDaysList = window._allAvailableDaysList || null;
 
 window.getDeptActiveLogs = async function(targetDate) {
     const activeDate = window.currentLoadedDate || (typeof window.getTodayDateString === 'function' ? window.getTodayDateString() : new Date().toLocaleDateString('en-CA'));
@@ -245,9 +159,7 @@ window.getDeptActiveLogs = async function(targetDate) {
         return window._deptLogDaysCache[targetDate];
     }
     try {
-        if (!window.currentUser || !window.currentUser.uid || !window.db || !window.doc || !window.getDoc) {
-            return [];
-        }
+        if (!window.currentUser || !window.currentUser.uid || !window.db || !window.doc || !window.getDoc) return [];
         const docRef = window.doc(window.db, "users", window.currentUser.uid, "days", targetDate);
         const docSnap = await window.getDoc(docRef);
         if (docSnap && docSnap.exists()) {
@@ -263,6 +175,125 @@ window.getDeptActiveLogs = async function(targetDate) {
         console.error("Error fetching logs for date:", targetDate, err);
         return [];
     }
+};
+
+window.initDeptLogDatesList = async function(category) {
+    const selectEl = document.getElementById('dept-log-date-select');
+    const quickBar = document.getElementById('dept-log-quick-days-bar');
+    if (!selectEl && !quickBar) return;
+
+    const activeDate = window.currentLoadedDate || (typeof window.getTodayDateString === 'function' ? window.getTodayDateString() : new Date().toLocaleDateString('en-CA'));
+    const currentDateFilter = document.getElementById('dept-log-date-filter')?.value || '';
+
+    if (!window._allAvailableDaysList) {
+        window._allAvailableDaysList = [];
+        try {
+            if (window.currentUser && window.currentUser.uid && window.db && window.collection && window.getDocs) {
+                const daysColRef = window.collection(window.db, "users", window.currentUser.uid, "days");
+                const snap = await window.getDocs(daysColRef);
+                const list = [];
+                snap.forEach(docSnap => {
+                    const dateId = docSnap.id;
+                    list.push(dateId);
+                    const data = docSnap.data() || {};
+                    const logs = Array.isArray(data.log) ? data.log : (Array.isArray(data.operationLog) ? data.operationLog : []);
+                    window._deptLogDaysCache[dateId] = logs;
+                });
+                list.sort().reverse();
+                window._allAvailableDaysList = list;
+            }
+        } catch (err) {
+            console.warn("Could not fetch days collection:", err);
+        }
+    }
+
+    const datesSet = new Set();
+    datesSet.add(activeDate);
+    (window._allAvailableDaysList || []).forEach(d => datesSet.add(d));
+    Object.keys(window._deptLogDaysCache || {}).forEach(d => datesSet.add(d));
+
+    const sortedDates = Array.from(datesSet).sort().reverse();
+    const dateStats = sortedDates.map(dateStr => {
+        let logs = (dateStr === activeDate)
+            ? ((typeof window.getOperationLog === 'function') ? window.getOperationLog() : ((typeof operationLog !== 'undefined' && Array.isArray(operationLog)) ? operationLog : []))
+            : (window._deptLogDaysCache[dateStr] || []);
+        const count = logs.filter(l => typeof window.isLogMatchingDepartment === 'function' ? window.isLogMatchingDepartment(l, category) : true).length;
+        return { date: dateStr, count, isToday: dateStr === activeDate };
+    });
+
+    if (selectEl) {
+        const todayStat = dateStats.find(s => s.isToday);
+        let selectHtml = `<option value="">📅 اليوم الحالي (${activeDate}) - (${todayStat?.count || 0} عملية)</option>`;
+        dateStats.forEach(item => {
+            if (item.isToday) return;
+            const hasOps = item.count > 0;
+            const icon = hasOps ? '🟢' : '⚪';
+            const statusTxt = hasOps ? `(${item.count} عملية في القسم)` : '(لم تقم بعمليات)';
+            const isSelected = item.date === currentDateFilter ? 'selected' : '';
+            selectHtml += `<option value="${item.date}" ${isSelected}>${icon} ${item.date} ${statusTxt}</option>`;
+        });
+        selectEl.innerHTML = selectHtml;
+        selectEl.value = currentDateFilter;
+    }
+
+    if (quickBar) {
+        let barHtml = `<span class="text-slate-400 font-bold shrink-0 flex items-center gap-1"><i class="fas fa-history text-blue-500"></i> التواريخ:</span>`;
+        const todayStat = dateStats.find(s => s.isToday);
+        const todaySelected = !currentDateFilter || currentDateFilter === activeDate;
+        const todayClass = todaySelected ? 'bg-blue-600 text-white shadow-sm' : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200';
+        barHtml += `<button onclick="selectDeptLogDate('')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 shrink-0 ${todayClass}"><i class="fas fa-calendar-day"></i> اليوم الحالي (${todayStat?.count || 0})</button>`;
+
+        const activePastDays = dateStats.filter(s => !s.isToday && s.count > 0);
+        activePastDays.forEach(item => {
+            const isSelected = item.date === currentDateFilter;
+            const pillClass = isSelected ? 'bg-emerald-600 text-white shadow-sm' : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200';
+            barHtml += `<button onclick="selectDeptLogDate('${item.date}')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 shrink-0 ${pillClass}"><span class="w-2 h-2 rounded-full ${isSelected ? 'bg-white' : 'bg-emerald-500'}"></span> ${item.date} (${item.count})</button>`;
+        });
+        quickBar.innerHTML = barHtml;
+    }
+};
+
+window.selectDeptLogDate = function(dateStr) {
+    const activeDate = window.currentLoadedDate || (typeof window.getTodayDateString === 'function' ? window.getTodayDateString() : new Date().toLocaleDateString('en-CA'));
+    const target = (dateStr === activeDate) ? '' : (dateStr || '');
+    const filterEl = document.getElementById('dept-log-date-filter');
+    const selectEl = document.getElementById('dept-log-date-select');
+    if (filterEl) filterEl.value = target;
+    if (selectEl) selectEl.value = target;
+    window.renderDeptLogTimeline();
+};
+
+window.onDeptLogDateSelectChange = function(dateVal) {
+    const val = dateVal || '';
+    const f = document.getElementById('dept-log-date-filter'); if (f && f.value !== val) f.value = val;
+    const s = document.getElementById('dept-log-date-select'); if (s && s.value !== val) s.value = val;
+    window.renderDeptLogTimeline();
+};
+
+window.onDeptLogDateInputChange = function(dateVal) {
+    const val = dateVal || '';
+    const f = document.getElementById('dept-log-date-filter'); if (f && f.value !== val) f.value = val;
+    const s = document.getElementById('dept-log-date-select'); if (s && s.value !== val) s.value = val;
+    window.renderDeptLogTimeline();
+};
+
+window.openDeptLogModal = function(category, title, subtitle, iconClass) {
+    window.currentDeptLogCategory = category;
+    window.currentDeptLogSubFilter = 'all';
+    const t = document.getElementById('dept-log-title'); if(t) t.innerText = title || 'سجل القسم';
+    const s = document.getElementById('dept-log-subtitle'); if(s) s.innerText = subtitle || 'تتبع العمليات';
+    const i = document.getElementById('dept-log-icon'); if(i) i.className = iconClass || 'fas fa-list-alt';
+    const activeDate = window.currentLoadedDate || (typeof window.getTodayDateString === 'function' ? window.getTodayDateString() : new Date().toLocaleDateString('en-CA'));
+    const d = document.getElementById('dept-log-date-filter'); 
+    if(d) { d.value = ''; d.max = activeDate; }
+    const sel = document.getElementById('dept-log-date-select'); if(sel) sel.value = '';
+    const txt = document.getElementById('dept-log-text-filter'); if(txt) txt.value = '';
+    
+    if(typeof window.renderDeptSubFilterTabs === 'function') window.renderDeptSubFilterTabs(category);
+    if(typeof window.initDeptLogDatesList === 'function') window.initDeptLogDatesList(category);
+    if(typeof window.renderDeptLogTimeline === 'function') window.renderDeptLogTimeline();
+    
+    const m = document.getElementById('dept-log-modal'); if(m) m.classList.remove('hidden');
 };
 
 window.renderDeptLogTimeline = async function() {
@@ -281,6 +312,9 @@ window.renderDeptLogTimeline = async function() {
     const activeDate = window.currentLoadedDate || (typeof window.getTodayDateString === 'function' ? window.getTodayDateString() : new Date().toLocaleDateString('en-CA'));
     const isPastDate = !!(dateFilter && dateFilter !== activeDate);
 
+    const selectEl = document.getElementById('dept-log-date-select');
+    if (selectEl && selectEl.value !== dateFilter) selectEl.value = dateFilter;
+
     if (isPastDate && (!window._deptLogDaysCache || !window._deptLogDaysCache[dateFilter])) {
         const safeDate = typeof escapeHTML === 'function' ? escapeHTML(dateFilter) : dateFilter;
         container.innerHTML = `
@@ -296,14 +330,8 @@ window.renderDeptLogTimeline = async function() {
     if (currentReq !== window._deptLogReqSeq) return;
 
     let filteredLogs = logs.filter(log => {
-        const matchesCat = typeof window.isLogMatchingDepartment === 'function' 
-            ? window.isLogMatchingDepartment(log, c) 
-            : true;
-
-        const matchesSub = typeof window.matchesDeptSubFilter === 'function' 
-            ? window.matchesDeptSubFilter(log, subFilter, c) 
-            : true;
-
+        const matchesCat = typeof window.isLogMatchingDepartment === 'function' ? window.isLogMatchingDepartment(log, c) : true;
+        const matchesSub = typeof window.matchesDeptSubFilter === 'function' ? window.matchesDeptSubFilter(log, subFilter, c) : true;
         let matchesDate = true;
         if (dateFilter && !isPastDate) { 
             if (log.timestamp) {
@@ -311,14 +339,11 @@ window.renderDeptLogTimeline = async function() {
                 matchesDate = (cDate === dateFilter) || log.timestamp.includes(dateFilter);
             }
         }
-
         let matchesText = true;
         if (textFilter) {
-            const type = (log.type || '');
-            const details = (log.details || '');
+            const type = (log.type || ''), details = (log.details || '');
             matchesText = (details.toLowerCase().includes(textFilter)) || (type.toLowerCase().includes(textFilter));
         }
-
         return matchesCat && matchesSub && matchesDate && matchesText;
     });
 
@@ -328,21 +353,18 @@ window.renderDeptLogTimeline = async function() {
 
     if (totalCount === 0) {
         const safeDate = typeof escapeHTML === 'function' ? escapeHTML(dateFilter) : dateFilter;
-        const noDataTitle = isPastDate 
-            ? `لا توجد حركات مسجلة لهذا القسم في أرشيف ${safeDate}` 
-            : 'لا توجد حركات مسجلة تطابق التصفية';
-        const noDataSub = isPastDate
-            ? 'لم يُعثر على حركات خاصة بهذا القسم في هذا اليوم المؤرشف.'
-            : 'يتم تسجيل جميع حركات إضافة البضائع، المشتريات، تعديل الكميات، وتتبع السيريالات تلقائياً هنا فور حدوثها.';
+        const deptNames = { sales: 'المبيعات', purchases: 'المشتريات', products: 'المخزون', treasury: 'الخزينة', debts: 'الديون', liabilities: 'الالتزامات', returns: 'المرتجعات', supplier_returns: 'مرتجعات الموردين', expenses: 'المصروفات' };
+        const deptName = deptNames[c] || 'هذا القسم';
+        const noDataTitle = isPastDate ? 'لم تقم بأي عمليات في هذا اليوم' : 'لا توجد حركات مسجلة تطابق التصفية';
+        const noDataSub = isPastDate ? `لم يتم تسجيل أي حركات خاصة بقسم "${deptName}" في تاريخ ${safeDate}.` : 'يتم تسجيل جميع حركات إضافة البضائع، المشتريات، تعديل الكميات، وتتبع السيريالات تلقائياً هنا فور حدوثها.';
         container.innerHTML = `
             <div class="flex flex-col items-center justify-center py-14 px-4 text-center">
                 <div class="w-16 h-16 bg-white rounded-2xl flex items-center justify-center text-slate-400 text-3xl mb-3 border border-slate-200 shadow-sm">
-                    <i class="fas fa-boxes-stacked text-slate-300"></i>
+                    <i class="far fa-calendar-times text-slate-300"></i>
                 </div>
                 <h3 class="text-base font-bold text-slate-700 mb-1">${noDataTitle}</h3>
                 <p class="text-xs text-slate-500 max-w-sm mb-4 leading-relaxed">${noDataSub}</p>
-                <button onclick="document.getElementById('dept-log-date-filter').value=''; document.getElementById('dept-log-text-filter').value=''; setDeptLogSubFilter('all');" 
-                    class="text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 px-4 py-2 rounded-xl font-bold border border-blue-200 transition shadow-sm flex items-center gap-1.5">
+                <button onclick="selectDeptLogDate('')" class="text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 px-4 py-2 rounded-xl font-bold border border-blue-200 transition shadow-sm flex items-center gap-1.5">
                     <i class="fas fa-redo-alt"></i> ${isPastDate ? 'العودة لسجل اليوم الحالي' : 'إظهار كافة الحركات المسجلة'}
                 </button>
             </div>`;
@@ -355,7 +377,7 @@ window.renderDeptLogTimeline = async function() {
         const safeDate = typeof escapeHTML === 'function' ? escapeHTML(dateFilter) : dateFilter;
         html += `<div class="mb-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between text-xs text-amber-800">
             <span class="font-bold flex items-center gap-1.5"><i class="fas fa-history text-amber-600"></i> عرض سجلات مؤرشفة ليوم: ${safeDate}</span>
-            <button onclick="document.getElementById('dept-log-date-filter').value=''; renderDeptLogTimeline();" class="text-amber-700 hover:text-amber-900 underline font-semibold">العودة لليوم الحالي</button>
+            <button onclick="selectDeptLogDate('')" class="text-amber-700 hover:text-amber-900 underline font-semibold">العودة لليوم الحالي</button>
         </div>`;
     }
     html += '<div class="space-y-3">';
@@ -367,35 +389,22 @@ window.renderDeptLogTimeline = async function() {
         let highlightedDetails = typeof escapeHTML === 'function' ? escapeHTML(log.details || '') : (log.details || '');
         if (textFilter) {
             const safe = textFilter.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const regex = new RegExp(safe, 'gi');
-            highlightedDetails = highlightedDetails.replace(regex, match => `<mark class="bg-yellow-200 text-yellow-900 font-bold px-1 rounded">${match}</mark>`);
+            highlightedDetails = highlightedDetails.replace(new RegExp(safe, 'gi'), match => `<mark class="bg-yellow-200 text-yellow-900 font-bold px-1 rounded">${match}</mark>`);
         }
 
         const lType = (log.type || '');
-        let cardBorder = 'border-slate-200';
-        let badgeBg = 'bg-slate-100 text-slate-700 border-slate-200';
-        let actionIcon = 'fa-info-circle';
+        let cardBorder = 'border-slate-200', badgeBg = 'bg-slate-100 text-slate-700 border-slate-200', actionIcon = 'fa-info-circle';
 
         if (lType.includes('شراء') || lType.includes('إضافة') || lType.includes('توريد')) {
-            cardBorder = 'border-emerald-200 hover:border-emerald-300';
-            badgeBg = 'bg-emerald-50 text-emerald-800 border-emerald-200';
-            actionIcon = 'fa-cart-plus';
+            cardBorder = 'border-emerald-200 hover:border-emerald-300'; badgeBg = 'bg-emerald-50 text-emerald-800 border-emerald-200'; actionIcon = 'fa-cart-plus';
         } else if (lType.includes('حذف') || lType.includes('مسح') || lType.includes('إلغاء')) {
-            cardBorder = 'border-rose-200 hover:border-rose-300';
-            badgeBg = 'bg-rose-50 text-rose-800 border-rose-200';
-            actionIcon = 'fa-trash-alt';
+            cardBorder = 'border-rose-200 hover:border-rose-300'; badgeBg = 'bg-rose-50 text-rose-800 border-rose-200'; actionIcon = 'fa-trash-alt';
         } else if (lType.includes('سيريال')) {
-            cardBorder = 'border-purple-200 hover:border-purple-300';
-            badgeBg = 'bg-purple-50 text-purple-800 border-purple-200';
-            actionIcon = 'fa-barcode';
+            cardBorder = 'border-purple-200 hover:border-purple-300'; badgeBg = 'bg-purple-50 text-purple-800 border-purple-200'; actionIcon = 'fa-barcode';
         } else if (lType.includes('تعديل') || lType.includes('تسوية')) {
-            cardBorder = 'border-blue-200 hover:border-blue-300';
-            badgeBg = 'bg-blue-50 text-blue-800 border-blue-200';
-            actionIcon = 'fa-sliders-h';
+            cardBorder = 'border-blue-200 hover:border-blue-300'; badgeBg = 'bg-blue-50 text-blue-800 border-blue-200'; actionIcon = 'fa-sliders-h';
         } else if (lType.includes('بيع') || lType.includes('فاتورة') || lType.includes('عربون')) {
-            cardBorder = 'border-cyan-200 hover:border-cyan-300';
-            badgeBg = 'bg-cyan-50 text-cyan-800 border-cyan-200';
-            actionIcon = 'fa-receipt';
+            cardBorder = 'border-cyan-200 hover:border-cyan-300'; badgeBg = 'bg-cyan-50 text-cyan-800 border-cyan-200'; actionIcon = 'fa-receipt';
         }
 
         html += `
@@ -406,22 +415,14 @@ window.renderDeptLogTimeline = async function() {
                             <i class="fas ${actionIcon}"></i>
                             ${typeof escapeHTML === 'function' ? escapeHTML(lType) : lType}
                         </span>
-                        <span class="text-xs font-mono text-slate-400 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
-                            #${log.id || (index + 1)}
-                        </span>
+                        <span class="text-xs font-mono text-slate-400 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">#${log.id || (index + 1)}</span>
                     </div>
                     <div class="flex items-center gap-2 text-xs text-slate-400 font-mono">
-                        <span class="bg-slate-50 px-2 py-1 rounded border border-slate-100 flex items-center gap-1">
-                            <i class="far fa-clock text-slate-400"></i> ${timeOnly || '-'}
-                        </span>
-                        <span class="bg-slate-50 px-2 py-1 rounded border border-slate-100 flex items-center gap-1">
-                            <i class="far fa-calendar-alt text-slate-400"></i> ${dateOnly || '-'}
-                        </span>
+                        <span class="bg-slate-50 px-2 py-1 rounded border border-slate-100 flex items-center gap-1"><i class="far fa-clock text-slate-400"></i> ${timeOnly || '-'}</span>
+                        <span class="bg-slate-50 px-2 py-1 rounded border border-slate-100 flex items-center gap-1"><i class="far fa-calendar-alt text-slate-400"></i> ${dateOnly || '-'}</span>
                     </div>
                 </div>
-                <p class="text-sm text-slate-700 leading-relaxed font-medium m-0 pr-1">
-                    ${highlightedDetails}
-                </p>
+                <p class="text-sm text-slate-700 leading-relaxed font-medium m-0 pr-1">${highlightedDetails}</p>
             </div>`;
     });
     html += '</div>';
@@ -432,15 +433,12 @@ window.printDeptLog = function() {
     const title = document.getElementById('dept-log-title')?.innerText || 'سجل القسم';
     const container = document.getElementById('dept-log-timeline-container');
     if (!container) return;
-
     const printWin = window.open('', '_blank', 'width=900,height=700');
     if (!printWin) {
         alert('يرجى السماح بالنوافذ المنبثقة لطباعة السجل.');
         return;
     }
-
     const htmlContent = '<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>' + title + '</title><style>body{font-family:Arial,sans-serif;direction:rtl;padding:25px;color:#1e293b;}h1{color:#1e40af;font-size:22px;border-bottom:2px solid #2563eb;padding-bottom:10px;margin-bottom:20px;}button{display:none !important;}</style></head><body><h1>' + title + '</h1><div>' + container.innerHTML + '</div></body></html>';
-
     printWin.document.open();
     printWin.document.write(htmlContent);
     printWin.document.close();
@@ -458,16 +456,9 @@ window.exportDeptLogCSV = async function() {
     const isPastDate = !!(dateFilter && dateFilter !== activeDate);
 
     let logs = await window.getDeptActiveLogs(dateFilter);
-
     let filtered = logs.filter(log => {
-        const matchesCat = typeof window.isLogMatchingDepartment === 'function' 
-            ? window.isLogMatchingDepartment(log, c) 
-            : true;
-
-        const matchesSub = typeof window.matchesDeptSubFilter === 'function' 
-            ? window.matchesDeptSubFilter(log, subFilter, c) 
-            : true;
-
+        const matchesCat = typeof window.isLogMatchingDepartment === 'function' ? window.isLogMatchingDepartment(log, c) : true;
+        const matchesSub = typeof window.matchesDeptSubFilter === 'function' ? window.matchesDeptSubFilter(log, subFilter, c) : true;
         let matchesDate = true;
         if (dateFilter && !isPastDate) { 
             if (log.timestamp) {
@@ -475,14 +466,11 @@ window.exportDeptLogCSV = async function() {
                 matchesDate = (cDate === dateFilter) || log.timestamp.includes(dateFilter);
             }
         }
-
         let matchesText = true;
         if (textFilter) {
-            const type = (log.type || '');
-            const details = (log.details || '');
+            const type = (log.type || ''), details = (log.details || '');
             matchesText = type.toLowerCase().includes(textFilter) || details.toLowerCase().includes(textFilter);
         }
-
         return matchesCat && matchesSub && matchesDate && matchesText;
     });
 

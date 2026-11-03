@@ -1,4 +1,4 @@
-const CACHE_NAME = 'finance-erp-v100'; // upgraded from CACHE_NAME = 'finance-erp-v16' and v99 for department logs multi-day fetching support
+const CACHE_NAME = 'finance-erp-v101'; // upgraded from CACHE_NAME = 'finance-erp-v16' and v100 for department logs smart dates highlights and empty message
 const ASSETS_TO_CACHE = [
   './finance.html',
   './css/finance.css',
