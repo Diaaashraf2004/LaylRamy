@@ -201,58 +201,210 @@ function saveCollectionNote() {
 
 
 
-function openCustomerStatement(customerId) {
+function getCustomerFullStatementData(customerId) {
     let customer = getDebtorProfileById(customerId);
     const customerDebts = getCustomerDebts(customerId);
+    const totalRemainingDebt = getCustomerTotalDebt(customerId);
     const customerNotes = getCustomerNotes(customerId);
-    const totalDebt = getCustomerTotalDebt(customerId);
 
     if (!customer && customerDebts.length) {
         customer = {
+            id: customerId,
             name: customerDebts[0].name || 'عميل',
             phone: '',
-            address: ''
+            address: '',
+            paymentHistory: []
         };
     }
 
-    if (!customer || !customerStatementContent || !customerStatementModal) return;
+    if (!customer) return null;
+
+    // 1. الدفعات المسجلة في بروفايل العميل
+    let payments = Array.isArray(customer.paymentHistory) ? [...customer.paymentHistory] : [];
+
+    // 2. البحث الذكي في سجل السيولة القديم (liquidityLog) عن أي سدادات تاريخية سابقة لهذا العميل
+    if (typeof liquidityLog !== 'undefined' && Array.isArray(liquidityLog)) {
+        const normName = normalizeArabicText(customer.name || '');
+        if (normName) {
+            liquidityLog.forEach(log => {
+                if (log.type === 'add' && log.description) {
+                    const normDesc = normalizeArabicText(log.description);
+                    if (normDesc.includes(normName) && 
+                        !normDesc.includes('سداد جماعي') && 
+                        !normDesc.includes('سداد مجمع') && 
+                        (normDesc.includes('تحصيل ديون') || normDesc.includes('سداد') || normDesc.includes('دين'))) {
+                        const logTime = new Date(log.timestamp || 0).getTime();
+                        const logAmt = Number(log.amount) || 0;
+                        const alreadyExists = payments.some(p => 
+                            Math.abs((new Date(p.date || 0).getTime()) - logTime) < 120000 &&
+                            Math.abs((Number(p.amount) || 0) - logAmt) < 0.01
+                        );
+                        if (!alreadyExists) {
+                            payments.push({
+                                id: log.id || generateId("pay_hist"),
+                                date: log.timestamp || new Date().toISOString(),
+                                amount: logAmt,
+                                accountId: log.accountId || '',
+                                accountName: (log.description.match(/في حساب "([^"]+)"/)?.[1]) || 'الخزينة',
+                                debtReason: log.description,
+                                type: 'legacy_log',
+                                note: 'حركة مسجلة في سجل السيولة'
+                            });
+                        }
+                    }
+                }
+            });
+        }
+    }
+
+    // ترتيب السدادات من الأحدث للأقدم
+    payments.sort((a, b) => new Date(b.date) - new Date(a.date));
+    const totalPaid = payments
+        .filter(p => p.type !== 'cancelled' && p.type !== 'forgiven')
+        .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+
+    return {
+        customer,
+        debts: customerDebts,
+        totalRemainingDebt,
+        payments,
+        totalPaid,
+        notes: customerNotes
+    };
+}
+window.getCustomerFullStatementData = getCustomerFullStatementData;
+
+function openCustomerStatement(customerId) {
+    const data = getCustomerFullStatementData(customerId);
+    if (!data || !customerStatementContent || !customerStatementModal) return;
+
+    const { customer, debts, totalRemainingDebt, payments, totalPaid, notes } = data;
 
     customerStatementContent.innerHTML = `
-        <div class="space-y-3" id="print-customer-statement-area">
-            <div><strong>الاسم:</strong> ${escapeHTML(customer.name)}</div>
-            <div><strong>الهاتف:</strong> ${escapeHTML(customer.phone || 'غير مسجل')}</div>
-            <div><strong>العنوان:</strong> ${escapeHTML(customer.address || 'غير مسجل')}</div>
-            <div><strong>إجمالي الدين الحالي:</strong> ${formatCurrency(totalDebt)}</div>
-
-            <hr style="margin: 12px 0;">
-
-            <div>
-                <strong>تفاصيل الديون:</strong>
-                ${
-                    customerDebts.length
-                    ? customerDebts.map(debt => `
-                        <div style="margin-top:8px;">
-                            - ${escapeHTML(debt.reason || 'بدون سبب')} : ${formatCurrency(Number(debt.amount || 0))}
+        <div class="space-y-5" id="print-customer-statement-area" style="font-family: inherit;">
+            <!-- ترويسة الكشف الرسمية -->
+            <div class="p-4 bg-gradient-to-r from-indigo-50 via-purple-50 to-pink-50 border border-purple-200 rounded-2xl flex flex-wrap justify-between items-center gap-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-2xl bg-indigo-600 text-white flex items-center justify-center text-xl font-bold shadow-md">
+                        <i class="fas fa-user-tie"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-black text-slate-900">${escapeHTML(customer.name)}</h3>
+                        <div class="text-xs text-slate-500 mt-1 flex flex-wrap items-center gap-3">
+                            <span><i class="fas fa-phone text-indigo-600 ml-1"></i> ${escapeHTML(customer.phone || 'غير مسجل')}</span>
+                            <span><i class="fas fa-map-marker-alt text-purple-600 ml-1"></i> ${escapeHTML(customer.address || 'غير مسجل')}</span>
+                            <span><i class="far fa-clock text-slate-400 ml-1"></i> استخراج: ${new Date().toLocaleString('ar-EG')}</span>
                         </div>
-                    `).join("")
-                    : `<div style="margin-top:8px;">لا توجد ديون حالية</div>`
+                    </div>
+                </div>
+                <div class="flex items-center gap-2 sm:gap-3 flex-wrap">
+                    <div class="bg-white px-3.5 py-2 rounded-xl border border-purple-200 text-center shadow-xs">
+                        <span class="block text-[11px] font-bold text-purple-700">الرصيد المتبقي المستحق</span>
+                        <span class="font-mono text-base sm:text-lg font-black text-purple-950">${formatCurrency(totalRemainingDebt)}</span>
+                    </div>
+                    <div class="bg-white px-3.5 py-2 rounded-xl border border-emerald-200 text-center shadow-xs">
+                        <span class="block text-[11px] font-bold text-emerald-700">إجمالي المسدد</span>
+                        <span class="font-mono text-base sm:text-lg font-black text-emerald-700">${formatCurrency(totalPaid)}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 1. جدول الديون والالتزامات الحالية النشطة -->
+            <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs">
+                <div class="flex justify-between items-center mb-3 border-b pb-2">
+                    <h4 class="text-sm font-extrabold text-slate-800 flex items-center gap-2">
+                        <i class="fas fa-file-invoice text-purple-600"></i> الديون والالتزامات الحالية (غير المسددة بالكامل)
+                    </h4>
+                    <span class="text-xs bg-purple-100 text-purple-800 font-bold px-2 py-0.5 rounded-full">${debts.length} بنود</span>
+                </div>
+                ${
+                    debts.length
+                    ? `<div class="overflow-x-auto">
+                        <table class="w-full text-right border-collapse text-xs sm:text-sm">
+                            <thead>
+                                <tr class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                                    <th class="p-2.5">البيان / سبب الدين</th>
+                                    <th class="p-2.5">تاريخ الإضافة</th>
+                                    <th class="p-2.5">الفاتورة / المرجع</th>
+                                    <th class="p-2.5 text-left">المبلغ المتبقي</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                ${debts.map(d => `
+                                    <tr class="hover:bg-slate-50">
+                                        <td class="p-2.5 font-bold text-slate-800">${escapeHTML(d.reason || 'دين عام')}</td>
+                                        <td class="p-2.5 text-slate-500">${d.createdAt ? new Date(d.createdAt).toLocaleDateString('ar-EG') : '-'}</td>
+                                        <td class="p-2.5 text-indigo-700 font-mono text-xs">${escapeHTML(d.linkedInvoice || '-')}</td>
+                                        <td class="p-2.5 text-left font-mono font-black text-purple-700">${formatCurrency(Number(d.amount || 0))}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>`
+                    : `<div class="text-center py-4 text-emerald-600 font-bold text-sm bg-emerald-50 rounded-lg border border-emerald-100">
+                        <i class="fas fa-check-circle ml-1"></i> لا توجد أي ديون متبقية على هذا العميل (الحساب خالص بالكامل).
+                    </div>`
                 }
             </div>
 
-            <hr style="margin: 12px 0;">
-
-            <div>
-                <strong>ملاحظات التحصيل:</strong>
+            <!-- 2. جدول سجل الدفعات والسدادات والتحصيلات السابقة -->
+            <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs">
+                <div class="flex justify-between items-center mb-3 border-b pb-2">
+                    <h4 class="text-sm font-extrabold text-slate-800 flex items-center gap-2">
+                        <i class="fas fa-history text-emerald-600"></i> سجل الدفعات والسدادات السابقة (تتبع السدادات)
+                    </h4>
+                    <span class="text-xs bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">${payments.length} عمليات سداد</span>
+                </div>
                 ${
-                    customerNotes.length
-                    ? customerNotes.map(note => `
-                        <div style="margin-top:8px;">
-                            - ${note.note} | متابعة: ${note.nextFollowUpDate || 'لا يوجد'} | ${new Date(note.createdAt).toLocaleString('ar-EG')}
-                        </div>
-                    `).join("")
-                    : `<div style="margin-top:8px;">لا توجد ملاحظات تحصيل</div>`
+                    payments.length
+                    ? `<div class="overflow-x-auto">
+                        <table class="w-full text-right border-collapse text-xs sm:text-sm">
+                            <thead>
+                                <tr class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                                    <th class="p-2.5">تاريخ ووقت السداد</th>
+                                    <th class="p-2.5">المبلغ المسدد</th>
+                                    <th class="p-2.5">الخزينة / الحساب</th>
+                                    <th class="p-2.5">البيان / تفاصيل الدين</th>
+                                    <th class="p-2.5">ملاحظات</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                ${payments.map(p => `
+                                    <tr class="hover:bg-emerald-50/40">
+                                        <td class="p-2.5 text-slate-600 font-mono text-xs">${new Date(p.date).toLocaleString('ar-EG')}</td>
+                                        <td class="p-2.5 font-mono font-black text-emerald-700">${formatCurrency(Number(p.amount || 0))}</td>
+                                        <td class="p-2.5 text-slate-800 font-semibold"><span class="bg-slate-100 px-2 py-0.5 rounded text-xs">${escapeHTML(p.accountName || 'خزينة')}</span></td>
+                                        <td class="p-2.5 text-slate-700">${escapeHTML(p.debtReason || '-')}</td>
+                                        <td class="p-2.5 text-slate-500 text-xs">${escapeHTML(p.note || '-')}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>`
+                    : `<div class="text-center py-4 text-slate-400 italic text-xs">
+                        لا توجد دفعات أو سدادات سابقة مسجلة لهذا العميل حتى الآن.
+                    </div>`
                 }
             </div>
+
+            <!-- 3. ملاحظات التحصيل والمتابعة -->
+            ${
+                notes.length
+                ? `<div class="bg-amber-50/50 border border-amber-200 rounded-xl p-4">
+                    <h4 class="text-sm font-bold text-amber-900 mb-2 flex items-center gap-1.5">
+                        <i class="fas fa-sticky-note text-amber-600"></i> ملاحظات التحصيل والتواصل:
+                    </h4>
+                    <div class="space-y-1.5 text-xs text-slate-700">
+                        ${notes.map(n => `
+                            <div class="flex justify-between items-center p-2 bg-white rounded border border-amber-100">
+                                <span>${escapeHTML(n.note)}</span>
+                                <span class="text-slate-400 font-mono text-[11px]">${new Date(n.createdAt).toLocaleDateString('ar-EG')} ${n.nextFollowUpDate ? `(متابعة: ${n.nextFollowUpDate})` : ''}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>`
+                : ''
+            }
         </div>
     `;
 
@@ -260,36 +412,129 @@ function openCustomerStatement(customerId) {
 }
 
 function openCustomerProfile(customerId) {
-    let customer = getDebtorProfileById(customerId);
-    const customerDebts = getCustomerDebts(customerId);
-    const totalDebt = getCustomerTotalDebt(customerId);
-    const latestNote = getLatestCustomerNote(customerId);
+    const data = getCustomerFullStatementData(customerId);
+    if (!data || !customerProfileContent || !customerProfileModal) return;
 
-    if (!customer && customerDebts.length) {
-        customer = {
-            name: customerDebts[0].name || 'عميل',
-            phone: '',
-            address: '',
-            generalNotes: ''
-        };
-    }
-
-    if (!customer || !customerProfileContent || !customerProfileModal) return;
+    const { customer, debts, totalRemainingDebt, payments, totalPaid, notes } = data;
 
     customerProfileContent.innerHTML = `
-        <div class="space-y-3">
-            <div><strong>الاسم:</strong> ${escapeHTML(customer.name)}</div>
-            <div><strong>الهاتف:</strong> ${escapeHTML(customer.phone || 'غير مسجل')}</div>
-            <div><strong>العنوان:</strong> ${escapeHTML(customer.address || 'غير مسجل')}</div>
-            <div><strong>عدد البنود:</strong> ${customerDebts.length}</div>
-            <div><strong>إجمالي الديون:</strong> ${formatCurrency(totalDebt)}</div>
-            <div><strong>آخر ملاحظة:</strong> ${latestNote ? escapeHTML(latestNote.note) : 'لا توجد'}</div>
-            <div><strong>تاريخ المتابعة:</strong> ${latestNote && latestNote.nextFollowUpDate ? escapeHTML(latestNote.nextFollowUpDate) : 'لا يوجد'}</div>
+        <div class="space-y-5">
+            <!-- بطاقة العميل الرئيسية وبيانات التواصل القابلة للتعديل -->
+            <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl">
+                <div class="flex flex-wrap justify-between items-center gap-3 mb-4">
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center text-xl font-bold shadow-md">
+                            <i class="fas fa-user-circle"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-extrabold text-slate-900">${escapeHTML(customer.name)}</h3>
+                            <span class="text-xs text-indigo-600 font-semibold">كود العميل: ${escapeHTML(customer.id)}</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button type="button" onclick="openCustomerStatement('${escapeHTML(customer.id)}')" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-1.5 px-3 rounded-lg flex items-center gap-1 shadow-xs transition">
+                            <i class="fas fa-file-invoice-dollar"></i> كشف حساب تفصيلي
+                        </button>
+                        <button type="button" onclick="openCollectionNotesModal('${escapeHTML(customer.id)}')" class="bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs py-1.5 px-3 rounded-lg flex items-center gap-1 shadow-xs transition">
+                            <i class="fas fa-comment-dots"></i> إضافة ملاحظة
+                        </button>
+                    </div>
+                </div>
+
+                <!-- تعديل الهاتف والعنوان -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-slate-200">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">رقم الهاتف:</label>
+                        <input type="text" id="edit-customer-phone" value="${escapeHTML(customer.phone || '')}" placeholder="أدخل رقم الهاتف" class="w-full text-xs p-2 border border-slate-300 rounded-lg shadow-2xs">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">العنوان:</label>
+                        <input type="text" id="edit-customer-address" value="${escapeHTML(customer.address || '')}" placeholder="أدخل العنوان" class="w-full text-xs p-2 border border-slate-300 rounded-lg shadow-2xs">
+                    </div>
+                </div>
+                <div class="mt-3 text-left">
+                    <button type="button" onclick="saveCustomerProfileDetails('${escapeHTML(customer.id)}')" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-1.5 px-4 rounded-lg shadow-xs transition">
+                        <i class="fas fa-save ml-1"></i> حفظ تعديلات البيانات
+                    </button>
+                </div>
+            </div>
+
+            <!-- بطاقات الإحصائيات المالية -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div class="p-3.5 bg-purple-50 border border-purple-200 rounded-xl text-center">
+                    <span class="block text-xs font-bold text-purple-700 mb-1">الديون المتبقية</span>
+                    <span class="font-mono text-lg font-black text-purple-900">${formatCurrency(totalRemainingDebt)}</span>
+                </div>
+                <div class="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-center">
+                    <span class="block text-xs font-bold text-emerald-700 mb-1">إجمالي المسدد</span>
+                    <span class="font-mono text-lg font-black text-emerald-800">${formatCurrency(totalPaid)}</span>
+                </div>
+                <div class="p-3.5 bg-blue-50 border border-blue-200 rounded-xl text-center">
+                    <span class="block text-xs font-bold text-blue-700 mb-1">إجمالي العمليات</span>
+                    <span class="font-mono text-lg font-black text-blue-900">${debts.length + payments.length} حركة</span>
+                </div>
+            </div>
+
+            <!-- سجل السدادات السابقة السريع -->
+            <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs">
+                <h4 class="text-sm font-extrabold text-slate-800 mb-2 flex items-center gap-2">
+                    <i class="fas fa-history text-emerald-600"></i> آخر حركات السداد المسجلة:
+                </h4>
+                ${
+                    payments.length
+                    ? `<div class="space-y-2 max-h-48 overflow-y-auto pr-1">
+                        ${payments.slice(0, 10).map(p => `
+                            <div class="flex justify-between items-center p-2.5 bg-slate-50 hover:bg-emerald-50/50 rounded-lg border border-slate-100 text-xs transition">
+                                <div>
+                                    <span class="font-bold text-slate-800">${escapeHTML(p.debtReason || 'سداد')}</span>
+                                    <span class="text-slate-400 block text-[11px]">${new Date(p.date).toLocaleString('ar-EG')} - في (${escapeHTML(p.accountName || 'خزينة')})</span>
+                                </div>
+                                <span class="font-mono font-black text-emerald-700 text-sm">${formatCurrency(Number(p.amount || 0))}</span>
+                            </div>
+                        `).join('')}
+                    </div>`
+                    : `<p class="text-xs text-slate-400 py-2 text-center">لا توجد حركات سداد سابقة.</p>`
+                }
+            </div>
         </div>
     `;
 
     customerProfileModal.style.display = 'block';
 }
+
+window.saveCustomerProfileDetails = function(customerId) {
+    let customer = getDebtorProfileById(customerId);
+    if (!customer) {
+        const debts = getCustomerDebts(customerId);
+        if (debts.length > 0) {
+            customer = {
+                id: customerId,
+                name: debts[0].name || 'عميل',
+                phone: '',
+                address: '',
+                generalNotes: '',
+                createdAt: new Date().toISOString(),
+                paymentHistory: []
+            };
+            if (!Array.isArray(debtorProfiles)) debtorProfiles = [];
+            debtorProfiles.push(customer);
+        }
+    }
+    if (!customer) {
+        showGlobalMessage("تعذر العثور على العميل.", true);
+        return;
+    }
+    const phoneInput = document.getElementById('edit-customer-phone');
+    const addressInput = document.getElementById('edit-customer-address');
+    if (phoneInput) customer.phone = phoneInput.value.trim();
+    if (addressInput) customer.address = addressInput.value.trim();
+
+    if (typeof saveStateToHistory === 'function') saveStateToHistory();
+    if (typeof updateUI === 'function') updateUI();
+    if (typeof saveSystemToCloud === 'function') saveSystemToCloud().catch(e => console.error(e));
+    if (typeof showGlobalMessage === 'function') showGlobalMessage(`تم تحديث بيانات العميل "${customer.name}" بنجاح.`, false);
+};
+
 window.openCustomerProfile = openCustomerProfile;
 window.openCustomerStatement = openCustomerStatement;
 window.openCollectionNotesModal = openCollectionNotesModal;

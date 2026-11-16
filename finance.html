@@ -191,6 +191,15 @@
     <div id="main-content" class="hidden">
         <h1 class="text-3xl font-semibold text-center text-blue-600 mb-4">برنامج إدارة البضائع</h1>
         <p class="text-center text-sm text-gray-500 mb-2">البيانات المعروضة حاليًا لتاريخ: <span id="current-data-date" class="font-semibold"></span></p>
+        <div id="historical-date-warning" class="hidden max-w-4xl mx-auto mb-3 p-3.5 bg-amber-50 border border-amber-300 rounded-2xl text-amber-900 text-sm flex flex-col sm:flex-row items-center justify-between gap-3 shadow-sm">
+            <div class="flex items-center gap-2.5">
+                <i class="fas fa-history text-amber-600 text-lg"></i>
+                <span><strong>تنبيه وضع الأرشيف:</strong> أنت الآن في وضع استعراض بيانات يوم سابق (<span id="historical-date-display" class="font-bold underline"></span>). تم إيقاف الحفظ التلقائي لحماية بيانات اليوم الحالي.</span>
+            </div>
+            <button type="button" onclick="window.returnToCurrentDay()" class="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold py-2 px-4 rounded-xl shadow-sm transition-all whitespace-nowrap flex items-center gap-1.5">
+                <i class="fas fa-calendar-check"></i> العودة لليوم الحالي
+            </button>
+        </div>
         <div id="global-message" class="section-message"></div>
         
         
@@ -1446,82 +1455,31 @@
             </section>
             <section id="debts-section" class="widget-card content-section hidden">
                 <h2>الديون (المستحقة للشركة)</h2>
-                <div class="stat-card" style="background: #ede9fe; border: 1px solid #c4b5fd; border-bottom: 4px solid #7c3aed; margin-bottom: 1.5rem; max-width: 360px; padding: 1.25rem; border-radius: 1rem; box-shadow: 0 4px 6px -1px rgba(124, 58, 237, 0.1);">
-                    <div style="font-size: 0.85rem; color: #5b21b6; font-weight: 700; margin-bottom: 4px;">
-                        <i class="fas fa-hand-holding-usd text-purple-700 ml-1"></i> إجمالي الديون المستحقة للشركة
+                <div class="flex flex-wrap justify-between items-center gap-4 mb-6">
+                    <div class="stat-card" style="background: #ede9fe; border: 1px solid #c4b5fd; border-bottom: 4px solid #7c3aed; margin-bottom: 0; min-width: 280px; max-width: 360px; padding: 1.25rem; border-radius: 1rem; box-shadow: 0 4px 6px -1px rgba(124, 58, 237, 0.1);">
+                        <div style="font-size: 0.85rem; color: #5b21b6; font-weight: 700; margin-bottom: 4px;">
+                            <i class="fas fa-hand-holding-usd text-purple-700 ml-1"></i> إجمالي الديون المستحقة للشركة
+                        </div>
+                        <div id="total-debts-display" style="font-size: 1.45rem; font-weight: 900; color: #4c1d95; font-family: monospace;">إجمالي الديون: 0.00 جنيه</div>
                     </div>
-                    <div id="total-debts-display" style="font-size: 1.45rem; font-weight: 900; color: #4c1d95; font-family: monospace;">إجمالي الديون: 0.00 جنيه</div>
-                </div>
-
-                <div class="mb-6 pb-4 border-b">
-                    <h3 class="text-lg font-medium text-gray-700 mb-3">تسجيل دين / سلفة جديدة</h3>
-                    <div class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
-                        <div>
-                            <label for="debtor-name" class="block text-gray-700 text-sm font-bold mb-1">اسم المدين:<span class="required">*</span></label>
-                            <input type="text" id="debtor-name" placeholder="اسم الشخص أو الجهة" class="shadow-sm w-full">
-                        </div>
-                        <div>
-    <label for="debtor-phone" class="block text-gray-700 text-sm font-bold mb-1">رقم الهاتف:</label>
-    <input type="text" id="debtor-phone" placeholder="اختياري" class="shadow-sm w-full">
-</div>
-
-<div>
-    <label for="debtor-address" class="block text-gray-700 text-sm font-bold mb-1">العنوان:</label>
-    <input type="text" id="debtor-address" placeholder="اختياري" class="shadow-sm w-full">
-</div>
-                        <div>
-                            <label for="add-debt-reason" class="block text-gray-700 text-sm font-bold mb-1">سبب الدين:</label>
-                            <input type="text" id="add-debt-reason" placeholder="مثال: أدوات، أسنان، سلفة..." class="shadow-sm w-full">
-                        </div>
-                        <div>
-                            <label for="add-debt-amount" class="block text-gray-700 text-sm font-bold mb-1">المبلغ:<span class="required">*</span></label>
-                            <input type="number" id="add-debt-amount" value="0" min="0.01" step="0.01" class="shadow-sm w-full">
-                        </div>
-                    </div>
-                    <div class="mt-4 flex flex-col sm:flex-row justify-between items-center gap-4">
-                        <label for="debt-deduct-liquidity" class="inline-flex items-center cursor-pointer">
-                            <input type="checkbox" id="debt-deduct-liquidity" class="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-offset-0 focus:ring-blue-200 focus:ring-opacity-50 ml-2">
-                            <span class="text-sm text-gray-700 font-medium">خصم المبلغ من السيولة (تسجيل سلفة)؟</span>
-                        </label>
-                        <div id="debt-advance-account-container" class="form-group mt-2 hidden">
-    <label for="debt-advance-account" class="block text-sm font-bold mb-1">خصم السلفة من حساب:</label>
-    <select id="debt-advance-account" class="shadow-sm"></select>
-</div>
-                        <button id="add-debt-button" class="bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-4 rounded w-full sm:w-auto">تسجيل الدين/السلفة</button>
+                    <div class="flex items-center gap-2.5 flex-wrap">
+                        <button type="button" onclick="openAddDebtModal()" class="bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white font-bold py-2.5 px-4 rounded-xl text-sm flex items-center gap-2 transition-all shadow-md hover:shadow-lg">
+                            <i class="fas fa-plus-circle"></i> تسجيل دين / سلفة جديدة
+                        </button>
+                        <button type="button" onclick="openBulkDebtModal()" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 px-4 rounded-xl text-sm flex items-center gap-2 transition-all shadow-md hover:shadow-lg" style="background: linear-gradient(135deg, #8b5cf6, #6d28d9);">
+                            <i class="fas fa-wallet"></i> سداد جماعي
+                        </button>
                     </div>
                 </div>
 
-                <!-- تم إخفاء قسم استلام سداد مجمع القديم للاعتماد الكامل على مودال السداد الجماعي العصري -->
-                <div class="mb-6 pb-4 border-b hidden" style="display: none !important;">
-                   <h3 class="text-lg font-medium text-gray-700 mb-3">استلام سداد مجمع</h3>
-<div>
-    <label class="block text-gray-700 text-sm font-bold mb-1">اختر الديون المراد تحصيلها:<span class="required">*</span></label>
-    <div class="flex items-center mt-2 mb-1">
-    <input type="checkbox" id="toggle-all-debts" class="ml-2">
-    <label for="toggle-all-debts" class="text-sm font-medium text-gray-700 cursor-pointer">تحديد الكل / إلغاء تحديد الكل</label>
-</div>
-    <div id="payment-debtor-list-container" class="payment-list-container">
-        <p class="text-center text-gray-500">لا توجد ديون متاحة للتحصيل.</p>
-    </div>
-    <div id="debt-payment-summary" class="payment-summary hidden">
-        الإجمالي المحدد: <span id="debt-payment-total">0.00 جنيه</span>
-    </div>
-    <div class="form-group mt-2">
-        <label for="debt-payment-account" class="block text-sm font-bold mb-1">إيداع السداد في حساب:<span class="required">*</span></label>
-        <select id="debt-payment-account" class="shadow-sm"></select>
-    </div>
-</div>
-<button id="receive-payment-button" class="mt-4 bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded w-full sm:w-auto">استلام المبلغ المحدد</button>
-</div>
+                <div id="debts-message" class="section-message mt-2 mb-3"></div>
 
-                <div id="debts-message" class="section-message mt-3"></div>
-              <div id="debtors-list-container">
-    <div class="flex justify-between items-center mb-3">
-        <h3 class="text-lg font-medium text-gray-700">قائمة الديون الحالية (مجمعة حسب الشخص)</h3>
-        <button onclick="openBulkDebtModal()" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg text-sm flex items-center gap-2 transition-all shadow-md hover:shadow-lg" style="background: linear-gradient(135deg, #8b5cf6, #6d28d9);">
-            <i class="fas fa-wallet"></i> سداد جماعي
-        </button>
-    </div>
+                <div id="debtors-list-container">
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="text-lg font-bold text-gray-800 flex items-center gap-2">
+                            <i class="fas fa-users text-purple-600"></i> قائمة الديون الحالية (مجمعة حسب العميل)
+                        </h3>
+                    </div>
 
     <div id="debts-controls" class="grid grid-cols-1 md:grid-cols-3 gap-4 my-4 p-4 bg-gray-50 rounded-lg border">
         <div class="form-group">
@@ -2315,18 +2273,40 @@
 
             <section id="settings-section" class="widget-card content-section hidden">
                 <h2>تحميل/حفظ/إعدادات</h2>
-                <div id="load-data-sub-section" class="mb-6 pb-4 border-b">
-                    <h3 class="text-lg font-medium text-gray-700 mb-3">تحميل بيانات تاريخ سابق أو ترحيل أرصدة</h3>
-                    <div class="flex flex-col sm:flex-row justify-start items-center gap-2 md:gap-4 flex-wrap">
-                        <label for="load-date-alt" class="block text-gray-700 text-sm font-bold flex-shrink-0">اختر التاريخ:</label>
-                        <input type="date" id="load-date-alt" class="shadow-sm w-52">
-                        <span id="load-date-day-name-alt" class="text-gray-600 font-medium text-sm min-w-[50px] text-center"></span>
-                        <button id="load-data-button-alt" class="bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-2 px-4 rounded">
-                            تحميل / ترحيل يدوي
-                        </button>
+                <div id="load-data-sub-section" class="mb-6 pb-6 border-b">
+                    <h3 class="text-lg font-bold text-gray-800 mb-2 flex items-center gap-2">
+                        <i class="fas fa-calendar-alt text-blue-600"></i> إدارة التواريخ: استعراض الأرشيف أو الترحيل اليدوي
+                    </h3>
+                    <p class="text-xs text-gray-500 mb-4">
+                        يمكنك استعراض بيانات أي يوم سابق في وضع استعراض آمن، أو ترحيل أرصدة يوم سابق بدقة لتثبيتها في اليوم المفتوح.
+                    </p>
+
+                    <div class="bg-gray-50 p-4 rounded-xl border border-gray-200 mb-4">
+                        <div class="flex flex-col sm:flex-row justify-start items-center gap-3 flex-wrap mb-4">
+                            <label for="load-date-alt" class="block text-gray-700 text-sm font-bold flex-shrink-0">اختر التاريخ:</label>
+                            <input type="date" id="load-date-alt" class="shadow-sm w-52 rounded-lg border-gray-300">
+                            <span id="load-date-day-name-alt" class="text-gray-600 font-medium text-sm min-w-[50px] text-center"></span>
+                        </div>
+
+                        <div class="flex flex-wrap gap-3">
+                            <button id="load-data-button-alt" class="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2.5 px-4 rounded-xl shadow-sm transition flex items-center gap-2">
+                                <i class="fas fa-eye"></i> استعراض بيانات هذا اليوم (أرشيف)
+                            </button>
+                            <button id="manual-rollover-button" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-4 rounded-xl shadow-sm transition flex items-center gap-2">
+                                <i class="fas fa-file-import"></i> ترحيل أرصدة هذا التاريخ إلى اليوم الحالي
+                            </button>
+                            <button type="button" onclick="cleanCurrentDayData()" class="bg-amber-600 hover:bg-amber-700 text-white font-bold py-2.5 px-4 rounded-xl shadow-sm transition flex items-center gap-2" title="تنظيف المبيعات أو المصروفات القديمة التي تسربت بالخطأ">
+                                <i class="fas fa-broom"></i> تنظيف الحركات القديمة من اليوم الحالي
+                            </button>
+                        </div>
                     </div>
+
                     <div id="load-message-alt" class="section-message text-sm mt-3"></div>
-                    <p class="text-xs text-gray-500 mt-2">ملاحظة: عند اختيار يوم فارغ، سيتم سؤالك إذا كنت تريد ترحيل الأرصدة من اليوم السابق له إن وجدت.</p>
+                    <div class="text-xs text-gray-500 space-y-1">
+                        <p>🔹 <strong>استعراض بيانات هذا اليوم:</strong> يفتح أرشيف اليوم للمراجعة فقط، ويوقف الحفظ التلقائي لحماية بيانات اليوم الحالي.</p>
+                        <p>🔹 <strong>ترحيل الأرصدة:</strong> ينقل فقط المخزون، الخزينة، الديون، والالتزامات إلى يومك المفتوح مع تصفير المبيعات القديمة لمنع التداخل.</p>
+                        <p>🔹 <strong>تنظيف الحركات القديمة:</strong> يزيل أي مبيعات أو مصروفات مسجلة بتواريخ قديمة إذا كانت تسربت بالخطأ إلى اليوم الحالي.</p>
+                    </div>
                 </div>
 
                 <!-- تشخيصات النظام -->
@@ -2782,15 +2762,73 @@
         </div>
     </div>
 </div>
-<div id="customerProfileModal" class="modal" style="display: none;">
-    <div class="modal-content" style="max-width: 650px;">
-        <div class="modal-header">
-            <span class="modal-close-btn">&times;</span>
-            <h2>ملف العميل</h2>
+<!-- مودال تسجيل دين / سلفة جديدة -->
+<div id="addDebtModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 580px; border-radius: 1rem; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.2);">
+        <div class="modal-header bg-gradient-to-r from-orange-500 to-amber-600 text-white p-4 flex justify-between items-center">
+            <h2 class="text-lg font-bold flex items-center gap-2 text-white">
+                <i class="fas fa-hand-holding-usd text-white"></i> تسجيل دين / سلفة جديدة
+            </h2>
+            <span class="modal-close-btn cursor-pointer text-2xl text-white hover:opacity-80" onclick="closeAddDebtModal()">&times;</span>
         </div>
-        <div class="modal-body" id="customer-profile-content"></div>
-        <div class="modal-footer">
-            <button type="button" class="modal-close-btn-footer">إغلاق</button>
+        <div class="modal-body p-5 space-y-4">
+            <div class="form-group">
+                <label for="debtor-name" class="block text-gray-700 text-sm font-bold mb-1">اسم المدين:<span class="text-red-500">*</span></label>
+                <input type="text" id="debtor-name" placeholder="اسم العميل أو الشخص المدين" class="shadow-sm w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-300">
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div class="form-group">
+                    <label for="debtor-phone" class="block text-gray-700 text-sm font-bold mb-1">رقم الهاتف (اختياري):</label>
+                    <input type="text" id="debtor-phone" placeholder="01xxxxxxxxx" class="shadow-sm w-full p-2 border border-gray-300 rounded-lg">
+                </div>
+                <div class="form-group">
+                    <label for="debtor-address" class="block text-gray-700 text-sm font-bold mb-1">العنوان (اختياري):</label>
+                    <input type="text" id="debtor-address" placeholder="عنوان العميل" class="shadow-sm w-full p-2 border border-gray-300 rounded-lg">
+                </div>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div class="form-group">
+                    <label for="add-debt-reason" class="block text-gray-700 text-sm font-bold mb-1">سبب الدين / البيان:</label>
+                    <input type="text" id="add-debt-reason" placeholder="مثال: سلفة، أدوات، أسنان، بضاعة..." class="shadow-sm w-full p-2 border border-gray-300 rounded-lg">
+                </div>
+                <div class="form-group">
+                    <label for="add-debt-amount" class="block text-gray-700 text-sm font-bold mb-1">المبلغ:<span class="text-red-500">*</span></label>
+                    <input type="number" id="add-debt-amount" value="0" min="0.01" step="0.01" class="shadow-sm w-full p-2 border border-gray-300 rounded-lg font-mono font-bold text-orange-700">
+                </div>
+            </div>
+            <div class="p-3 bg-orange-50 border border-orange-200 rounded-xl">
+                <label for="debt-deduct-liquidity" class="inline-flex items-center cursor-pointer select-none">
+                    <input type="checkbox" id="debt-deduct-liquidity" class="rounded border-gray-300 text-orange-600 shadow-sm ml-2">
+                    <span class="text-sm text-gray-800 font-bold">خصم المبلغ من السيولة (تسجيل كسلفة نقدية خَرجت من الخزينة)؟</span>
+                </label>
+                <div id="debt-advance-account-container" class="form-group mt-3 hidden">
+                    <label for="debt-advance-account" class="block text-xs font-bold text-gray-700 mb-1">اختر الخزينة / الحساب الذي سيتم الخصم منه:</label>
+                    <select id="debt-advance-account" class="shadow-sm w-full p-2 border border-orange-300 rounded-lg bg-white"></select>
+                </div>
+            </div>
+            <div id="debts-modal-message" class="section-message mt-2"></div>
+        </div>
+        <div class="modal-footer p-3.5 bg-gray-50 flex justify-between items-center rounded-b-lg border-t">
+            <button id="add-debt-button" class="bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-5 rounded-lg flex items-center gap-2 shadow transition">
+                <i class="fas fa-check"></i> تسجيل الدين / السلفة
+            </button>
+            <button type="button" class="bg-gray-400 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-lg transition" onclick="closeAddDebtModal()">إلغاء</button>
+        </div>
+    </div>
+</div>
+
+<div id="customerProfileModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 850px; border-radius: 1rem; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.2);">
+        <div class="modal-header bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-4 flex justify-between items-center">
+            <h2 class="text-lg font-bold flex items-center gap-2 text-white">
+                <i class="fas fa-id-card text-white"></i> ملف وبيانات العميل
+            </h2>
+            <span class="modal-close-btn cursor-pointer text-2xl text-white hover:opacity-80">&times;</span>
+        </div>
+        <div class="modal-body p-5 max-h-[75vh] overflow-y-auto" id="customer-profile-content"></div>
+        <div class="modal-footer p-3 bg-gray-50 flex justify-between items-center border-t">
+            <div id="customer-profile-actions"></div>
+            <button type="button" class="modal-close-btn-footer bg-gray-500 hover:bg-gray-600 text-white font-bold py-1.5 px-4 rounded-lg">إغلاق</button>
         </div>
     </div>
 </div>
@@ -2842,17 +2880,19 @@
 </div>
 
 <div id="customerStatementModal" class="modal" style="display: none;">
-    <div class="modal-content" style="max-width: 800px;">
-        <div class="modal-header">
-            <span class="modal-close-btn">&times;</span>
-            <h2>كشف حساب العميل</h2>
+    <div class="modal-content" style="max-width: 900px; border-radius: 1rem; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.2);">
+        <div class="modal-header bg-gradient-to-r from-indigo-700 to-purple-700 text-white p-4 flex justify-between items-center">
+            <h2 class="text-lg font-bold flex items-center gap-2 text-white">
+                <i class="fas fa-file-invoice-dollar text-white"></i> كشف حساب تفصيلي للعميل
+            </h2>
+            <span class="modal-close-btn cursor-pointer text-2xl text-white hover:opacity-80">&times;</span>
         </div>
-        <div class="modal-body" id="customer-statement-content"></div>
-        <div class="modal-footer" style="display: flex; justify-content: space-between;">
-            <button onclick="printCustomerStatement()" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded shadow">
-                <i class="fas fa-print ml-2"></i> طباعة الكشف
+        <div class="modal-body p-5 max-h-[75vh] overflow-y-auto" id="customer-statement-content"></div>
+        <div class="modal-footer p-3 bg-gray-50 flex justify-between items-center border-t">
+            <button onclick="printCustomerStatement()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow flex items-center gap-2 transition">
+                <i class="fas fa-print"></i> طباعة الكشف
             </button>
-            <button type="button" class="modal-close-btn-footer bg-gray-500 hover:bg-gray-600 text-white">إغلاق</button>
+            <button type="button" class="modal-close-btn-footer bg-gray-500 hover:bg-gray-600 text-white font-bold py-1.5 px-4 rounded-lg">إغلاق</button>
         </div>
     </div>
 </div>

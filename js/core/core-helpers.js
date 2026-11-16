@@ -908,6 +908,26 @@ function loadState(data, dateString) {
     }
 
     currentLoadedDate = dateString;
+    window.currentLoadedDate = dateString;
+
+    // 🛡️ فحص وتحديث شريط تحذير وضع الأرشيف
+    try {
+        const todayStr = (typeof getTodayDateString === 'function') 
+            ? getTodayDateString() 
+            : (typeof getCairoDateString === 'function' ? getCairoDateString() : new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' }));
+        const warningBanner = document.getElementById('historical-date-warning');
+        const warningDateSpan = document.getElementById('historical-date-display');
+        if (warningBanner) {
+            if (dateString && dateString !== todayStr) {
+                warningBanner.classList.remove('hidden');
+                if (warningDateSpan) warningDateSpan.textContent = dateString;
+            } else {
+                warningBanner.classList.add('hidden');
+            }
+        }
+    } catch (bannerErr) {
+        console.warn("Banner display error:", bannerErr);
+    }
 
     // === ترحيل المعرفات الفريدة: إضافة id لأي عنصر قديم بدون id ===
     suppliers.forEach(s => { if (!s.id) s.id = generateId('SUP'); });

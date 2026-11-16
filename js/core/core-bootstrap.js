@@ -408,6 +408,14 @@ window.addEventListener('click', (event) => {
     if (typeof creditorStatementModal !== 'undefined' && event.target === creditorStatementModal) {
         creditorStatementModal.style.display = 'none';
     }
+    const addDebtModal = d("addDebtModal");
+    if (addDebtModal && event.target === addDebtModal) {
+        if (typeof window.closeAddDebtModal === 'function') {
+            window.closeAddDebtModal();
+        } else {
+            addDebtModal.style.display = 'none';
+        }
+    }
 });
 
 collectionNotesHistory = d("collection-notes-history");
@@ -910,38 +918,16 @@ window.addEventListener('keydown', (e) => {
 });
 
                if (saveButtonAlt) {
-
     saveButtonAlt.addEventListener("click", async () => {
+        const todayString = (typeof getTodayDateString === 'function') 
+            ? getTodayDateString() 
+            : (typeof getCairoDateString === 'function' ? getCairoDateString() : new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' }));
 
-        // تحديد التاريخ المستهدف
+        const activeDate = currentLoadedDate || window.currentLoadedDate || todayString;
 
-        const todayString = getTodayDateString();
-
-        const targetDate = currentLoadedDate || todayString;
-
-        // رسالة التأكيد
-
-        let confirmMsg = `هل تريد حفظ التغييرات لتاريخ ${formatDateForDisplay(targetDate)}؟`;
-
-        // التحقق من وجود بيانات سابقة محلياً (اختياري للتحذير)
-
-        if (typeof lsPrefix !== 'undefined') {
-
-            const storageKey = lsPrefix + targetDate;
-
-            if (localStorage.getItem(storageKey)) {
-
-                if (currentLoadedDate === targetDate) {
-
-                    confirmMsg += `\n(سيتم تحديث البيانات الحالية)`;
-
-                } else {
-
-                    confirmMsg = `أنت تعرض بيانات يوم ${formatDateForDisplay(currentLoadedDate)}. هل تريد الحفظ فوق بيانات يوم ${formatDateForDisplay(targetDate)}؟`;
-
-                }
-
-            }
+        let confirmMsg = `هل تريد حفظ التغييرات لملف تاريخ ${formatDateForDisplay(activeDate)}؟`;
+        if (activeDate !== todayString) {
+            confirmMsg = `⚠️ تنبيه هام: أنت تقوم بالحفظ في تاريخ أرشيفي سابق (${formatDateForDisplay(activeDate)}) وليس اليوم الحالي (${formatDateForDisplay(todayString)}).\n\nهل تريد بالتأكيد تعديل وحفظ بيانات هذا اليوم السابق؟`;
         }
 
         if (confirm(confirmMsg)) {
@@ -949,7 +935,7 @@ window.addEventListener('keydown', (e) => {
             try {
                 saveButtonAlt.innerHTML = "جاري الحفظ...";
                 saveButtonAlt.disabled = true;
-                await saveCurrentStateByDate(targetDate, true);
+                await saveCurrentStateByDate(activeDate, true);
             } finally {
                 saveButtonAlt.innerHTML = originalHTML;
                 saveButtonAlt.disabled = false;
@@ -957,7 +943,44 @@ window.addEventListener('keydown', (e) => {
         }
     });
 }
-  if (loadDataButtonAlt) { loadDataButtonAlt.addEventListener("click", async () => { const dateToLoad = loadDateInputAlt ? loadDateInputAlt.value : null; const loadResult = await loadDataForDate(dateToLoad); if(loadResult) updateUI(); }); } // Update UI only if loadDataForDate indicates a change happened
+  if (loadDataButtonAlt) { 
+      loadDataButtonAlt.addEventListener("click", async () => { 
+          const dateToLoad = loadDateInputAlt ? loadDateInputAlt.value : null; 
+          if (!dateToLoad) {
+              alert("يرجى اختيار التاريخ أولاً.");
+              return;
+          }
+          const originalHTML = loadDataButtonAlt.innerHTML;
+          try {
+              loadDataButtonAlt.innerHTML = "جاري التحميل...";
+              loadDataButtonAlt.disabled = true;
+              const loadResult = await loadDataForDate(dateToLoad); 
+              if (loadResult && typeof updateUI === 'function') updateUI(); 
+          } finally {
+              loadDataButtonAlt.innerHTML = originalHTML;
+              loadDataButtonAlt.disabled = false;
+          }
+      }); 
+  }
+
+  const manualRolloverBtn = document.getElementById('manual-rollover-button');
+  if (manualRolloverBtn) {
+      manualRolloverBtn.addEventListener('click', async () => {
+          if (manualRolloverBtn.disabled) return;
+          const originalText = manualRolloverBtn.innerHTML;
+          manualRolloverBtn.disabled = true;
+          manualRolloverBtn.innerHTML = '⏳ جاري الترحيل...';
+          try {
+              const sourceDate = loadDateInputAlt ? loadDateInputAlt.value : null;
+              if (typeof window.manualRolloverFromDate === 'function') {
+                  await window.manualRolloverFromDate(sourceDate);
+              }
+          } finally {
+              manualRolloverBtn.disabled = false;
+              manualRolloverBtn.innerHTML = originalText;
+          }
+      });
+  }
 
                  if (loadDateInputAlt) { loadDateInputAlt.addEventListener('change', (e) => { const dateValue = e.target.value; updateLoadDateDayName(dateValue, loadDateDayNameDisplayAlt); }); }
 
@@ -1505,20 +1528,21 @@ if (addDebtButton) {
         // --- ✅ كود جديد: قراءة الحساب المحدد للسلفة ---
         const selectedAccountId = d('debt-advance-account').value;
         const account = accounts.find(acc => acc.id === selectedAccountId);
+        const targetDebtsMsg = d('debts-modal-message') || debtsMessage;
 
         if (!name || isNaN(amount) || amount <= 0) {
-            showMessage(debtsMessage, "يرجى ملء اسم المدين ومبلغ صحيح (> 0).", true);
+            showMessage(targetDebtsMsg, "يرجى ملء اسم المدين ومبلغ صحيح (> 0).", true);
             return;
         }
 
         // --- ✅ كود جديد: التحقق من الرصيد والحساب ---
         if (deductLiquidity) {
             if (!account) {
-                showMessage(debtsMessage, "يرجى اختيار الحساب الذي سيتم الخصم منه.", true);
+                showMessage(targetDebtsMsg, "يرجى اختيار الحساب الذي سيتم الخصم منه.", true);
                 return;
             }
             if (amount > account.balance) {
-                showMessage(debtsMessage, `مبلغ السلفة (${formatCurrency(amount)}) أكبر من رصيد حساب "${account.name}" (${formatCurrency(account.balance)}).`, true);
+                showMessage(targetDebtsMsg, `مبلغ السلفة (${formatCurrency(amount)}) أكبر من رصيد حساب "${account.name}" (${formatCurrency(account.balance)}).`, true);
                 return;
             }
         }
@@ -1559,11 +1583,11 @@ if (addDebtButton) {
                 debtors[existingDebtIndex].amount = window.money((Number(debtors[existingDebtIndex].amount) || 0) + debtAmountVal);
                 debtors[existingDebtIndex].createdAt = realTime;
                 logMsg = `زيادة دين قائم على "${customerProfile.name}" بمبلغ ${formatCurrency(debtAmountVal)}.`;
-                showMessage(debtsMessage, `تمت زيادة الدين لـ "${customerProfile.name}".`);
+                showMessage(targetDebtsMsg, `تمت زيادة الدين لـ "${customerProfile.name}".`);
             } else {
                 debtors.push({ id: generateId('debt'), customerId: customerProfile.id, name: customerProfile.name, customerName: customerProfile.name, reason, amount: debtAmountVal, createdAt: realTime });
                 logMsg = `تسجيل دين جديد على "${customerProfile.name}" بمبلغ ${formatCurrency(debtAmountVal)}.`;
-                showMessage(debtsMessage, `تم تسجيل دين جديد لـ "${customerProfile.name}".`);
+                showMessage(targetDebtsMsg, `تم تسجيل دين جديد لـ "${customerProfile.name}".`);
             }
 
             if (deductLiquidity) {
@@ -1583,12 +1607,13 @@ if (addDebtButton) {
             addDebtAmountInput.value = "0";
             debtDeductLiquidityCheckbox.checked = false;
             d('debt-advance-account-container').classList.add('hidden');
-            debtorNameInput.focus();
+            if (typeof window.closeAddDebtModal === 'function') window.closeAddDebtModal();
+            if (typeof showGlobalMessage === 'function') showGlobalMessage(logMsg, false);
             if (typeof saveSystemToCloud === 'function') saveSystemToCloud().catch(e => console.error("Cloud save error:", e));
         } catch (err) {
             if (_tx) await _tx.rollback();
             console.error("فشل تسجيل الدين:", err);
-            showMessage(debtsMessage, "فشل تسجيل الدين؛ تم التراجع عن التعديلات: " + (err.message || ''), true);
+            showMessage(targetDebtsMsg, "فشل تسجيل الدين؛ تم التراجع عن التعديلات: " + (err.message || ''), true);
         }
     });
 
@@ -2622,6 +2647,25 @@ if (confirmPartialDebtBtn) {
         debt.amount = window.money(debt.amount - amountToPay);
         account.balance = window.money(account.balance + amountToPay);
 
+        // تسجيل الدفعة في سجل وسداد العميل للرجوع إليها
+        let custProf = debt.customerId ? debtorProfiles.find(p => p.id === debt.customerId) : null;
+        if (!custProf) custProf = getOrCreateDebtorProfile(debt.name);
+        if (custProf) {
+            if (!Array.isArray(custProf.paymentHistory)) custProf.paymentHistory = [];
+            custProf.paymentHistory.unshift({
+                id: generateId("pay"),
+                date: new Date().toISOString(),
+                amount: amountToPay,
+                accountId: account.id,
+                accountName: account.name,
+                debtReason: debt.reason || 'سداد جزئي',
+                debtId: debt.id,
+                remainingDebt: debt.amount,
+                type: 'partial_payment',
+                note: `سداد جزئي من دين "${debt.reason || 'عام'}" (المتبقي: ${formatCurrency(debt.amount)})`
+            });
+        }
+
         const summaryText = `سداد جزئي من ${debt.name} (${debt.reason})`;
         logOperation("استلام سداد جزئي", `استلام ${formatCurrency(amountToPay)} في حساب "${account.name}" من دين "${debt.name}".`);
         
@@ -3159,7 +3203,12 @@ window.cleanCurrentDayData = async function() {
     }
 
     // 1. تحديد تاريخ اليوم الحالي المفتوح في البرنامج
-    const targetDate = currentLoadedDate || (typeof getCairoDateString === 'function' ? getCairoDateString() : new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' }));
+    const todayStr = typeof getCairoDateString === 'function' ? getCairoDateString() : new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' });
+    const targetDate = currentLoadedDate || todayStr;
+    if (currentLoadedDate && currentLoadedDate !== todayStr) {
+        alert(`تحذير: أنت تتصفح أرشيف يوم سابق (${currentLoadedDate}).\n\nأداة التنظيف مخصصة لتنظيف ملف اليوم الحالي فقط لمنع تكرار بيانات الأمس. يرجى العودة لليوم الحالي أولاً.`);
+        return;
+    }
     
     // رسالة تأكيد حاسمة
     if (!confirm(`أنت الآن بصدد تنظيف ملف يوم (${targetDate}).\n\nسيقوم البرنامج بحذف أي مبيعات أو مصروفات مسجلة بتواريخ "سابقة" لهذا التاريخ (مثل 31-12) والتي انتقلت بالخطأ.\n\nهل أنت متأكد؟`)) return;
@@ -3181,6 +3230,8 @@ window.cleanCurrentDayData = async function() {
             return sDate === targetDate;
         });
         removedSales = initialCount - salesToday.length;
+        // إعادة احتساب أرباح اليوم بناءً على المبيعات المتبقية
+        totalProfit = salesToday.reduce((sum, s) => sum + (Number(s.profit) || 0), 0);
     }
 
     // 3. تنظيف المشتريات (purchaseInvoices)
@@ -3207,8 +3258,14 @@ window.cleanCurrentDayData = async function() {
     
     // ملاحظة: لا نلمس الأرصدة (المخزون، الديون، الخزنة) لأنها تراكمية ويجب أن تبقى.
 
-    // 5. حفظ التغييرات فوراً في السحابة (Update Cloud)
+    // 5. حفظ التغييرات فوراً في السحابة مع إذن تقليص البيانات لـ SaveGuard
+    if (window.SaveGuard && typeof window.SaveGuard.allowShrinkOnce === 'function') {
+        window.SaveGuard.allowShrinkOnce();
+    }
     await saveSystemToCloud();
+    if (typeof initDualWriteState === 'function') {
+        initDualWriteState();
+    }
 
     // 6. تحديث الواجهة
     updateUI();

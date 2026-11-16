@@ -437,8 +437,10 @@ window.confirmTransferProfile = async function(sourceCustomerId) {
     const _tx = (typeof window.createStateTransaction === 'function') ? window.createStateTransaction() : null;
     try {
         let totalTransferred = 0;
+        let debtReasons = [];
         sourceDebts.forEach(d => {
             totalTransferred += (Number(d.amount) || 0);
+            debtReasons.push(`${d.reason || 'دين'} (${formatCurrency(Number(d.amount) || 0)})`);
             d.originalCustomerId = d.originalCustomerId || sourceProfile.id;
             d.originalCustomerName = d.originalCustomerName || sourceProfile.name;
             d.customerId = targetProfile.id;
@@ -446,7 +448,8 @@ window.confirmTransferProfile = async function(sourceCustomerId) {
             d.customerName = targetProfile.name;
             d.transferredAt = new Date().toISOString();
         });
-        logOperation("تحويل كامل بروفايل دين", `تم نقل كامل بروفايل "${sourceProfile.name}" بإجمالي ${formatCurrency(totalTransferred)} إلى "${targetProfile.name}".`);
+        const detailsStr = debtReasons.length > 0 ? ` [البنود المنقولة: ${debtReasons.join('، ')}]` : '';
+        logOperation("تحويل كامل بروفايل دين", `تم نقل كامل بروفايل "${sourceProfile.name}" بإجمالي ${formatCurrency(totalTransferred)} إلى "${targetProfile.name}".${detailsStr}`);
         if (_tx) _tx.commit();
         const m = document.getElementById('transferProfileModal');
         if (m) m.style.display = 'none';

@@ -326,18 +326,18 @@ window.FinanceDB = {
 
             totalChunks = chunks.length;
 
-            // 🛡️ [النقطة 1]: كتابة الأجزاء الجديدة بأسماء تحمل الإصدار chunk_<version>_<i> أولاً
+            // 🛡️ [النقطة 1]: كتابة الأجزاء الجديدة بالتوازي لسرعة قصوى بأسماء تحمل الإصدار chunk_<version>_<i>
             // بهذه الطريقة لا تلمس الأجزاء القديمة إطلاقاً ولو انقطعت العملية يبقى الإصدار السابق كاملاً بسحابة فايرستور
-            for (let i = 0; i < totalChunks; i++) {
+            await Promise.all(chunks.map((chunkData, i) => {
                 const chunkDoc = window.doc(window.db, "users", uid, "serials_storage", `chunk_${version}_${i}`);
-                await window.setDoc(chunkDoc, {
+                return window.setDoc(chunkDoc, {
                     chunkIndex: i,
                     totalChunks: totalChunks,
-                    data: chunks[i],
+                    data: chunkData,
                     version: version,
                     updatedAt: new Date().toISOString()
                 });
-            }
+            }));
 
             // كتابة meta الجديد كآخر خطوة في عملية الحفظ
             await window.setDoc(metaDoc, {
@@ -418,52 +418,81 @@ window.FinanceDB = {
         if (!metaSnap || !metaSnap.exists()) return null;
         const meta = metaSnap.data();
         if (!meta.chunked) {
-            return {
+            const res = {
                 serialNumbersLog: Array.isArray(meta.serialNumbersLog) ? meta.serialNumbersLog : [],
                 standaloneSerials: Array.isArray(meta.standaloneSerials) ? meta.standaloneSerials : []
             };
+            try {
+                const hashInput = JSON.stringify({ s: res.serialNumbersLog, st: res.standaloneSerials });
+                if (typeof crypto !== 'undefined' && crypto.subtle && typeof crypto.subtle.digest === 'function') {
+                    const enc = new TextEncoder().encode(hashInput);
+                    crypto.subtle.digest('SHA-256', enc).then(buf => {
+                        const hexArr = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+                        window._lastSavedSerialsHash = `${uid}_${hexArr}_${enc.length}`;
+                    }).catch(() => {});
+                }
+            } catch(hErr) {}
+            return res;
         }
         const expectedVersion = meta.version;
         const totalChunks = Number(meta.totalChunks) || 0;
         if (totalChunks <= 0) {
             throw new Error("بيانات السيريالات المقسمة تالفة: totalChunks غير صالح.");
         }
-        let fullJson = '';
+        // 🚀 تحميل أجزاء السيريالات بالتوازي (Parallel Fetching) لسرعة قصوى
+        const chunkPromises = [];
         for (let i = 0; i < totalChunks; i++) {
-            // 🛡️ [النقطة 1]: قراءة الجزء باسم chunk_<expectedVersion>_<i> أولاً
-            let chunkDocRef = expectedVersion
-                ? window.doc(window.db, "users", uid, "serials_storage", `chunk_${expectedVersion}_${i}`)
-                : window.doc(window.db, "users", uid, "serials_storage", `chunk_${i}`);
+            const chunkIndex = i;
+            chunkPromises.push((async () => {
+                let chunkDocRef = expectedVersion
+                    ? window.doc(window.db, "users", uid, "serials_storage", `chunk_${expectedVersion}_${chunkIndex}`)
+                    : window.doc(window.db, "users", uid, "serials_storage", `chunk_${chunkIndex}`);
 
-            let chunkSnap = await window.getDoc(chunkDocRef);
+                let chunkSnap = await window.getDoc(chunkDocRef);
 
-            // 🛡️ التوافق مع البيانات القديمة المخزنة بالصيغة السابقة chunk_<i>
-            if ((!chunkSnap || !chunkSnap.exists()) && expectedVersion) {
-                const fallbackDocRef = window.doc(window.db, "users", uid, "serials_storage", `chunk_${i}`);
-                const fallbackSnap = await window.getDoc(fallbackDocRef);
-                if (fallbackSnap && fallbackSnap.exists()) {
-                    chunkSnap = fallbackSnap;
+                // 🛡️ التوافق مع البيانات القديمة المخزنة بالصيغة السابقة chunk_<i>
+                if ((!chunkSnap || !chunkSnap.exists()) && expectedVersion) {
+                    const fallbackDocRef = window.doc(window.db, "users", uid, "serials_storage", `chunk_${chunkIndex}`);
+                    const fallbackSnap = await window.getDoc(fallbackDocRef);
+                    if (fallbackSnap && fallbackSnap.exists()) {
+                        chunkSnap = fallbackSnap;
+                    }
                 }
-            }
 
-            if (!chunkSnap || !chunkSnap.exists()) {
-                throw new Error(`بيانات السيريالات غير مكتملة: الجزء ${i} من أصل ${totalChunks} مفقود بالسحابة.`);
-            }
-            const chunkData = chunkSnap.data();
-            if (expectedVersion && chunkData.version && chunkData.version !== expectedVersion) {
-                throw new Error(`تعارض في إصدار أجزاء السيريالات: الجزء ${i} نسخته ${chunkData.version} بينما النسخة المطلوبة ${expectedVersion}.`);
-            }
-            if (typeof chunkData.data !== 'string') {
-                throw new Error(`بيانات السيريالات في الجزء ${i} غير صالحة.`);
-            }
-            fullJson += chunkData.data;
+                if (!chunkSnap || !chunkSnap.exists()) {
+                    throw new Error(`بيانات السيريالات غير مكتملة: الجزء ${chunkIndex} من أصل ${totalChunks} مفقود بالسحابة.`);
+                }
+                const chunkData = chunkSnap.data();
+                if (expectedVersion && chunkData.version && chunkData.version !== expectedVersion) {
+                    throw new Error(`تعارض في إصدار أجزاء السيريالات: الجزء ${chunkIndex} نسخته ${chunkData.version} بينما النسخة المطلوبة ${expectedVersion}.`);
+                }
+                if (typeof chunkData.data !== 'string') {
+                    throw new Error(`بيانات السيريالات في الجزء ${chunkIndex} غير صالحة.`);
+                }
+                return { index: chunkIndex, data: chunkData.data };
+            })());
         }
+
+        const resolvedChunks = await Promise.all(chunkPromises);
+        resolvedChunks.sort((a, b) => a.index - b.index);
+        let fullJson = resolvedChunks.map(c => c.data).join('');
         try {
             const parsed = JSON.parse(fullJson);
-            return {
+            const res = {
                 serialNumbersLog: Array.isArray(parsed.serialNumbersLog) ? parsed.serialNumbersLog : [],
                 standaloneSerials: Array.isArray(parsed.standaloneSerials) ? parsed.standaloneSerials : []
             };
+            try {
+                const hashInput = JSON.stringify({ s: res.serialNumbersLog, st: res.standaloneSerials });
+                if (typeof crypto !== 'undefined' && crypto.subtle && typeof crypto.subtle.digest === 'function') {
+                    const enc = new TextEncoder().encode(hashInput);
+                    crypto.subtle.digest('SHA-256', enc).then(buf => {
+                        const hexArr = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+                        window._lastSavedSerialsHash = `${uid}_${hexArr}_${enc.length}`;
+                    }).catch(() => {});
+                }
+            } catch(hErr) {}
+            return res;
         } catch(err) {
             throw new Error(`فشل تحليل بيانات السيريالات بعد تجميع الأجزاء: ${err.message}`);
         }

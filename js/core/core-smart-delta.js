@@ -45,7 +45,13 @@ window.processSmartDeltaRollover = async function(newState, dateStr) {
         if (diff !== 0) { debtorsDelta[newDebtor.id] = diff; deltaApplied = true; }
     });
 
-    if (!deltaApplied) return;
+    // Detect deletions from old state
+    const deletedAccountIds = (oldState.accounts || []).filter(a => !(newState.accounts || []).find(na => na.id === a.id)).map(a => a.id);
+    const deletedProductIds = (oldState.products || []).filter(p => !(newState.products || []).find(np => np.id === p.id)).map(p => p.id);
+    const deletedDebtorIds = (oldState.debtors || []).filter(d => !(newState.debtors || []).find(nd => nd.id === d.id)).map(d => d.id);
+    const hasDeletions = deletedAccountIds.length > 0 || deletedProductIds.length > 0 || deletedDebtorIds.length > 0;
+
+    if (!deltaApplied && !hasDeletions) return;
 
     try {
         const db = window.db;
@@ -58,15 +64,27 @@ window.processSmartDeltaRollover = async function(newState, dateStr) {
         let updatedAccounts = [...(latestData.accounts || [])];
         (newState.accounts || []).forEach(newAcc => {
             let existing = updatedAccounts.find(a => a.id === newAcc.id);
-            if (existing) { if (accountsDelta[newAcc.id]) existing.balance += accountsDelta[newAcc.id]; }
-            else { updatedAccounts.push({ ...newAcc }); }
+            if (existing) { 
+                if (accountsDelta[newAcc.id]) {
+                    existing.balance = Math.round(((Number(existing.balance) || 0) + accountsDelta[newAcc.id]) * 100) / 100;
+                }
+            } else { 
+                const wasInOldState = (oldState.accounts || []).some(a => a.id === newAcc.id);
+                if (!wasInOldState) updatedAccounts.push({ ...newAcc }); 
+            }
         });
         
         let updatedProducts = [...(latestData.products || [])];
         (newState.products || []).forEach(newProd => {
             let existing = updatedProducts.find(p => p.id === newProd.id);
-            if (existing) { if (productsDelta[newProd.id]) existing.quantity += productsDelta[newProd.id]; }
-            else { updatedProducts.push({ ...newProd }); }
+            if (existing) { 
+                if (productsDelta[newProd.id]) {
+                    existing.quantity = (Number(existing.quantity) || 0) + productsDelta[newProd.id];
+                }
+            } else { 
+                const wasInOldState = (oldState.products || []).some(p => p.id === newProd.id);
+                if (!wasInOldState) updatedProducts.push({ ...newProd }); 
+            }
         });
         
         let updatedDebtors = [...(latestData.debtors || [])];
@@ -74,23 +92,29 @@ window.processSmartDeltaRollover = async function(newState, dateStr) {
             let existing = updatedDebtors.find(d => d.id === newDebtor.id);
             if (existing) {
                 if (debtorsDelta[newDebtor.id]) {
-                    if (existing.amount !== undefined) existing.amount = Number(existing.amount) + debtorsDelta[newDebtor.id];
-                    else existing.total_debt = Number(existing.total_debt || 0) + debtorsDelta[newDebtor.id];
+                    if (existing.amount !== undefined) {
+                        existing.amount = Math.round(((Number(existing.amount) || 0) + debtorsDelta[newDebtor.id]) * 100) / 100;
+                    } else {
+                        existing.total_debt = Math.round(((Number(existing.total_debt) || 0) + debtorsDelta[newDebtor.id]) * 100) / 100;
+                    }
                 }
-            } else { updatedDebtors.push({ ...newDebtor }); }
+            } else { 
+                const wasInOldState = (oldState.debtors || []).some(d => d.id === newDebtor.id);
+                if (!wasInOldState) updatedDebtors.push({ ...newDebtor }); 
+            }
         });
         
         // Sync deletions: items that existed in the historical baseline but are missing now were deleted locally
-        const deletedAccountIds = (oldState.accounts || []).filter(a => !(newState.accounts || []).find(na => na.id === a.id)).map(a => a.id);
         updatedAccounts = updatedAccounts.filter(a => !deletedAccountIds.includes(a.id));
-        
-        const deletedProductIds = (oldState.products || []).filter(p => !(newState.products || []).find(np => np.id === p.id)).map(p => p.id);
         updatedProducts = updatedProducts.filter(p => !deletedProductIds.includes(p.id));
-        
-        const deletedDebtorIds = (oldState.debtors || []).filter(d => !(newState.debtors || []).find(nd => nd.id === d.id)).map(d => d.id);
         updatedDebtors = updatedDebtors.filter(d => !deletedDebtorIds.includes(d.id));
 
-        await window.setDoc(docRef, { accounts: updatedAccounts, products: updatedProducts, debtors: updatedDebtors }, { merge: true });
+        await window.setDoc(docRef, { 
+            accounts: updatedAccounts, 
+            products: updatedProducts, 
+            debtors: updatedDebtors,
+            lastUpdated: new Date().toISOString()
+        }, { merge: true });
         console.log('[Smart Delta] Successfully rolled over deltas to latestBalances');
         window.historicalBaseline = {
             accounts: JSON.parse(JSON.stringify(newState.accounts || [])),

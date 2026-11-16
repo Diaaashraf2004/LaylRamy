@@ -23,8 +23,10 @@ window.isLogMatchingDepartment = function(log, deptCategory) {
         case 'expenses':
             return type.includes('مصروف');
         case 'debts':
-            if (type.includes('مرتجع') || type.includes('التزام') || type.includes('مورد')) return false;
-            return type.includes('دين') || type.includes('سداد ديون') || type.includes('استلام سداد') || type.includes('مقاصة');
+            if (type.includes('مرتجع') || type.includes('التزام') || type.includes('مورد') || type.includes('استلام وتسديد') || type.includes('استلام بضاعة')) return false;
+            const details = String(log.details || '').trim();
+            return type.includes('دين') || type.includes('ديون') || type.includes('سداد') || type.includes('استلام سداد') || type.includes('تحصيل') || type.includes('مقاصة') || type.includes('سلفة') ||
+                   details.includes('دين') || details.includes('ديون') || details.includes('سلفة') || details.includes('متبقي') || details.includes('تحصيل ديون');
         case 'liabilities':
             if (type.includes('مرتجع') || (type.includes('دين') && !type.includes('التزام') && !type.includes('مورد'))) return false;
             return type.includes('التزام') || type.includes('دائن') || type.includes('مورد') || type.includes('استقطاع مخفي');
@@ -55,9 +57,15 @@ window.matchesDeptSubFilter = function(log, subFilter, deptCategory) {
         if (subFilter === 'transfer') return type.includes('تحويل');
         if (subFilter === 'account') return type.includes('حساب') || type.includes('رصيد');
     } else if (deptCategory === 'debts') {
-        if (subFilter === 'payment') return type.includes('سداد') || type.includes('استلام');
+        const details = String(log.details || '');
+        if (subFilter === 'payment') return type.includes('سداد') || type.includes('استلام') || type.includes('تحصيل');
+        if (subFilter === 'new_debt') {
+            if (type.includes('سداد') || type.includes('تحويل') || type.includes('نقل') || type.includes('شطب') || type.includes('إلغاء') || type.includes('حذف') || type.includes('مقاصة')) return false;
+            return type.includes('تسجيل') || type.includes('زيادة') || type.includes('سلفة') || type.includes('دين') || type.includes('ديون') || details.includes('سلفة') || details.includes('تسجيل دين');
+        }
+        if (subFilter === 'transfer') return type.includes('تحويل') || type.includes('نقل');
         if (subFilter === 'offset') return type.includes('مقاصة');
-        if (subFilter === 'cancel') return type.includes('إلغاء') || type.includes('شطب');
+        if (subFilter === 'cancel') return type.includes('إلغاء') || type.includes('شطب') || type.includes('حذف');
     } else if (deptCategory === 'liabilities') {
         if (subFilter === 'payment') return type.includes('تسديد') || type.includes('سداد');
         if (subFilter === 'supplier') return type.includes('مورد');
@@ -95,6 +103,8 @@ const DEPT_SUB_TABS_CONFIG = {
     ],
     debts: [
         { id: 'payment', title: 'سداد وتحصيل', icon: 'fas fa-hand-holding-usd text-emerald-600' },
+        { id: 'new_debt', title: 'تسجيل ديون وسلف', icon: 'fas fa-plus-circle text-orange-600' },
+        { id: 'transfer', title: 'تحويل ونقل', icon: 'fas fa-exchange-alt text-purple-600' },
         { id: 'offset', title: 'مقاصة', icon: 'fas fa-balance-scale text-blue-600' },
         { id: 'cancel', title: 'شطب وإلغاء', icon: 'fas fa-trash-alt text-rose-600' }
     ],
@@ -395,7 +405,29 @@ window.renderDeptLogTimeline = async function() {
         const lType = (log.type || '');
         let cardBorder = 'border-slate-200', badgeBg = 'bg-slate-100 text-slate-700 border-slate-200', actionIcon = 'fa-info-circle';
 
-        if (lType.includes('شراء') || lType.includes('إضافة') || lType.includes('توريد')) {
+        if (c === 'debts' || lType.includes('دين') || lType.includes('سداد') || lType.includes('مقاصة') || lType.includes('سلفة')) {
+            if (lType.includes('سداد') || lType.includes('استلام') || lType.includes('تحصيل')) {
+                cardBorder = 'border-emerald-300 hover:border-emerald-400 bg-gradient-to-r from-emerald-50/20 to-white';
+                badgeBg = 'bg-emerald-100 text-emerald-900 border-emerald-300';
+                actionIcon = 'fa-hand-holding-usd text-emerald-600';
+            } else if (lType.includes('تحويل') || lType.includes('نقل')) {
+                cardBorder = 'border-purple-300 hover:border-purple-400 bg-gradient-to-r from-purple-50/20 to-white';
+                badgeBg = 'bg-purple-100 text-purple-900 border-purple-300';
+                actionIcon = 'fa-exchange-alt text-purple-600';
+            } else if (lType.includes('مقاصة')) {
+                cardBorder = 'border-blue-300 hover:border-blue-400 bg-gradient-to-r from-blue-50/20 to-white';
+                badgeBg = 'bg-blue-100 text-blue-900 border-blue-300';
+                actionIcon = 'fa-balance-scale text-blue-600';
+            } else if (lType.includes('شطب') || lType.includes('إلغاء') || lType.includes('حذف')) {
+                cardBorder = 'border-rose-300 hover:border-rose-400 bg-gradient-to-r from-rose-50/20 to-white';
+                badgeBg = 'bg-rose-100 text-rose-900 border-rose-300';
+                actionIcon = 'fa-trash-alt text-rose-600';
+            } else {
+                cardBorder = 'border-orange-300 hover:border-orange-400 bg-gradient-to-r from-orange-50/20 to-white';
+                badgeBg = 'bg-orange-100 text-orange-900 border-orange-300';
+                actionIcon = 'fa-plus-circle text-orange-600';
+            }
+        } else if (lType.includes('شراء') || lType.includes('إضافة') || lType.includes('توريد')) {
             cardBorder = 'border-emerald-200 hover:border-emerald-300'; badgeBg = 'bg-emerald-50 text-emerald-800 border-emerald-200'; actionIcon = 'fa-cart-plus';
         } else if (lType.includes('حذف') || lType.includes('مسح') || lType.includes('إلغاء')) {
             cardBorder = 'border-rose-200 hover:border-rose-300'; badgeBg = 'bg-rose-50 text-rose-800 border-rose-200'; actionIcon = 'fa-trash-alt';
@@ -406,6 +438,11 @@ window.renderDeptLogTimeline = async function() {
         } else if (lType.includes('بيع') || lType.includes('فاتورة') || lType.includes('عربون')) {
             cardBorder = 'border-cyan-200 hover:border-cyan-300'; badgeBg = 'bg-cyan-50 text-cyan-800 border-cyan-200'; actionIcon = 'fa-receipt';
         }
+
+        // إبراز المبالغ المالية وأسماء العملاء لتكون واضحة وفائقة الوضوح
+        let formattedDetails = highlightedDetails
+            .replace(/(\d+(?:\.\d+)?)\s*(ج\.م|جنيه)/g, '<span class="font-mono font-black text-xs sm:text-sm bg-slate-100 text-slate-900 px-2 py-0.5 rounded border border-slate-200 inline-block mx-0.5">$1 $2</span>')
+            .replace(/(?:&quot;|")([^"&]+)(?:&quot;|")/g, '<strong class="text-indigo-900 font-extrabold bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">"$1"</strong>');
 
         html += `
             <div class="bg-white p-4 rounded-2xl shadow-sm border ${cardBorder} transition hover:shadow-md">
@@ -422,7 +459,7 @@ window.renderDeptLogTimeline = async function() {
                         <span class="bg-slate-50 px-2 py-1 rounded border border-slate-100 flex items-center gap-1"><i class="far fa-calendar-alt text-slate-400"></i> ${dateOnly || '-'}</span>
                     </div>
                 </div>
-                <p class="text-sm text-slate-700 leading-relaxed font-medium m-0 pr-1">${highlightedDetails}</p>
+                <div class="text-sm text-slate-700 leading-relaxed font-medium m-0 pr-1">${formattedDetails}</div>
             </div>`;
     });
     html += '</div>';
@@ -548,4 +585,5 @@ setInterval(() => {
             }
         }
     });
+    window.switchDeptSubTab = window.setDeptLogSubFilter;
 }, 1500);

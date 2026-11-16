@@ -137,10 +137,16 @@ window.paySelectedDebtsForCustomer = async function(customerId) {
 
     let totalAmount = 0;
     let paidDebtIds = [];
+    let paidDebtsList = [];
     
     checkboxes.forEach(cb => {
-        totalAmount = (typeof window.money === 'function' ? window.money : Number)(totalAmount + parseFloat(cb.dataset.amount || 0));
+        const itemAmt = parseFloat(cb.dataset.amount || 0);
+        totalAmount = (typeof window.money === 'function' ? window.money : Number)(totalAmount + itemAmt);
         paidDebtIds.push(cb.dataset.debtId);
+        const dObj = window.debtors.find(d => d.id === cb.dataset.debtId);
+        if (dObj) {
+            paidDebtsList.push(`${dObj.reason || 'دين'} (${formatCurrency(itemAmt)})`);
+        }
     });
 
     if (confirm(`هل أنت متأكد من سداد ديون بقيمة ${formatCurrency(totalAmount)} وإيداعها في "${account.name}"؟`)) {
@@ -171,8 +177,26 @@ window.paySelectedDebtsForCustomer = async function(customerId) {
             // إزالة الديون من النظام
             window.debtors = window.debtors.filter(d => !paidDebtIds.includes(d.id));
             
-            // تسجيل العملية
-            logOperation("سداد ديون محددة", `تم سداد ${paidDebtIds.length} بنود ديون للعميل "${customerName}" بقيمة ${formatCurrency(totalAmount)} وإيداعها في "${account.name}"`);
+            // تسجيل العملية في بروفايل العميل للرجوع إليها في أي وقت
+            if (customerProfile) {
+                if (!Array.isArray(customerProfile.paymentHistory)) customerProfile.paymentHistory = [];
+                const payDate = new Date().toISOString();
+                customerProfile.paymentHistory.unshift({
+                    id: generateId("pay"),
+                    date: payDate,
+                    amount: totalAmount,
+                    accountId: account.id,
+                    accountName: account.name,
+                    debtReason: paidDebtsList.length > 0 ? paidDebtsList.join('، ') : `سداد ${paidDebtIds.length} بند دين`,
+                    debtIds: [...paidDebtIds],
+                    type: 'selected_debts',
+                    note: `سداد ديون محددة بقيمة ${formatCurrency(totalAmount)} في حساب "${account.name}"`
+                });
+            }
+
+            // تسجيل العملية بتفاصيل البنود كاملة
+            const debtsDetailsStr = paidDebtsList.length > 0 ? ` [البنود المسددة: ${paidDebtsList.join('، ')}]` : '';
+            logOperation("سداد ديون محددة", `تم سداد ${paidDebtIds.length} بنود ديون للعميل "${customerName}" بقيمة ${formatCurrency(totalAmount)} وإيداعها في "${account.name}".${debtsDetailsStr}`);
             
             if (_tx) _tx.commit();
             updateUI();
@@ -371,6 +395,33 @@ window.confirmBulkDebtPayment = async function() {
             // إزالة الديون المسددة
             window.debtors = window.debtors.filter(d => !paidDebtIds.includes(d.id));
             
+            // تسجيل في بروفايل كل عميل تم السداد له لحفظ الأثر والرجوع إليه
+            const custAmounts = {};
+            checkboxes.forEach(cb => {
+                const cId = cb.dataset.customerId;
+                const amt = parseFloat(cb.dataset.amount || 0);
+                if (!custAmounts[cId]) custAmounts[cId] = { total: 0, count: 0 };
+                custAmounts[cId].total += amt;
+                custAmounts[cId].count++;
+            });
+
+            Object.entries(custAmounts).forEach(([cId, data]) => {
+                const prof = debtorProfiles.find(p => p.id === cId);
+                if (prof) {
+                    if (!Array.isArray(prof.paymentHistory)) prof.paymentHistory = [];
+                    prof.paymentHistory.unshift({
+                        id: generateId("pay"),
+                        date: new Date().toISOString(),
+                        amount: data.total,
+                        accountId: account.id,
+                        accountName: account.name,
+                        debtReason: `سداد جماعي (${data.count} بنود)`,
+                        type: 'bulk_payment',
+                        note: note ? `سداد جماعي: ${note}` : `سداد جماعي في حساب "${account.name}"`
+                    });
+                }
+            });
+
             // تسجيل اللوج
             let logDesc = `سداد جماعي لعدد ${paidDebtIds.length} بند دين بإجمالي ${formatCurrency(totalAmount)} من العملاء: (${customerNamesStr}) وإيداعها في "${account.name}"`;
             if (note) logDesc += ` - ملاحظة: ${note}`;
@@ -406,6 +457,23 @@ window.deleteDebtItem = function(debtId) {
         try {
             if (select.value === "NONE") {
                 window.debtors = window.debtors.filter(d => d.id !== debtId);
+                
+                // تسجيل شطب الدين في بروفايل العميل
+                let cProf = debt.customerId ? debtorProfiles.find(p => p.id === debt.customerId) : debtorProfiles.find(p => normalizeArabicText(p.name) === normalizeArabicText(debt.name));
+                if (cProf) {
+                    if (!Array.isArray(cProf.paymentHistory)) cProf.paymentHistory = [];
+                    cProf.paymentHistory.unshift({
+                        id: generateId("pay"),
+                        date: new Date().toISOString(),
+                        amount: Number(debt.amount) || 0,
+                        accountId: 'CANCEL',
+                        accountName: 'شطب / إعفاء',
+                        debtReason: debt.reason || 'شطب دين',
+                        type: 'cancelled',
+                        note: `شطب وإعفاء الدين بقيمة ${formatCurrency(debt.amount)} دون استرداد نقدي`
+                    });
+                }
+
                 logOperation("إلغاء دين", `شطب/حذف دين ${debt.name} بقيمة ${formatCurrency(debt.amount)} دون تعديل الخزينة.`);
                 if (_tx) _tx.commit();
                 updateUI();
@@ -418,6 +486,23 @@ window.deleteDebtItem = function(debtId) {
                     const refundAmount = Number(debt.amount) || 0;
                     account.balance = window.money(account.balance + refundAmount);
                     window.debtors = window.debtors.filter(d => d.id !== debtId);
+                    
+                    // تسجيل استرداد المبلغ في بروفايل العميل
+                    let cProf = debt.customerId ? debtorProfiles.find(p => p.id === debt.customerId) : debtorProfiles.find(p => normalizeArabicText(p.name) === normalizeArabicText(debt.name));
+                    if (cProf) {
+                        if (!Array.isArray(cProf.paymentHistory)) cProf.paymentHistory = [];
+                        cProf.paymentHistory.unshift({
+                            id: generateId("pay"),
+                            date: new Date().toISOString(),
+                            amount: refundAmount,
+                            accountId: account.id,
+                            accountName: account.name,
+                            debtReason: debt.reason || 'استرداد نقدي',
+                            type: 'refund',
+                            note: `إلغاء الدين واسترداد المبلغ لحساب "${account.name}"`
+                        });
+                    }
+
                     const newTotalLiquidity = (typeof window.money === 'function' ? window.money : Number)(window.accounts.reduce((sum, a) => sum + (Number(a.balance) || 0), 0));
                     if (typeof liquidityLog !== 'undefined') {
                         liquidityLog.push({
@@ -503,17 +588,47 @@ async function performTwoPartyOffset() {
 
                     // Reduce Creditor's Liability
                     let remainingOffsetForCreditor = offsetAmount;
-                     liabilities = liabilities.map(liability => {
+                    liabilities = liabilities.map(liability => {
                         if (liability.name === creditorName && remainingOffsetForCreditor > 0 && (Number(liability.amount) || 0) > 0.001) {
                             const deduction = Math.min(Number(liability.amount) || 0, remainingOffsetForCreditor);
                             liability.amount = (Number(liability.amount) || 0) - deduction;
                             remainingOffsetForCreditor -= deduction;
+                            if (liability.amount < 0.001) {
+                                liability.amount = 0;
+                                liability.status = 'paid';
+                            }
+                            if (!Array.isArray(liability.paymentHistory)) liability.paymentHistory = [];
+                            liability.paymentHistory.unshift({
+                                id: generateId("pay"),
+                                date: new Date().toISOString(),
+                                amount: deduction,
+                                accountId: 'OFFSET',
+                                accountName: `مقاصة مع (${debtorName})`,
+                                type: 'offset',
+                                note: `مقاصة ثنائية مع دين المدين "${debtorName}"`
+                            });
                         }
                         return liability;
-                    }).filter(liability => (Number(liability.amount) || 0) > 0.001); // Remove zeroed liabilities
+                    }).filter(liability => (Number(liability.amount) || 0) > 0.001 || (liability.paymentHistory && liability.paymentHistory.length > 0));
 
 
                     logOperation("مقاصة", `تنفيذ مقاصة بمبلغ ${formatCurrency(offsetAmount)} بين المدين "${debtorName}" والدائن "${creditorName}".`);
+
+                    // تسجيل المقاصة في بروفايل العميل
+                    const dProf = debtorProfiles.find(p => normalizeArabicText(p.name) === normalizeArabicText(debtorName));
+                    if (dProf) {
+                        if (!Array.isArray(dProf.paymentHistory)) dProf.paymentHistory = [];
+                        dProf.paymentHistory.unshift({
+                            id: generateId("pay"),
+                            date: new Date().toISOString(),
+                            amount: offsetAmount,
+                            accountId: 'OFFSET',
+                            accountName: `مقاصة مع (${creditorName})`,
+                            debtReason: 'تسوية مقاصة',
+                            type: 'offset',
+                            note: `مقاصة ثنائية مع التزام الدائن "${creditorName}"`
+                        });
+                    }
 
                     if (_tx) _tx.commit();
                     showMessage(offsetMessage, `تم تنفيذ المقاصة بنجاح بمبلغ ${formatCurrency(offsetAmount)}.`, false);

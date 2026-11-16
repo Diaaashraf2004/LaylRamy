@@ -542,10 +542,63 @@ window.processLiabilityTransfer = async function(sourceLiabilityId) {
     }
 };
  function updateOffsetDatalists() { if (!debtorNamesDatalistOffset || !creditorNamesDatalistOffset) return; // Populate Debtor Datalist
-             const debtorNames = [...new Set(debtors.filter(d => (Number(d.amount) || 0) > 0.001).map(d => d.name))].sort((a, b) => a.localeCompare(b, 'ar'));
-             debtorNamesDatalistOffset.innerHTML = debtorNames.map(name => `<option value="${escapeHTML(name)}"></option>`).join('');
+    const debtorNames = [...new Set(debtors.filter(d => (Number(d.amount) || 0) > 0.001).map(d => d.name))].sort((a, b) => a.localeCompare(b, 'ar'));
+    debtorNamesDatalistOffset.innerHTML = debtorNames.map(name => `<option value="${escapeHTML(name)}"></option>`).join('');
 
-             // Populate Creditor Datalist
-             const creditorNames = [...new Set(liabilities.filter(l => (Number(l.amount) || 0) > 0.001).map(l => l.name))].sort((a, b) => a.localeCompare(b, 'ar'));
-             creditorNamesDatalistOffset.innerHTML = creditorNames.map(name => `<option value="${escapeHTML(name)}"></option>`).join('');
-          }
+    // Populate Creditor Datalist
+    const creditorNames = [...new Set(liabilities.filter(l => (Number(l.amount) || 0) > 0.001).map(l => l.name))].sort((a, b) => a.localeCompare(b, 'ar'));
+    creditorNamesDatalistOffset.innerHTML = creditorNames.map(name => `<option value="${escapeHTML(name)}"></option>`).join('');
+}
+
+window.openAddDebtModal = function() {
+    const modal = document.getElementById('addDebtModal');
+    if (!modal) return;
+
+    const accSelect = document.getElementById('debt-advance-account');
+    if (accSelect && typeof accounts !== 'undefined' && Array.isArray(accounts)) {
+        accSelect.innerHTML = accounts.map(acc => `<option value="${escapeHTML(acc.id)}">${escapeHTML(acc.name)} (${formatCurrency(acc.balance)})</option>`).join('');
+    }
+
+    const nameInput = document.getElementById('debtor-name');
+    const phoneInput = document.getElementById('debtor-phone');
+    const addressInput = document.getElementById('debtor-address');
+    const reasonInput = document.getElementById('add-debt-reason');
+    const amountInput = document.getElementById('add-debt-amount');
+    const deductCb = document.getElementById('debt-deduct-liquidity');
+    const accContainer = document.getElementById('debt-advance-account-container');
+    const modalMsg = document.getElementById('debts-modal-message');
+
+    if (nameInput) nameInput.value = '';
+    if (phoneInput) phoneInput.value = '';
+    if (addressInput) addressInput.value = '';
+    if (reasonInput) reasonInput.value = '';
+    if (amountInput) amountInput.value = '0';
+    if (deductCb) deductCb.checked = false;
+    if (accContainer) accContainer.classList.add('hidden');
+    if (modalMsg) modalMsg.innerHTML = '';
+
+    modal.style.display = 'block';
+    setTimeout(() => { if (nameInput) nameInput.focus(); }, 50);
+};
+
+window.closeAddDebtModal = function() {
+    const modal = document.getElementById('addDebtModal');
+    if (modal) modal.style.display = 'none';
+    const nameInput = document.getElementById('debtor-name');
+    const phoneInput = document.getElementById('debtor-phone');
+    const addressInput = document.getElementById('debtor-address');
+    const reasonInput = document.getElementById('add-debt-reason');
+    const amountInput = document.getElementById('add-debt-amount');
+    const deductCb = document.getElementById('debt-deduct-liquidity');
+    const accContainer = document.getElementById('debt-advance-account-container');
+    const modalMsg = document.getElementById('debts-modal-message');
+
+    if (nameInput) nameInput.value = '';
+    if (phoneInput) phoneInput.value = '';
+    if (addressInput) addressInput.value = '';
+    if (reasonInput) reasonInput.value = '';
+    if (amountInput) amountInput.value = '0';
+    if (deductCb) deductCb.checked = false;
+    if (accContainer) accContainer.classList.add('hidden');
+    if (modalMsg) modalMsg.innerHTML = '';
+};

@@ -132,7 +132,8 @@ async function saveCurrentStateByDate(dateString, immediate = false) {
                 console.log("تم تجاهل تحديث latestBalances لأن الحالة فارغة أو مصفرة.");
             }
         } else {
-            console.log("تم منع التحديث الكامل، سيتم حساب وتطبيق الفروقات."); await processSmartDeltaRollover(typeof sanitizedState !== "undefined" ? sanitizedState : sanitizedSummary, typeof dateStr !== "undefined" ? dateStr : dateString);
+            console.log("تم منع التحديث الكامل، سيتم حساب وتطبيق الفروقات لتاريخ:", dateString); 
+            await processSmartDeltaRollover(sanitizedState || sanitizedSummary, dateString);
         }
         
         console.log("Cloud save success.");
@@ -140,6 +141,7 @@ async function saveCurrentStateByDate(dateString, immediate = false) {
             window.SaveGuard.recordLoadedState(sanitizedState);
         }
         currentLoadedDate = dateString;
+        window.currentLoadedDate = dateString;
         
         // إظهار رسالة نجاح صغيرة وسريعة
         const msgBox = document.getElementById('global-message');

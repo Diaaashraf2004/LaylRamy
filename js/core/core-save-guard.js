@@ -30,7 +30,9 @@
     function recordLoadedState(state) {
         if (!state) return;
         CRITICAL_ARRAYS.forEach(key => {
-            if (Array.isArray(state[key])) {
+            if (key === 'serialNumbersLog' && (state._serialsOffloaded || state._serialsCount)) {
+                loadedCounts[key] = state._serialsCount || (Array.isArray(state[key]) && state[key].length ? state[key].length : (typeof global.serialNumbersLog !== 'undefined' && Array.isArray(global.serialNumbersLog) ? global.serialNumbersLog.length : (loadedCounts[key] || 0)));
+            } else if (Array.isArray(state[key])) {
                 loadedCounts[key] = state[key].length;
             } else if (typeof global[key] !== 'undefined' && Array.isArray(global[key])) {
                 loadedCounts[key] = global[key].length;

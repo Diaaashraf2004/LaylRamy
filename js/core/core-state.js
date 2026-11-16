@@ -39,6 +39,11 @@ var liabilities = []; // Array of {id, name, amount}
 var totalProfit = 0;
 var operationLog = []; // Array of {timestamp, type, details}
 var currentLoadedDate = null; // Stores the YYYY-MM-DD string of the loaded data
+if (typeof window !== 'undefined') {
+    window.currentLoadedDate = null;
+    window.getCurrentLoadedDate = function() { return currentLoadedDate; };
+    window.setCurrentLoadedDate = function(v) { currentLoadedDate = v; window.currentLoadedDate = v; };
+}
        var pendingSales = window.pendingSales = []; // Array of {id, timestamp, customerName, mainProduct{name,qty,cost,supplierId}, additionalItems[{name,qty,cost,supplierId}], totalSellPrice, potentialProfit, status}
 var goodsOnConsignmentValue = 0; // Calculated from pendingSales costs
 var liquidityLog = []; // Array of {id, timestamp, type['add'/'remove'/'adjust'], amount, description, currentBalance} // Added 'adjust' type
