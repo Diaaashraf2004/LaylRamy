@@ -24,13 +24,31 @@ window.deleteSaleRecord = async function(saleId) {
         return;
     }
 
-    // Prepare refund amount
-    const refundAmount = sale.paidAmount !== undefined ? Number(sale.paidAmount) : Number(sale.grandTotal || sale.totalSellPrice || 0);
+    // حساب المبلغ النقدي الفعلي المحصل فقط (مع خصم المرتجعات الجزئية السابقة والدين المتبقي للفواتير الآجلة)
+    const alreadyReturnedValue = Array.isArray(sale.items)
+        ? sale.items.reduce((s, it) => s + ((Number(it.returnedQuantity) || 0) * (Number(it.unitPrice || it.price || 0))), 0)
+        : 0;
+    const invoiceGrand = Math.max(0, Number(sale.grandTotal || sale.totalSellPrice || 0) - alreadyReturnedValue);
+    let remainingLinkedDebt = 0;
+    if (typeof debtors !== 'undefined' && Array.isArray(debtors)) {
+        const invoiceRef = String(sale.invoiceNumber || sale.id || '').trim();
+        debtors.forEach(d => {
+            const match = (d.linkedInvoice && String(d.linkedInvoice).trim() === invoiceRef) ||
+                          (d.saleId && String(d.saleId).trim() === String(sale.id)) ||
+                          (d.invoiceNumber && String(d.invoiceNumber).trim() === invoiceRef);
+            if (match) remainingLinkedDebt += (Number(d.amount) || 0);
+        });
+    }
+    const basePaid = sale.paidAmount !== undefined ? Math.max(0, Number(sale.paidAmount) - alreadyReturnedValue) : invoiceGrand;
+    const rawRefund = (remainingLinkedDebt > 0 || sale.isCredit || sale.paymentType === 'credit' || sale.type === 'debt')
+        ? Math.max(0, invoiceGrand - remainingLinkedDebt)
+        : basePaid;
+    const refundAmount = typeof window.money === 'function' ? window.money(rawRefund) : rawRefund;
     
     // Check if modal exists
     const modal = document.getElementById('refundModal');
     if (modal && refundAmount > 0) {
-        document.getElementById('refund_info_text').textContent = `قيمة الفاتورة المستردة: ${typeof formatCurrency === 'function' ? formatCurrency(refundAmount) : refundAmount}`;
+        document.getElementById('refund_info_text').textContent = `قيمة الفاتورة المستردة نقداً: ${typeof formatCurrency === 'function' ? formatCurrency(refundAmount) : refundAmount}` + (remainingLinkedDebt > 0 ? ` (سيتم شطب الدين المتبقي ${formatCurrency(remainingLinkedDebt)} تلقائياً)` : '');
         document.getElementById('refund_pending_id').value = saleId;
         document.getElementById('refund_amount_val').value = refundAmount;
         
@@ -42,7 +60,7 @@ window.deleteSaleRecord = async function(saleId) {
             accounts.forEach(acc => {
                 const opt = document.createElement('option');
                 opt.value = acc.id;
-                opt.textContent = `خصم من: ${acc.name}`;
+                opt.textContent = `خصم من: ${acc.name} (${formatCurrency(acc.balance)})`;
                 accountSelect.appendChild(opt);
             });
         }
@@ -53,15 +71,18 @@ window.deleteSaleRecord = async function(saleId) {
         liabilityOpt.textContent = 'تسجيل كدين التزام (إضافة للديون)';
         accountSelect.appendChild(liabilityOpt);
         
-        // Custom logic for the modal button
-        const oldBtn = document.querySelector('#refundModal .btn-save');
-        const confirmBtn = oldBtn.cloneNode(true);
-        oldBtn.parentNode.replaceChild(confirmBtn, oldBtn);
-        confirmBtn.onclick = async function() {
-            modal.style.display = 'none';
-            const selectedAccount = document.getElementById('refund_account_select').value;
-            await processSaleDeletion(sale, selectedAccount, refundAmount);
-        };
+        // ربط مؤقت للزر مع إعادة ربطه تلقائياً بعد الانتهاء لحماية cancel-pending
+        const confirmBtn = document.querySelector('#refundModal .btn-save');
+        if (confirmBtn) {
+            confirmBtn.onclick = async function() {
+                modal.style.display = 'none';
+                const selectedAccount = document.getElementById('refund_account_select').value;
+                if (typeof window.confirmRefundAndCancel === 'function') {
+                    confirmBtn.onclick = window.confirmRefundAndCancel;
+                }
+                await processSaleDeletion(sale, selectedAccount, refundAmount);
+            };
+        }
         
         modal.style.display = 'flex';
     } else {
@@ -71,8 +92,28 @@ window.deleteSaleRecord = async function(saleId) {
 };
 
 window.processSaleDeletion = async function(sale, selectedAccount, refundAmount) {
+    // 1. التحقق المسبق من كفاية رصيد الخزنة قبل أي تعديل على المخزون أو السيريالات لمنع تسرّب مخزون وهمي عند الإلغاء
+    let splitCashPart = refundAmount;
+    let splitLiabPart = 0;
+    let targetRefundAcc = null;
+    if (refundAmount > 0 && selectedAccount !== 'LIABILITY') {
+        const accId = selectedAccount || (accounts.length > 0 ? accounts[0].id : 'main');
+        targetRefundAcc = accounts.find(a => String(a.id) === String(accId));
+        if (targetRefundAcc) {
+            const curBal = Number(targetRefundAcc.balance) || 0;
+            if (refundAmount > curBal + 0.001) {
+                if (!confirm(`تنبيه: رصيد حساب "${targetRefundAcc.name}" (${formatCurrency(curBal)}) أقل من المبلغ المسترد (${formatCurrency(refundAmount)}). هل تريد تسجيل الفارق كالتزام بدلاً من كشف الحساب؟`)) {
+                    return;
+                }
+                splitCashPart = typeof window.money === 'function' ? window.money(Math.max(0, curBal)) : Math.max(0, curBal);
+                splitLiabPart = typeof window.money === 'function' ? window.money(refundAmount - splitCashPart) : (refundAmount - splitCashPart);
+            }
+        }
+    }
+
     if (typeof saveStateToHistory === 'function') saveStateToHistory();
-    
+    const _tx = (typeof window.createStateTransaction === 'function') ? window.createStateTransaction() : null;
+    try {
     const saleId = sale.id;
     let itemsToReturn = sale.mainProduct ? [sale.mainProduct, ...(Array.isArray(sale.additionalItems) ? sale.additionalItems : [])]
         : (Array.isArray(sale.items) ? sale.items : (sale.invoiceData && Array.isArray(sale.invoiceData.items) ? sale.invoiceData.items : []));
@@ -102,13 +143,24 @@ window.processSaleDeletion = async function(sale, selectedAccount, refundAmount)
     itemsToReturn = itemsToReturn.filter(Boolean);
     itemsToReturn.forEach(item => {
         if (!item || !item.name) return;
+        const origQty = Number(item.quantity) || 1;
+        const alreadyRet = Number(item.returnedQuantity) || 0;
+        const returnedQty = Math.max(0, origQty - alreadyRet);
+        if (returnedQty <= 0) return;
         const cleanName = String(item.name).split(' (S/N:')[0].trim().toLowerCase();
         let productIndex = item.id ? products.findIndex(p => String(p.id) === String(item.id)) : -1;
         if (productIndex === -1) productIndex = products.findIndex(p => String(p.name).trim().toLowerCase() === cleanName);
-        const returnedQty = Number(item.quantity) || 1;
         
         if (productIndex !== -1) {
-            products[productIndex].quantity = Number(products[productIndex].quantity || 0) + returnedQty;
+            const existingProd = products[productIndex];
+            const oldQty = Number(existingProd.quantity) || 0;
+            const oldCost = Number(existingProd.costPrice) || 0;
+            const retCost = Number(item.costPrice || item.cost || oldCost) || 0;
+            const newTotalQty = oldQty + returnedQty;
+            if (newTotalQty > 0 && retCost > 0) {
+                existingProd.costPrice = Math.round((((oldQty * oldCost) + (returnedQty * retCost)) / newTotalQty) * 1e6) / 1e6;
+            }
+            existingProd.quantity = newTotalQty;
             restoreItemSerials(item);
         } else {
             products.push({
@@ -125,34 +177,46 @@ window.processSaleDeletion = async function(sale, selectedAccount, refundAmount)
 
     if (refundAmount > 0) {
         if (selectedAccount === 'LIABILITY') {
-            // Add to debts (liability)
             const liabilityObj = {
                 id: "debt-" + Date.now(),
                 name: sale.customerName || "عميل غير معروف",
-                amount: refundAmount,
+                amount: typeof window.money === 'function' ? window.money(refundAmount) : refundAmount,
+                status: 'active',
                 date: typeof getTodayDateString === 'function' ? getTodayDateString() : new Date().toISOString(),
                 type: "liability",
                 note: "مرتجع فاتورة " + (sale.invoiceNumber || saleId)
             };
             if (typeof liabilities !== 'undefined') liabilities.push(liabilityObj);
-        } else {
-            // Deduct from safe
-            const accId = selectedAccount || (accounts.length > 0 ? accounts[0].id : 'main');
-            const acc = accounts.find(a => String(a.id) === String(accId));
-            if (acc) {
-                acc.balance = Number(acc.balance) - refundAmount;
-                const newTotalLiquidity = accounts.reduce((sum, a) => sum + Number(a.balance), 0);
+        } else if (targetRefundAcc) {
+            const curBal = Number(targetRefundAcc.balance) || 0;
+            if (splitLiabPart > 0.001) {
+                targetRefundAcc.balance = typeof window.money === 'function' ? window.money(Math.max(0, curBal - splitCashPart)) : Math.max(0, curBal - splitCashPart);
+                if (typeof liabilities !== 'undefined') {
+                    liabilities.push({ id: "debt-" + Date.now(), name: sale.customerName || "عميل غير معروف", amount: splitLiabPart, status: 'active', date: typeof getTodayDateString === 'function' ? getTodayDateString() : new Date().toISOString(), type: "liability", note: "متبقي مرتجع فاتورة " + (sale.invoiceNumber || saleId) });
+                }
+                if (splitCashPart > 0.001) {
+                    const newTotalLiquidity = typeof window.money === 'function' ? window.money(accounts.reduce((sum, a) => sum + (Number(a.balance) || 0), 0)) : accounts.reduce((sum, a) => sum + (Number(a.balance) || 0), 0);
+                    liquidityLog.push({ id: generateId("liq-delete"), timestamp: new Date().toISOString(), type: "remove", amount: splitCashPart, description: `رد جزئي لمرتجع فاتورة ${sale.customerName || '-'} - ${sale.invoiceNumber || ''}`, accountId: targetRefundAcc.id, currentBalance: newTotalLiquidity });
+                }
+            } else {
+                targetRefundAcc.balance = typeof window.money === 'function' ? window.money(curBal - refundAmount) : (curBal - refundAmount);
+                const newTotalLiquidity = typeof window.money === 'function' ? window.money(accounts.reduce((sum, a) => sum + (Number(a.balance) || 0), 0)) : accounts.reduce((sum, a) => sum + (Number(a.balance) || 0), 0);
                 liquidityLog.push({
                     id: generateId("liq-delete"),
                     timestamp: new Date().toISOString(),
                     type: "remove",
                     amount: refundAmount,
                     description: `مرتجع فاتورة للعميل ${sale.customerName || '-'} - الفاتورة: ${sale.invoiceNumber || ''}`,
-                    accountId: acc.id,
+                    accountId: targetRefundAcc.id,
                     currentBalance: newTotalLiquidity
                 });
             }
         }
+    }
+
+    // عكس الاستقطاع المخفي المرتبط بهذه الفاتورة لمنع بقاء التزام وهمي يضغط على رأس المال
+    if (typeof window.reverseDeduction === 'function') {
+        window.reverseDeduction(sale, 1);
     }
 
     const saleProfit = Number(sale.profit !== undefined ? sale.profit : (sale.totalSellPrice - (sale.totalCost || 0)));
@@ -208,14 +272,19 @@ window.processSaleDeletion = async function(sale, selectedAccount, refundAmount)
         logOperation("حذف عملية بيع", `تم حذف عملية البيع للعميل "${cust}" ${inv}${refundTxt} وإرجاع الأصناف للمخزن.`);
     }
 
-    if (typeof saveData === 'function') await saveData();
-    if (typeof saveSystemToCloud === 'function') saveSystemToCloud();
+    if (_tx) _tx.commit();
+    if (typeof saveSystemToCloud === 'function') await saveSystemToCloud({ immediate: true });
     if (typeof updateUI === 'function') updateUI();
     
     if (typeof showGlobalMessage === 'function') {
         showGlobalMessage("تم حذف المبيعة وإرجاع المنتجات بنجاح.");
     } else {
         alert("تم حذف المبيعة بنجاح.");
+    }
+    } catch (delErr) {
+        if (_tx) await _tx.rollback();
+        console.error("فشل حذف عملية البيع (تم التراجع):", delErr);
+        if (typeof showGlobalMessage === 'function') showGlobalMessage("فشل حذف المبيعة وتم التراجع عن التعديلات: " + (delErr.message || ''), true);
     }
 };
 
@@ -323,9 +392,9 @@ function displaySearchResults(results) {
                     <span class="text-slate-600 bg-slate-50 px-2 py-0.5 rounded border border-slate-100 font-medium">صافي الربح: <strong class="text-emerald-600 font-mono">${profit}</strong></span>
                 </div>
             </div>
-            <div class="flex flex-row md:flex-col items-end justify-between w-full md:w-auto gap-2 border-t md:border-t-0 pt-2 md:pt-0">
+            <div class="flex flex-row md:flex-col items-end justify-between flex-wrap w-full md:w-auto gap-2 border-t md:border-t-0 pt-2 md:pt-0">
                 <div class="font-black text-slate-900 text-lg font-mono">${total}</div>
-                <div class="flex items-center gap-1.5">
+                <div class="flex flex-wrap items-center gap-1.5">
                     <button type="button" onclick="window.viewSearchInvoiceByIndex(${idx})" data-invoice-id="${sale.id || invNum}" class="view-invoice-details-btn bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-1.5 px-3 rounded-lg shadow-xs flex items-center gap-1 cursor-pointer transition-colors"><i class="fas fa-eye"></i> تفاصيل الفاتورة</button>
                     <button type="button" onclick="window.printCustomerInvoiceByIndex(${idx})" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-1.5 px-3 rounded-lg border border-slate-200 flex items-center gap-1 cursor-pointer transition-colors"><i class="fas fa-print"></i> طباعة للعميل</button>
                 </div>
@@ -377,7 +446,7 @@ window.printCustomerInvoice = async function(invoiceId) {
         try {
             const docSnap = await window.getDoc(window.doc(window.db, "users", window.currentUser.uid, "invoices", invoiceId));
             if (docSnap.exists()) invoice = docSnap.data();
-        } catch (e) {}
+        } catch (e) { console.warn('[sales-search.js] تم تجاهل خطأ:', e); }
     }
     if (invoice && typeof window.inv_printInvoice === 'function') window.inv_printInvoice(invoice);
     else alert("تعذر العثور على بيانات الفاتورة للطباعة.");
@@ -393,10 +462,10 @@ window.showPendingSaleDetails = function(pendingId) {
         modal = document.createElement('div');
         modal.id = 'pendingDetailsModal';
         modal.className = 'modal';
-        modal.style.cssText = "display:none; position:fixed; z-index:9999; left:0; top:0; width:100%; height:100%; background-color:rgba(0,0,0,0.6); backdrop-filter: blur(2px);";
+        modal.style.cssText = "display:none; position:fixed; z-index:9999; left:0; top:0; width:100%; height:100%; padding:12px; overflow-y:auto; background-color:rgba(0,0,0,0.6); backdrop-filter: blur(2px);";
         
         modal.innerHTML = `
-            <div class="modal-content" style="background-color:#fff; margin:5% auto; padding:0; border-radius:12px; width:90%; max-width:450px; overflow:hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
+            <div class="modal-content" style="background-color:#fff; margin:4vh auto; padding:0; border-radius:12px; width:94%; max-width:450px; max-height:calc(100dvh - 24px); overflow-y:auto; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
                 <div style="background: linear-gradient(to right, #1e40af, #3b82f6); padding: 15px 20px; color: white; display: flex; justify-content: space-between; align-items: center;">
                     <h3 style="margin:0; font-size:16px; font-weight:bold;">تفاصيل الربحية والتكلفة</h3>
                     <span onclick="document.getElementById('pendingDetailsModal').style.display='none'" style="cursor:pointer; font-size:24px; opacity:0.8;">&times;</span>
@@ -407,28 +476,28 @@ window.showPendingSaleDetails = function(pendingId) {
                         <p id="pd_customer_name" style="margin: 5px 0 0; color: #6b7280; font-size: 14px;">...</p>
                     </div>
                     <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; margin-bottom: 15px;">
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px;">
+                        <div style="display: flex; flex-wrap: wrap; gap: 6px; justify-content: space-between; margin-bottom: 8px; font-size: 14px;">
                             <span style="color: #64748b;">تكلفة المنتج الأصلي:</span>
                             <span id="pd_main_cost" style="font-weight: bold; font-family: monospace;">0.00</span>
                         </div>
                         <div id="pd_attachments_container" style="display: none; border-top: 1px dashed #cbd5e1; padding-top: 8px; margin-top: 8px;">
                             <div style="font-size: 12px; color: #94a3b8; margin-bottom: 4px;">+ تكلفة الملحقات المضافة:</div>
                             <ul id="pd_attachments_list" style="margin: 0; padding-right: 15px; font-size: 13px; color: #475569;"></ul>
-                            <div style="display: flex; justify-content: space-between; margin-top: 5px; font-weight: bold; font-size: 13px; color: #475569;">
+                            <div style="display: flex; flex-wrap: wrap; gap: 6px; justify-content: space-between; margin-top: 5px; font-weight: bold; font-size: 13px; color: #475569;">
                                 <span>إجمالي تكلفة الملحقات:</span>
                                 <span id="pd_attachments_cost">0.00</span>
                             </div>
                         </div>
                         <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 12px 0;">
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                        <div style="display: flex; flex-wrap: wrap; gap: 6px; justify-content: space-between; margin-bottom: 5px;">
                             <span style="color: #ef4444; font-weight: bold;">إجمالي التكلفة (عليك):</span>
                             <span id="pd_total_cost" style="color: #ef4444; font-weight: bold; font-family: monospace; font-size: 15px;">0.00</span>
                         </div>
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                        <div style="display: flex; flex-wrap: wrap; gap: 6px; justify-content: space-between; margin-bottom: 5px;">
                             <span style="color: #1f2937; font-weight: bold;">سعر البيع (للعميل):</span>
                             <span id="pd_sell_price" style="color: #1f2937; font-weight: bold; font-family: monospace; font-size: 15px;">0.00</span>
                         </div>
-                        <div id="pd_deduction_container" style="display:none; justify-content:space-between; margin-top:5px; color:#c2410c; font-weight:bold; font-size:13px;">
+                        <div id="pd_deduction_container" style="display:none; flex-wrap:wrap; gap:6px; justify-content:space-between; margin-top:5px; color:#c2410c; font-weight:bold; font-size:13px;">
                             <span id="pd_deduction_name">استقطاع مخفي:</span>
                             <span id="pd_deduction_amount" style="font-family:monospace;">0.00</span>
                         </div>
@@ -480,7 +549,7 @@ window.showPendingSaleDetails = function(pendingId) {
             const attQty = Number(att.quantity) || 0, attUnitCost = Number(att.costPrice) || 0, attTotal = attQty * attUnitCost;
             attachmentsTotalCost += attTotal;
             const li = document.createElement('li');
-            li.style.cssText = "display:flex; justify-content:space-between; margin-bottom:3px;";
+            li.style.cssText = "display:flex; flex-wrap:wrap; gap:6px; justify-content:space-between; margin-bottom:3px;";
             li.innerHTML = `<span>${attQty}x ${escapeHTML(att.name)}</span><span style="font-family: monospace;">${formatCurrency(attTotal)}</span>`;
             attachmentsList.appendChild(li);
         });

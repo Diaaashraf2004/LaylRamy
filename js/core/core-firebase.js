@@ -49,20 +49,27 @@ function removeUndefinedFromFirestoreData(obj) {
 window.doc = function(dbInstance, ...paths) { return dbInstance.doc(paths.join('/')); };
 window.setDoc = function(docRef, data, options) { return docRef.set(removeUndefinedFromFirestoreData(data), options); };
 window.updateDoc = function(docRef, data) { return docRef.update(removeUndefinedFromFirestoreData(data)); };
-window.getDoc = async function(docRef) { 
+window.getDoc = async function(docRef, options = {}) { 
+    const serverOnly = Boolean(options && options.serverOnly);
+    const timeoutMs = (options && Number(options.timeoutMs)) || (serverOnly ? 6000 : 4000);
     try {
-        // إضافة مؤقت زمني 10 ثواني لمنع توقف البرنامج إذا كانت الشبكة ضعيفة أو معلقة
+        const fetchPromise = serverOnly ? docRef.get({ source: 'server' }) : docRef.get();
         const snap = await Promise.race([
-            docRef.get(),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Network Timeout')), 4000))
+            fetchPromise,
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Network Timeout')), timeoutMs))
         ]);
         return {
             exists: () => snap.exists,
             data: () => snap.data(),
             id: snap.id,
-            ref: snap.ref
+            ref: snap.ref,
+            _fromCache: Boolean(snap.metadata && snap.metadata.fromCache)
         }; 
     } catch (error) {
+        if (serverOnly) {
+            console.warn("فشل القراءة المباشرة من السيرفر (serverOnly):", error.message);
+            return { exists: () => false, data: () => null, id: docRef.id, ref: docRef, _unreachable: true };
+        }
         console.warn("جلب البيانات من الشبكة تأخر أو فشل، جاري القراءة من الذاكرة المحلية (Cache):", error.message);
         try {
             const snap = await docRef.get({ source: 'cache' });
@@ -70,7 +77,8 @@ window.getDoc = async function(docRef) {
                 exists: () => snap.exists,
                 data: () => snap.data(),
                 id: snap.id,
-                ref: snap.ref
+                ref: snap.ref,
+                _fromCache: true
             };
         } catch (cacheError) {
             console.error("فشل القراءة من الذاكرة المحلية أيضاً:", cacheError);

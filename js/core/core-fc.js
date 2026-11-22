@@ -9,22 +9,29 @@
     let monthlyExpenses = new Map();
     let monthlyProductPurchases = new Map();
 
-    // أولاً: أضف كل الالتزامات الشهرية والديون المعالجة (التي لم تكتمل)
+    // جلب قائمة المصاريف والالتزامات التي تم توزيعها مسبقاً في هذا الشهر لمنع إعادة التوزيع اللانهائي
+    const distributedIdsKey = 'fc_distributed_expenses_v1_' + month;
+    let distributedExpenseIds = new Set();
+    try {
+        const saved = JSON.parse(localStorage.getItem(distributedIdsKey) || '[]');
+        if (Array.isArray(saved)) distributedExpenseIds = new Set(saved);
+    } catch (e) { console.warn('[core-fc.js] تم تجاهل خطأ:', e); }
+
+    // أولاً: أضف كل الالتزامات الشهرية والديون المعالجة (التي لم تكتمل ولم تُوزع في هذا الشهر)
     if (monthlyLiabilities && monthlyLiabilities.length > 0) {
         monthlyLiabilities.forEach(liability => {
             if (liability.isAmortizedDebt) {
-                // إذا كان ديناً معالجاً، تحقق مما إذا كانت مدته قد انتهت
                 if (liability.periodsProcessed < liability.totalPeriods) {
                     monthlyExpenses.set(liability.id, { name: `${liability.name} [شهر ${liability.periodsProcessed + 1}/${liability.totalPeriods}]`, amount: liability.amount });
                 }
             } else {
-                // إذا كان التزاماً شهرياً عادياً (مثل الإيجار)، أضفه دائماً
+                if (distributedExpenseIds.has(liability.id)) return;
                 monthlyExpenses.set(liability.id, { name: liability.name, amount: liability.amount });
             }
         });
     }
 
-    // ثانياً: أضف المصاريف اليومية المسجلة في السجل
+    // ثانياً: أضف المصاريف اليومية المسجلة في السجل (غير الموزعة مسبقاً)
     for (const dateStr of datesInMonth) {
         const dayData = fetchData(lsPrefix + dateStr, null);
         if (dayData && dayData.log) {
@@ -34,8 +41,9 @@
                     if (expenseMatch && expenseMatch[1]) {
                         const amount = parseFloat(expenseMatch[1].replace(/,/g, ''));
                         const name = `مصروف يومي: ${logEntry.details.split('.')[0]}`;
-                        if (!isNaN(amount)) {
-                            const expenseId = `daily-${logEntry.timestamp}`;
+                        if (!isNaN(amount) && amount > 0) {
+                            const expenseId = `daily-${logEntry.id || logEntry.timestamp}`;
+                            if (distributedExpenseIds.has(expenseId)) return;
                             monthlyExpenses.set(expenseId, { name: name, amount: (monthlyExpenses.get(expenseId)?.amount || 0) + amount });
                         }
                     }
@@ -57,7 +65,7 @@
     const { expenses } = await fc_get_data_for_month(month);
     
     fc_expenses_list.innerHTML = expenses.length > 0
-        ? expenses.map(([id, exp]) => `<label class="flex items-center p-2 rounded-md hover:bg-gray-100 cursor-pointer"><input type="checkbox" data-id="${id}" data-amount="${exp.amount}" class="fc-expense-checkbox ml-3" checked>${exp.name} <span class="mr-auto font-mono text-gray-600">${formatCurrency(exp.amount)}</span></label>`).join('')
+        ? expenses.map(([id, exp]) => `<label class="flex flex-wrap items-center gap-2 p-2 rounded-md hover:bg-gray-100 cursor-pointer"><input type="checkbox" data-id="${window.escapeHTML(id)}" data-amount="${window.escapeHTML(exp.amount)}" class="fc-expense-checkbox ml-3" checked>${window.escapeHTML(exp.name)} <span class="mr-auto font-mono text-gray-600">${formatCurrency(exp.amount)}</span></label>`).join('')
         : '<p class="text-sm text-gray-500">لا توجد مصاريف مسجلة لهذا الشهر.</p>';
 
     const productsInStock = products.filter(p => p.quantity > 0);
@@ -65,7 +73,7 @@
     fc_products_list.innerHTML = productsInStock.length > 0
         ? productsInStock.map(prod => {
             const totalValue = (prod.quantity || 0) * (prod.costPrice || 0);
-            return `<label class="flex items-center p-3 bg-gray-50 rounded-md hover:bg-gray-100 cursor-pointer border"><input type="checkbox" class="fc-product-checkbox ml-3" data-name="${prod.name}" data-id="${prod.id}" data-qty="${prod.quantity}" data-value="${totalValue}" data-cost="${prod.costPrice}" checked>${prod.name} <span class="mr-auto font-mono text-gray-600">(الكمية الحالية: ${prod.quantity}، التكلفة: ${formatCurrency(prod.costPrice)})</span></label>`;
+            return `<label class="flex flex-wrap items-center gap-2 p-3 bg-gray-50 rounded-md hover:bg-gray-100 cursor-pointer border"><input type="checkbox" class="fc-product-checkbox ml-3" data-name="${window.escapeHTML(prod.name)}" data-id="${window.escapeHTML(prod.id)}" data-qty="${prod.quantity}" data-value="${totalValue}" data-cost="${prod.costPrice}" checked>${window.escapeHTML(prod.name)} <span class="mr-auto font-mono text-gray-600 text-xs sm:text-sm">(الكمية الحالية: ${prod.quantity}، التكلفة: ${formatCurrency(prod.costPrice)})</span></label>`;
         }).join('')
         : '<p class="text-sm text-gray-500">لا توجد منتجات في المخزون حالياً.</p>';
     
@@ -188,7 +196,7 @@ function fc_populate_manual_inputs() {
         const safeId = typeof escapeHTML === 'function' ? escapeHTML(prod.dataset.id || '') : prod.dataset.id;
         const safeName = typeof escapeHTML === 'function' ? escapeHTML(prod.dataset.name || '') : prod.dataset.name;
         return `
-        <div class="flex items-center justify-between p-2">
+        <div class="flex flex-wrap items-center justify-between gap-2 p-2">
             <label for="fc-perc-${safeId}">${safeName}</label>
             <div class="flex items-center">
                 <input type="number" 
@@ -292,13 +300,15 @@ function fc_simulate_distribution() {
     if (results.error) {
         resultsHTML = `<p class="text-center text-red-700 font-semibold">${results.error}</p>`;
     } else {
-        resultsHTML += `<p class="font-semibold pb-2 mb-2 border-b">نتائج المحاكاة:</p>`;
+        resultsHTML += `<p class="font-semibold pb-2 mb-2 border-b">نتائج المحاكاة (التحميل الإداري للتسعير — لا يُغيّر قيمة رأس المال المخزني):</p>`;
         results.productUpdates.forEach(update => {
-            const originalProduct = products.find(p => p.name === update.name);
+            const originalProduct = products.find(p => p.id === update.id) || products.find(p => p.name === update.name);
             if (originalProduct) {
-                const originalCost = originalProduct.costPrice;
+                const originalCost = Number(originalProduct.costPrice) || 0;
+                const existingOverhead = Number(originalProduct.allocatedOverhead) || 0;
+                const newOverhead = Math.round((existingOverhead + update.addedCost) * 1e6) / 1e6;
                 const safeName = typeof escapeHTML === 'function' ? escapeHTML(update.name) : (window.escapeHTML ? window.escapeHTML(update.name) : update.name);
-                resultsHTML += `<div class="p-2 border-l-4 border-gray-200"><strong>${safeName}:</strong><br><span class="text-sm">التكلفة الجديدة: <span class="font-mono text-gray-500">${formatCurrency(originalCost)}</span> + <span class="font-mono text-orange-500">${formatCurrency(update.addedCost)}</span> = <span class="font-bold text-green-700 font-mono">${formatCurrency(originalCost + update.addedCost)}</span></span></div>`;
+                resultsHTML += `<div class="p-2 border-l-4 border-gray-200"><strong>${safeName}:</strong><br><span class="text-sm">تكلفة الشراء: <span class="font-mono text-gray-500">${formatCurrency(originalCost)}</span> | تحميل إداري: <span class="font-mono text-orange-500">+${formatCurrency(update.addedCost)}</span> (إجمالي التحميل: ${formatCurrency(newOverhead)}) &larr; <span class="font-bold text-green-700 font-mono">التكلفة المحمّلة للتسعير: ${formatCurrency(originalCost + newOverhead)}</span></span></div>`;
             }
         });
     }
@@ -308,7 +318,7 @@ function fc_simulate_distribution() {
 }
 
 function fc_execute_cost_distribution() {
-    if (!confirm("هل أنت متأكد من تنفيذ هذا التوزيع؟ سيتم تحديث تكاليف المنتجات المحددة بشكل دائم في بيانات اليوم الحالي.")) return;
+    if (!confirm("هل أنت متأكد من تنفيذ هذا التوزيع؟ سيتم تسجيل التحميل الإداري على المنتجات المحددة كمؤشر للتسعير دون تضخيم قيمة رأس المال المحاسبي.")) return;
 
     const results = fc_get_simulation_results();
     if (!results || results.error) {
@@ -316,42 +326,63 @@ function fc_execute_cost_distribution() {
         return;
     }
 
-     // --- تحديث تكاليف المنتجات ---
+    if (typeof saveStateToHistory === 'function') saveStateToHistory();
+
+    // تسجيل المصاريف المحملة في allocatedOverhead فقط لحماية رأس المال وتكلفة الشراء الأصلية من التضخيم الوهمي
     let logDetails = [];
     results.productUpdates.forEach(update => {
-        // �� التعديل هنا: البحث بالـ ID لضمان تحديث المنتج الصحيح بدقة
-        const productIndex = products.findIndex(p => p.id === update.id); 
-        
+        const added = Number(update.addedCost) || 0;
+        if (added <= 0) return;
+        let productIndex = products.findIndex(p => p.id === update.id);
+        if (productIndex === -1) {
+            productIndex = products.findIndex(p => p.name === update.name);
+        }
         if (productIndex > -1) {
-            const oldCost = products[productIndex].costPrice;
-            products[productIndex].costPrice += update.addedCost;
-            const newCost = products[productIndex].costPrice;
-            logDetails.push(`"${products[productIndex].name}" (من ${formatCurrency(oldCost)} إلى ${formatCurrency(newCost)})`);
-        } else {
-            // خط دفاع أخير بالاسم في حالة كان المنتج قديماً جداً بلا ID
-            const fallbackIndex = products.findIndex(p => p.name === update.name);
-            if (fallbackIndex > -1) {
-                products[fallbackIndex].costPrice += update.addedCost;
-                logDetails.push(`"${products[fallbackIndex].name}" (بالاسم)`);
+            const prod = products[productIndex];
+            const oldOverhead = Number(prod.allocatedOverhead) || 0;
+            const newOverhead = Math.round((oldOverhead + added) * 1e6) / 1e6;
+            prod.allocatedOverhead = newOverhead;
+            const loadedCost = (Number(prod.costPrice) || 0) + newOverhead;
+            logDetails.push(`"${prod.name}" (تحميل إداري +${formatCurrency(added)} -> تكلفة محمّلة ${formatCurrency(loadedCost)})`);
+        }
+    });
+
+    // تحديث عداد الديون المعالجة وتسجيل المصاريف اليومية الموزعة فقط في الوضع التلقائي (وليس الوضع اليدوي)
+    const isManualCostMode = Boolean(d('fc-manual-cost-mode-radio') && d('fc-manual-cost-mode-radio').checked);
+    if (!isManualCostMode && d('fc-expenses-to-distribute-list')) {
+        const currentMonth = fc_month_select ? fc_month_select.value : getTodayDateString().substring(0, 7);
+        const distributedIdsKey = 'fc_distributed_expenses_v1_' + currentMonth;
+        let distributedIds = [];
+        try {
+            const parsed = JSON.parse(localStorage.getItem(distributedIdsKey) || '[]');
+            if (Array.isArray(parsed)) distributedIds = parsed;
+        } catch (e) { console.warn('[core-fc.js] تم تجاهل خطأ:', e); }
+        const distSet = new Set(distributedIds);
+
+        const distributedExpenseCheckboxes = Array.from(d('fc-expenses-to-distribute-list').querySelectorAll('input:checked'));
+        distributedExpenseCheckboxes.forEach(checkbox => {
+            const expId = checkbox.dataset.id;
+            if (!expId) return;
+            const liabilityToUpdate = monthlyLiabilities.find(l => l.id === expId && l.isAmortizedDebt);
+            if (liabilityToUpdate && (Number(liabilityToUpdate.periodsProcessed) || 0) < (Number(liabilityToUpdate.totalPeriods) || 1)) {
+                liabilityToUpdate.periodsProcessed = (Number(liabilityToUpdate.periodsProcessed) || 0) + 1;
+                logOperation("تحديث معالجة دين", `تم توزيع القسط ${liabilityToUpdate.periodsProcessed} من ${liabilityToUpdate.totalPeriods} للدين "${liabilityToUpdate.name}".`);
+            } else {
+                distSet.add(expId);
             }
-        }
-    });
-    // --- الجزء الجديد: تحديث عداد الديون المعالجة التي تم توزيعها ---
-    const distributedExpenseCheckboxes = Array.from(d('fc-expenses-to-distribute-list').querySelectorAll('input:checked'));
-    distributedExpenseCheckboxes.forEach(checkbox => {
-        const liabilityId = checkbox.dataset.id; // سنحتاج لإضافة هذا في الخطوة التالية
-        const liabilityToUpdate = monthlyLiabilities.find(l => l.id === liabilityId && l.isAmortizedDebt);
-        
-        if (liabilityToUpdate) {
-            liabilityToUpdate.periodsProcessed += 1;
-            logOperation("تحديث معالجة دين", `تم توزيع القسط ${liabilityToUpdate.periodsProcessed} من ${liabilityToUpdate.totalPeriods} للدين "${liabilityToUpdate.name}".`);
-        }
-    });
+        });
+        try { localStorage.setItem(distributedIdsKey, JSON.stringify(Array.from(distSet))); } catch (e) { console.warn('[core-fc.js] تم تجاهل خطأ:', e); }
+    }
 
-
-    logOperation("توزيع تكاليف", `تم تحديث تكلفة المنتجات: ${logDetails.join(', ')}.`);
-    showGlobalMessage("تم تحديث تكاليف المنتجات بنجاح.", false);
+    logOperation("توزيع تكاليف (تحميل إداري)", `تم تسجيل التحميل الإداري للمنتجات: ${logDetails.join(', ')}.`);
+    showGlobalMessage("تم تسجيل التحميل الإداري للتسعير بنجاح دون تضخيم رأس المال.", false);
     updateUI();
+    if (fc_month_select && fc_month_select.value) {
+        fc_populate_lists(fc_month_select.value);
+    }
+    if (typeof saveSystemToCloud === 'function') {
+        saveSystemToCloud().catch(e => console.error("Cloud save failed after FC cost distribution:", e));
+    }
 }
 
 async function fc_execute_debt_treatment() {
@@ -363,7 +394,6 @@ async function fc_execute_debt_treatment() {
     }
     
     const debtId = selectedOption.value;
-    const debtAmount = parseFloat(selectedOption.dataset.amount);
     const debtIndex = debtors.findIndex(d => d.id === debtId);
     
     if (debtIndex === -1) {
@@ -371,9 +401,15 @@ async function fc_execute_debt_treatment() {
         return;
     }
 
-    const periodValue = parseInt(d('fc-distribution-period-value').value) || 1;
-    const costPerMonth = debtAmount / periodValue;
     const debtInfo = debtors[debtIndex];
+    const debtAmount = typeof window.money === 'function' ? window.money(Number(debtInfo.amount) || 0) : (Number(debtInfo.amount) || 0);
+    if (debtAmount <= 0.001) {
+        showGlobalMessage("قيمة هذا الدين صفر بالفعل ولا يحتاج للمعالجة.", true);
+        return;
+    }
+
+    const periodValue = Math.max(1, parseInt(d('fc-distribution-period-value').value, 10) || 1);
+    const costPerMonth = typeof window.money === 'function' ? window.money(debtAmount / periodValue) : (debtAmount / periodValue);
 
     if (!confirm(`هل أنت متأكد من تحويل دين "${debtInfo.name}" بقيمة ${formatCurrency(debtAmount)} إلى التزام شهري؟\nسيتم حذف الدين الحالي وإنشاء التزام شهري بقيمة ${formatCurrency(costPerMonth)} لمدة ${periodValue} شهور.`)) {
         return;
@@ -383,8 +419,11 @@ async function fc_execute_debt_treatment() {
     const _tx = (typeof window.createStateTransaction === 'function') ? window.createStateTransaction() : null;
 
     try {
-        // 1. Remove the debt from debtors list
+        // 1. Remove the debt from debtors list and record formal loss memo
         debtors.splice(debtIndex, 1);
+        if (typeof recordedLosses !== 'undefined') {
+            recordedLosses = (typeof window.money === 'function' ? window.money : Number)((Number(recordedLosses) || 0) + (Number(debtAmount) || 0));
+        }
 
         // 2. Add a new "smart" monthly liability with tracking properties
         const newMonthlyLiability = {

@@ -48,6 +48,11 @@ if (button.classList.contains('convert-pending-to-debt')) {
                     `<option value="${escapeHTML(acc.id)}">${escapeHTML(acc.name)} (رصيده الحالي: ${formatCurrency(acc.balance)})</option>`
                 ).join('');
             }
+            // إعادة ربط زر الحفظ بدالة إلغاء البيع المؤقت الأصلية (تحسباً لاستخدام النافذة سابقاً في حذف فاتورة)
+            const confirmBtn = refundModal.querySelector('.btn-save');
+            if (confirmBtn && typeof window.confirmRefundAndCancel === 'function') {
+                confirmBtn.onclick = window.confirmRefundAndCancel;
+            }
             refundModal.style.display = 'block';
         } else {
             alert("يرجى إضافة كود الـ HTML الخاص بـ refundModal أولاً.");
@@ -181,7 +186,7 @@ window.openPendingSaleInInvoiceModal = function openPendingSaleInInvoiceModal(pe
                 const newRow = document.createElement('tr');
                 newRow.classList.add('invoice-item-row');
                 if (item.id) newRow.dataset.productId = item.id;
-                newRow.dataset.itemName = item.name;
+                newRow.dataset.itemName = cleanItemName || item.name;
                 newRow.dataset.itemQty = qty;
                 newRow.dataset.itemPrice = unitPrice.toFixed(2);
                 newRow.dataset.itemSubtotal = subtotal.toFixed(2);
@@ -225,7 +230,7 @@ window.openPendingSaleInInvoiceModal = function openPendingSaleInInvoiceModal(pe
             const mainRow = document.createElement('tr');
             mainRow.classList.add('invoice-item-row');
             if (mainProduct.id) mainRow.dataset.productId = mainProduct.id;
-            mainRow.dataset.itemName = mainProduct.name;
+            mainRow.dataset.itemName = cleanMainName || mainProduct.name;
             mainRow.dataset.itemQty = mainQty;
             mainRow.dataset.itemPrice = unitPrice.toFixed(2);
             mainRow.dataset.itemSubtotal = mainSellPrice.toFixed(2);
@@ -323,27 +328,34 @@ async function handleInvoiceSearchForReturn() {
         return;
     }
 
-    let itemsHTML = invoice.items.map((item, index) => `
+    let itemsHTML = (invoice.items || []).map((item, index) => {
+        const origQty = Number(item.quantity) || 0;
+        const alreadyRet = Number(item.returnedQuantity) || 0;
+        const remQty = Math.max(0, origQty - alreadyRet);
+        return `
         <tr class="border-b border-gray-100">
-            <td class="p-2">${escapeHTML(item.name)}</td>
-            <td class="p-2 text-center">${item.quantity}</td>
+            <td class="p-2">${escapeHTML(item.name)}${alreadyRet > 0 ? ` <span class="text-xs text-amber-600">(مُرتجع سابقاً: ${alreadyRet})</span>` : ''}</td>
+            <td class="p-2 text-center">${origQty} <span class="text-xs text-gray-500">(متاح: ${remQty})</span></td>
             <td class="p-2 text-center font-mono">${formatCurrency(item.unitPrice)}</td>
             <td class="p-2" style="width: 100px;">
-                <input type="number" value="0" min="0" max="${item.quantity}" class="text-center return-invoice-qty" data-item-index="${index}" data-unit-price="${item.unitPrice}" data-cost-price="${item.costPrice}" data-serial="${escapeHTML(item.serial || '')}" data-serials='${JSON.stringify(item.serials || (item.serial ? [item.serial] : []))}'>
+                <input type="number" value="0" min="0" max="${remQty}" ${remQty <= 0 ? 'disabled' : ''} class="text-center return-invoice-qty" data-item-index="${index}" data-item-id="${escapeHTML(item.id || '')}" data-unit-price="${item.unitPrice}" data-cost-price="${item.costPrice}" data-serial="${escapeHTML(item.serial || '')}" data-serials='${JSON.stringify(item.serials || (item.serial ? [item.serial] : []))}'>
             </td>
         </tr>
-    `).join('');
+    `;
+    }).join('');
 
     invoiceSearchResults.innerHTML = `
         <div class="p-3 bg-gray-50 rounded-md border">
             <p><strong>العميل:</strong> ${escapeHTML(invoice.customerName || 'نقدي')}</p>
             <p><strong>التاريخ:</strong> ${formatDateForDisplay(invoice.saleDate || invoice.timestamp)}</p>
-            <table class="w-full mt-2 text-sm">
-                <thead><tr class="bg-gray-200">
-                    <th class="p-2 text-right">المنتج</th><th class="p-2">الكمية المباعة</th><th class="p-2">سعر البيع</th><th class="p-2">الكمية المرتجعة</th>
-                </tr></thead>
-                <tbody>${itemsHTML}</tbody>
-            </table>
+            <div class="overflow-x-auto mt-2">
+                <table class="w-full text-sm min-w-[440px]">
+                    <thead><tr class="bg-gray-200">
+                        <th class="p-2 text-right">المنتج</th><th class="p-2">الكمية المباعة</th><th class="p-2">سعر البيع</th><th class="p-2">الكمية المرتجعة</th>
+                    </tr></thead>
+                    <tbody>${itemsHTML}</tbody>
+                </table>
+            </div>
             <div class="my-4">
                 <label for="return-invoice-receive-now" class="inline-flex items-center cursor-pointer font-semibold">
                     <input type="checkbox" id="return-invoice-receive-now" checked>
@@ -372,7 +384,7 @@ window.openQuickConfirmPendingSaleModal = function(pendingId) {
     if (!modal) return;
 
     const totalAmount = Number(sale.grandTotal || sale.totalSellPrice || 0);
-    const depositPaid = Number(sale.depositPaid || sale.paidAmount || 0);
+    const depositPaid = Number(sale.depositPaid || sale.paidAmount || sale.depositAmount || 0);
     const remainingAmount = Math.max(0, (typeof window.money === 'function' ? window.money(totalAmount - depositPaid) : totalAmount - depositPaid));
 
     document.getElementById('qc_pending_id').value = pendingId;
@@ -408,8 +420,10 @@ window.executeQuickConfirmPendingSale = async function() {
 
     const sale = pendingSales[saleIndex];
     const totalAmount = Number(sale.grandTotal || sale.totalSellPrice || 0);
-    const depositPaid = Number(sale.depositPaid || sale.paidAmount || 0);
-    const remainingAmount = Math.max(0, (typeof window.money === 'function' ? window.money(totalAmount - depositPaid) : totalAmount - depositPaid));
+    const depositPaid = Number(sale.depositPaid || sale.paidAmount || sale.depositAmount || 0);
+    const rawDiff = (typeof window.money === 'function' ? window.money(totalAmount - depositPaid) : totalAmount - depositPaid);
+    const remainingAmount = Math.max(0, rawDiff);
+    const excessDepositToRefund = rawDiff < 0 ? (typeof window.money === 'function' ? window.money(Math.abs(rawDiff)) : Math.abs(rawDiff)) : 0;
 
     let selectedAccountId = document.getElementById('qc_account_select')?.value;
     if (remainingAmount > 0 && !selectedAccountId) {
@@ -424,15 +438,16 @@ window.executeQuickConfirmPendingSale = async function() {
     const submitBtn = document.getElementById('qc_submit_btn');
     if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "جاري الحفظ..."; }
 
+    const _tx = (typeof window.createStateTransaction === 'function') ? window.createStateTransaction() : null;
     try {
         if (typeof saveStateToHistory === 'function') saveStateToHistory();
 
-        // 1. تحديث رصيد الخزينة والسيولة بالمبلغ المحصل الآن
+        // 1. تحديث رصيد الخزينة والسيولة بالمبلغ المحصل الآن (أو تسجيل فائض العربون كالتزام مستحق للعميل)
         if (remainingAmount > 0) {
             const acc = (typeof accounts !== 'undefined') ? accounts.find(a => a.id === selectedAccountId) : null;
             if (acc) {
                 acc.balance = (typeof window.money === 'function') ? window.money(Number(acc.balance || 0) + remainingAmount) : (Number(acc.balance || 0) + remainingAmount);
-                const newTotalLiquidity = accounts.reduce((sum, a) => sum + Number(a.balance || 0), 0);
+                const newTotalLiquidity = (typeof window.money === 'function' ? window.money : Number)(accounts.reduce((sum, a) => sum + Number(a.balance || 0), 0));
                 const logDesc = depositPaid > 0 
                     ? `استلام باقي فاتورة ${sale.customerName || '-'} (إجمالي: ${totalAmount} - عربون: ${depositPaid})`
                     : `استلام فاتورة مبيعات ${sale.customerName || '-'}`;
@@ -449,24 +464,39 @@ window.executeQuickConfirmPendingSale = async function() {
                     });
                 }
             }
+        } else if (excessDepositToRefund > 0.001 && typeof liabilities !== 'undefined' && Array.isArray(liabilities)) {
+            liabilities.push({
+                id: generateId('liab-overdep'),
+                name: `فائض عربون مستحق للعميل: ${sale.customerName || 'عميل'}`,
+                amount: excessDepositToRefund,
+                status: 'active',
+                source: 'deposit_overpayment',
+                createdAt: new Date().toISOString(),
+                note: `فائض عربون (${depositPaid}) مقابل إجمالي فاتورة (${totalAmount})`
+            });
         }
 
-        // 2. تحديث السيريال نمبرز إلى مباعة
+        // 2. تحديث السيريال نمبرز إلى مباعة (مع الحفاظ على id و serial للصنف الرئيسي والملحقات)
         let normalizedItems = [];
         if (Array.isArray(sale.items) && sale.items.length > 0) {
             normalizedItems = [...sale.items];
         } else if (sale.mainProduct) {
             const mainQty = Number(sale.mainProduct.quantity || 1);
+            const serialMatch = String(sale.mainProduct.name || '').match(/\(S\/N:\s*(.*?)\)/i);
+            const mainSerial = sale.mainProduct.serial || (serialMatch ? serialMatch[1].trim() : null);
+            const cleanName = String(sale.mainProduct.name || '').replace(/\s*\(S\/N:\s*.*?\)\s*/gi, '').trim();
             normalizedItems.push({
-                name: sale.mainProduct.name,
+                id: sale.mainProduct.id || null,
+                name: cleanName || sale.mainProduct.name,
                 quantity: mainQty,
                 costPrice: Number(sale.mainProduct.costPrice || sale.mainProduct.cost || 0),
-                unitPrice: totalAmount / mainQty,
-                subtotal: totalAmount
+                unitPrice: mainQty > 0 ? totalAmount / mainQty : totalAmount,
+                subtotal: totalAmount,
+                serial: mainSerial || null
             });
             if (Array.isArray(sale.additionalItems)) {
                 sale.additionalItems.forEach(att => {
-                    normalizedItems.push({ name: att.name, quantity: Number(att.quantity || 1), costPrice: Number(att.costPrice || att.cost || 0), unitPrice: 0, subtotal: 0 });
+                    normalizedItems.push({ id: att.id || null, name: att.name, quantity: Number(att.quantity || 1), costPrice: Number(att.costPrice || att.cost || 0), unitPrice: 0, subtotal: 0, serial: att.serial || null });
                 });
             }
         }
@@ -482,7 +512,7 @@ window.executeQuickConfirmPendingSale = async function() {
         const netProfit = Number(sale.profit !== undefined ? sale.profit : (sale.potentialProfit || 0));
         if (typeof totalProfit !== 'undefined') {
             const moneyFn = typeof window.money === 'function' ? window.money : (v) => Math.round(v * 100) / 100;
-            totalProfit = moneyFn(totalProfit + netProfit);
+            totalProfit = moneyFn((Number(totalProfit) || 0) + netProfit);
         }
 
         // 4. توليد رقم الفاتورة
@@ -537,12 +567,19 @@ window.executeQuickConfirmPendingSale = async function() {
         if (typeof salesToday !== 'undefined' && Array.isArray(salesToday)) salesToday.push(invoiceRecord);
         if (typeof invoices !== 'undefined' && Array.isArray(invoices)) invoices.push(invoiceRecord);
 
-        // 8. الحفظ في السحابة وحفظ الحالة
+        // 8. الحفظ في السحابة وحفظ الحالة (بدون تكرار الحفظ)
         if (typeof saveInvoiceToFirestore === 'function') {
-            try { await saveInvoiceToFirestore(invoiceRecord); } catch(e) { console.warn("تعذر رفع الفاتورة للسحابة:", e); }
+            await saveInvoiceToFirestore(invoiceRecord);
         }
-        if (typeof saveCurrentStateByDate === 'function') await saveCurrentStateByDate(typeof currentLoadedDate !== 'undefined' ? currentLoadedDate : null);
-        if (typeof saveSystemToCloud === 'function') await saveSystemToCloud();
+        if (typeof saveCurrentStateByDate === 'function') {
+            const safeDate = (typeof currentLoadedDate !== 'undefined' && currentLoadedDate)
+                ? currentLoadedDate
+                : (typeof getTodayDateString === 'function' ? getTodayDateString() : (typeof getCairoDateString === 'function' ? getCairoDateString() : new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' })));
+            await saveCurrentStateByDate(safeDate, true);
+        } else if (typeof saveSystemToCloud === 'function') {
+            await saveSystemToCloud({ immediate: true });
+        }
+        if (_tx) _tx.commit();
 
         if (typeof logOperation === 'function') {
             logOperation("تأكيد بيع مؤقت", `تم تأكيد البيع المؤقت للعميل ${invoiceRecord.customerName} بقيمة ${totalAmount} ج.م.`);
@@ -558,9 +595,10 @@ window.executeQuickConfirmPendingSale = async function() {
             showGlobalMessage(`✅ تم تأكيد الفاتورة رقم (${invoiceRecord.invoiceNumber}) وإيداع المبلغ بنجاح!`);
         }
     } catch(err) {
-        console.error("خطأ أثناء تأكيد البيع المؤقت:", err);
-        if (typeof showGlobalMessage === 'function') showGlobalMessage("حدث خطأ أثناء التأكيد: " + err.message, true);
-        else if (typeof alert === 'function') alert("حدث خطأ أثناء التأكيد: " + err.message);
+        if (_tx) await _tx.rollback();
+        console.error("خطأ أثناء تأكيد البيع المؤقت (تم التراجع):", err);
+        if (typeof showGlobalMessage === 'function') showGlobalMessage("حدث خطأ أثناء التأكيد وتم التراجع عن التعديلات: " + err.message, true);
+        else if (typeof alert === 'function') alert("حدث خطأ أثناء التأكيد وتم التراجع عن التعديلات: " + err.message);
     } finally {
         if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = "تأكيد الإيداع والبيع ✅"; }
     }

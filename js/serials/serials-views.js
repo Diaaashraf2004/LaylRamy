@@ -224,12 +224,12 @@
             const noteSnippet = hasNotes ? window.escapeHTML(log.notes) : 'لا توجد ملاحظات';
 
             html += `
-            <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
-                <div>
+            <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm hover:shadow-md transition-all flex flex-col justify-between min-w-0">
+                <div class="min-w-0">
                     <!-- رأس الكارت -->
-                    <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-100">
-                        <div class="flex items-center gap-1.5">
-                            <span class="font-mono font-bold text-sm text-slate-800 tracking-wider">${window.escapeHTML(log.serial)}</span>
+                    <div class="flex flex-wrap items-center justify-between gap-1.5 pb-2 mb-2 border-b border-slate-100">
+                        <div class="flex items-center gap-1.5 min-w-0">
+                            <span class="font-mono font-bold text-sm text-slate-800 tracking-wider break-all">${window.escapeHTML(log.serial)}</span>
                             <button onclick="window.copySerialToClipboard('${window.escapeHTML(log.serial)}', this)" class="p-1 text-slate-400 hover:text-blue-600 transition-colors" title="نسخ السيريال">
                                 <i class="fas fa-copy text-xs"></i>
                             </button>
@@ -249,11 +249,11 @@
 
                     <!-- نسبة البطارية التفاعلية -->
                     <div class="p-2.5 rounded-xl border mb-3 ${batteryColor}">
-                        <div class="flex justify-between items-center mb-1">
+                        <div class="flex flex-wrap justify-between items-center gap-1 mb-1">
                             <span class="text-xs font-bold flex items-center gap-1">
                                 <i class="fas ${batteryIcon}"></i> البطارية: ${battery}%
                             </span>
-                            <div class="flex gap-1">
+                            <div class="flex flex-wrap gap-1">
                                 <button onclick="window.quickSetBattery('${window.escapeHTML(log.serial)}', 100)" class="text-[10px] bg-white px-1.5 py-0.5 rounded font-bold border hover:bg-slate-50" title="تعيين 100%">100%</button>
                                 <button onclick="window.quickSetBattery('${window.escapeHTML(log.serial)}', 80)" class="text-[10px] bg-white px-1.5 py-0.5 rounded font-bold border hover:bg-slate-50" title="تعيين 80%">80%</button>
                                 <button onclick="window.quickSetBattery('${window.escapeHTML(log.serial)}', 50)" class="text-[10px] bg-white px-1.5 py-0.5 rounded font-bold border hover:bg-slate-50" title="تعيين 50%">50%</button>
@@ -275,8 +275,8 @@
                 </div>
 
                 <!-- أزرار الإجراءات السريعة -->
-                <div class="pt-2 border-t border-slate-100 flex items-center justify-between gap-1.5">
-                    <div class="flex gap-1.5">
+                <div class="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-1.5">
+                    <div class="flex flex-wrap gap-1.5">
                         <button onclick="window.toggleStandaloneFlagByIndex(${serialIndex}, 'isChecked')" class="text-xs px-2.5 py-1 rounded-lg border font-bold ${log.isChecked ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-500'}" title="فحص">
                             <i class="fas ${log.isChecked ? 'fa-check-circle' : 'fa-circle'}"></i> فحص
                         </button>
@@ -353,21 +353,21 @@
                 let batClass = battery >= 80 ? 'text-emerald-700 bg-emerald-50' : (battery >= 20 ? 'text-amber-700 bg-amber-50' : 'text-rose-700 bg-rose-50');
 
                 html += `
-                    <div class="p-3 rounded-xl border border-slate-100 bg-slate-50/60 hover:bg-white hover:shadow-sm transition-all flex flex-col justify-between">
-                        <div>
-                            <div class="flex justify-between items-center mb-1.5">
-                                <span class="font-mono font-bold text-xs text-slate-800">${window.escapeHTML(log.serial)}</span>
+                    <div class="p-3 rounded-xl border border-slate-100 bg-slate-50/60 hover:bg-white hover:shadow-sm transition-all flex flex-col justify-between min-w-0">
+                        <div class="min-w-0">
+                            <div class="flex flex-wrap justify-between items-center gap-1 mb-1.5">
+                                <span class="font-mono font-bold text-xs text-slate-800 break-all">${window.escapeHTML(log.serial)}</span>
                                 <button onclick="window.copySerialToClipboard('${window.escapeHTML(log.serial)}', this)" class="text-slate-400 hover:text-blue-600 p-0.5" title="نسخ">
                                     <i class="fas fa-copy text-xs"></i>
                                 </button>
                             </div>
                             <p class="text-xs font-bold text-slate-700 mb-2 truncate">${window.escapeHTML(log.productName || 'جهاز')}</p>
-                            <div class="flex items-center justify-between text-xs mb-2">
+                            <div class="flex flex-wrap items-center justify-between gap-1 text-xs mb-2">
                                 <span class="px-2 py-0.5 rounded font-bold ${batClass}">🔋 ${battery}%</span>
                                 <span class="text-[11px] ${log.isChecked ? 'text-emerald-600 font-bold' : 'text-slate-400'}">${log.isChecked ? '✓ مفحوص' : 'غير مفحوص'}</span>
                             </div>
                         </div>
-                        <button onclick="window.openNoteModal('${window.escapeHTML(log.serial)}')" class="text-[11px] text-right truncate text-slate-500 hover:text-blue-600 pt-1.5 border-t border-slate-200/60">
+                        <button onclick="window.openNoteModal('${window.escapeHTML(log.serial)}')" class="text-[11px] text-right truncate text-slate-500 hover:text-blue-600 pt-1.5 border-t border-slate-200/60 min-w-0">
                             📝 ${log.notes ? window.escapeHTML(log.notes) : 'أضف ملاحظة...'}
                         </button>
                     </div>

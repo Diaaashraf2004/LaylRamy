@@ -46,6 +46,7 @@ function resetAllData() {
     // إعادة تعيين الحسابات إلى حساب افتراضي واحد
     accounts = [{ id: 'main', name: 'الخزينة الرئيسية', balance: 0.00 }]; 
     expenses = 0;
+    recordedLosses = 0;
     debtors = [];
     debtorProfiles = []; // مسح ملفات المديونيات أيضاً
     debtCollectionNotes = [];
@@ -57,7 +58,13 @@ function resetAllData() {
     liquidityLog = [];
     salesToday = [];
     serialNumbersLog = [];
+    if (typeof window.setStandaloneSerials === 'function') {
+        window.setStandaloneSerials([], true);
+    }
+    window._tempStandaloneSerials = [];
+    if (typeof inboxTasks !== 'undefined') inboxTasks = [];
     purchaseInvoices = [];
+    if (typeof purchaseReturns !== 'undefined') purchaseReturns = [];
     pendingPurchases = [];
     completedReturns = [];
     pendingReturns = [];
@@ -261,7 +268,7 @@ function sanitizeDataForFirebase(obj) {
                 if (messageElement.style) messageElement.style.display = 'none';
             }
         }
-        function showGlobalMessage(text, isError = false, isInfo = false){ const element = d("global-message"); if(!element) { if (typeof window.showGlobalMessage === 'function') return window.showGlobalMessage(text, isError); return; } showMessage(element, text, isError, isInfo); }
+        function showGlobalMessage(text, isError = false, isInfo = false){ const element = d("global-message"); if(!element) { if (typeof window.showGlobalMessage === 'function' && window.showGlobalMessage !== showGlobalMessage) return window.showGlobalMessage(text, isError); return; } showMessage(element, text, isError, isInfo); }
         function updateLoadDateDayName(dateString, displayElement) { if (!displayElement) { /* console.warn("Day name display element not provided!"); */ return; } if (!dateString || typeof dateString !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(dateString)) { displayElement.textContent = ''; return; } try { const date = new Date(dateString + 'T00:00:00'); // Ensure it's treated as local
              const options = { timeZone: 'Africa/Cairo', weekday: 'long' }; const dayName = date.toLocaleDateString('ar-EG', options); displayElement.textContent = `(${dayName})`; } catch (e) { console.error("Error getting day name for", dateString, ":", e); displayElement.textContent = ''; } }
        function isStateMeaningful(state) {
@@ -270,7 +277,7 @@ function sanitizeDataForFirebase(obj) {
     return (
         (Array.isArray(state.products) && state.products.length > 0) ||
         (Array.isArray(state.suppliers) && state.suppliers.length > 0) ||
-        (Array.isArray(state.accounts) && state.accounts.length > 0) ||
+        (Array.isArray(state.accounts) && (state.accounts.length > 1 || state.accounts.some(a => Math.abs(Number(a && a.balance) || 0) > 0.001))) ||
         (Array.isArray(state.debtors) && state.debtors.length > 0) ||
         (Array.isArray(state.debtorProfiles) && state.debtorProfiles.length > 0) ||
         (Array.isArray(state.debtCollectionNotes) && state.debtCollectionNotes.length > 0) ||
@@ -282,7 +289,7 @@ function sanitizeDataForFirebase(obj) {
         (Array.isArray(state.pendingPurchases) && state.pendingPurchases.length > 0) ||
         (Array.isArray(state.pendingReturns) && state.pendingReturns.length > 0) ||
         (Array.isArray(state.pendingOrders) && state.pendingOrders.length > 0) ||
-        (Array.isArray(state.recordedLosses) && state.recordedLosses.length > 0) ||
+        Number(state.recordedLosses || 0) !== 0 ||
         Number(state.pendingReturnsValue || 0) !== 0 ||
         Number(state.expenses || 0) !== 0 ||
         Number(state.profit || 0) !== 0
@@ -296,7 +303,7 @@ async function findLatestValidDayBeforeDate(userId, targetDate) {
             daysColRef,
             window.where("savedForDate", "<", targetDate),
             window.orderBy("savedForDate", "desc"),
-            window.limit(15)
+            window.limit(5)
         );
 
         const snap = await window.getDocs(q);
@@ -388,12 +395,13 @@ async function saveInvoiceToFirestore(invoiceRecord) {
     try {
         const invoiceDocRef = window.doc(window.db, "users", userId, "invoices", invoiceRecord.id);
         // ننتظر حتى ينتهي الحفظ تماماً
-        window.setDoc(invoiceDocRef, invoiceRecord, { merge: true });
+        await window.setDoc(invoiceDocRef, invoiceRecord, { merge: true });
         console.log(`تم رفع الفاتورة ${invoiceRecord.invoiceNumber} للسحابة بنجاح.`);
     } catch (error) {
         console.error("خطأ في الرفع للسحابة:", error);
         // تنبيه المستخدم بوجود مشكلة في السحابة
         alert(`تنبيه: تم حفظ الفاتورة محلياً، ولكن فشل رفعها للسحابة.\nالسبب: ${error.message}`);
+        throw error;
     }
 }
 // ================== بداية دالة ترحيل البيانات القديمة ==================
@@ -540,6 +548,8 @@ function createStateSnapshot() {
         pendingPurchases: JSON.parse(JSON.stringify(pendingPurchases)),
         completedReturns: JSON.parse(JSON.stringify(completedReturns)),
         pendingReturns: JSON.parse(JSON.stringify(pendingReturns)),
+        pendingReturnsValue: (typeof pendingReturnsValue !== 'undefined') ? Number(pendingReturnsValue) || 0 : 0,
+        inboxTasks: (typeof inboxTasks !== 'undefined' && Array.isArray(inboxTasks)) ? JSON.parse(JSON.stringify(inboxTasks)) : [],
         // �� السطر الجديد: أخذ لقطة من الفواتير المعلقة لنظام الاستبدال
         pendingOrders: JSON.parse(JSON.stringify(window.pendingOrders || [])),
         standaloneSerials: typeof window.getStandaloneSerials === 'function' ? JSON.parse(JSON.stringify(window.getStandaloneSerials())) : []
@@ -622,7 +632,10 @@ function loadStateFromSnapshot(snapshot) {
     products = snapshot.products || [];
     assignMissingProductIds();
     suppliers = snapshot.suppliers || [];
-    accounts = snapshot.accounts || [];
+    accounts = (snapshot.accounts || []).map(acc => ({
+        ...acc,
+        balance: (typeof window.money === 'function') ? window.money(acc.balance) : (Number(acc.balance) || 0)
+    }));
     expenses = snapshot.expenses || 0;
     recordedLosses = snapshot.recordedLosses || 0;
     debtors = snapshot.debtors || [];
@@ -656,18 +669,21 @@ function loadStateFromSnapshot(snapshot) {
     pendingPurchases = snapshot.pendingPurchases || [];
     completedReturns = snapshot.completedReturns || [];
     pendingReturns = snapshot.pendingReturns || [];
+    pendingReturnsValue = Number(snapshot.pendingReturnsValue) || 0;
+    if (typeof inboxTasks !== 'undefined') inboxTasks = snapshot.inboxTasks || [];
     
     // �� السطر المحدث: استرجاع الفواتير المعلقة الخاصة بنظام الاستبدال عند التراجع
     window.pendingOrders = snapshot.pendingOrders || [];
     
     // �� استرجاع حالة السيريالات
     if (typeof window.setStandaloneSerials === 'function') {
-        window.setStandaloneSerials(snapshot.standaloneSerials || []);
+        window.setStandaloneSerials(snapshot.standaloneSerials || [], true);
     } else {
         window._tempStandaloneSerials = snapshot.standaloneSerials || [];
     }
 }
 function saveStateToHistory() {
+    window._autoSaveDirty = true;
     // هذه هي الدالة الرئيسية التي سنستدعيها قبل كل إجراء
     // 1. أضف الحالة الحالية إلى ذاكرة التراجع
     stateHistory.push(createStateSnapshot());
@@ -703,6 +719,17 @@ async function undo() {
     }
 
     try {
+        const userId = window.currentUser ? window.currentUser.uid : null;
+        if (userId && window.SessionGuard && typeof window.SessionGuard.assertCanWrite === 'function') {
+            const canWriteCloud = await window.SessionGuard.assertCanWrite();
+            if (!canWriteCloud) {
+                showGlobalMessage("تعذر التراجع: الجلسة غير نشطة أو الخادم غير متاح للكتابة.", true);
+                return;
+            }
+        }
+
+        if (stateHistory.length === 0) return;
+
         // 1. أخذ لقطة للوضع الحالي قبل التغيير (لغرض الإعادة Redo)
         redoHistory.push(createStateSnapshot());
 
@@ -715,6 +742,7 @@ async function undo() {
 
         // 3. تطبيق الحالة السابقة محلياً فوراً
         loadStateFromSnapshot(lastState);
+        if (window.FinancialIntegrityGuard && typeof window.FinancialIntegrityGuard.resetBaseline === 'function') window.FinancialIntegrityGuard.resetBaseline();
 
         // ⚡⚡ التحديث الفوري للواجهة والأزرار في أجزاء من الثانية دون انتظار الشبكة ⚡⚡
         if (typeof updateUI === 'function') updateUI();
@@ -727,8 +755,7 @@ async function undo() {
         }
         showGlobalMessage("تم التراجع بنجاح.", false);
 
-        // 4. مزامنة التغييرات مع السحابة (Firebase) في الخلفية دون تعطيل الواجهة
-        const userId = window.currentUser ? window.currentUser.uid : null;
+        // 4. مزامنة التغييرات مع السحابة (Firebase)
         if (userId) {
             // أ. السيناريو الأول: حذف الفواتير التي أُنشئت حديثاً وتم التراجع عنها
             const createdInvoiceIds = currentInvoiceIds.filter(id => !previousInvoiceIds.includes(id));
@@ -754,10 +781,13 @@ async function undo() {
                 });
                 await Promise.all(restorePromises);
             }
-        }
 
-        // 5. حفظ التغييرات الشاملة بالسحابة فوراً وبدون تأخير
-        await saveSystemToCloud({ immediate: true });
+            // 5. حفظ التغييرات الشاملة بالسحابة فوراً مع التصريح بالانكماش لمرة واحدة
+            if (window.SaveGuard && typeof window.SaveGuard.allowShrinkOnce === 'function') {
+                window.SaveGuard.allowShrinkOnce();
+            }
+            await saveSystemToCloud({ immediate: true });
+        }
 
     } catch (error) {
         console.error("حدث خطأ أثناء مزامنة التراجع بالسحابة:", error);
@@ -776,6 +806,17 @@ async function redo() {
     }
 
     try {
+        const userId = window.currentUser ? window.currentUser.uid : null;
+        if (userId && window.SessionGuard && typeof window.SessionGuard.assertCanWrite === 'function') {
+            const canWriteCloud = await window.SessionGuard.assertCanWrite();
+            if (!canWriteCloud) {
+                showGlobalMessage("تعذر الإعادة: الجلسة غير نشطة أو الخادم غير متاح للكتابة.", true);
+                return;
+            }
+        }
+
+        if (redoHistory.length === 0) return;
+
         // لقطة للوضع الحالي قبل التغيير
         const currentInvoiceIds = salesToday.map(inv => inv.id);
 
@@ -788,6 +829,7 @@ async function redo() {
 
         // تطبيق الحالة القادمة محلياً
         loadStateFromSnapshot(nextState);
+        if (window.FinancialIntegrityGuard && typeof window.FinancialIntegrityGuard.resetBaseline === 'function') window.FinancialIntegrityGuard.resetBaseline();
 
         // ⚡⚡ التحديث الفوري للواجهة والأزرار في أجزاء من الثانية دون انتظار الشبكة ⚡⚡
         if (typeof updateUI === 'function') updateUI();
@@ -800,7 +842,6 @@ async function redo() {
         }
         showGlobalMessage("تمت الإعادة بنجاح.", false);
 
-        const userId = window.currentUser ? window.currentUser.uid : null;
         if (userId) {
             // أ. السيناريو الأول: إعادة "الإنشاء" (استعادة ما تم التراجع عن إنشائه)
             const reCreatedInvoiceIds = nextInvoiceIds.filter(id => !currentInvoiceIds.includes(id));
@@ -826,10 +867,13 @@ async function redo() {
                     window.deleteDoc(window.doc(window.db, "users", userId, "invoices", id)).catch(e => console.error(e))
                 ));
             }
-        }
 
-        // حفظ التغييرات الشاملة بالسحابة فوراً وبدون تأخير
-        await saveSystemToCloud({ immediate: true });
+            // حفظ التغييرات الشاملة بالسحابة فوراً مع التصريح بالانكماش لمرة واحدة
+            if (window.SaveGuard && typeof window.SaveGuard.allowShrinkOnce === 'function') {
+                window.SaveGuard.allowShrinkOnce();
+            }
+            await saveSystemToCloud({ immediate: true });
+        }
 
     } catch (error) {
         console.error("حدث خطأ أثناء مزامنة الإعادة بالسحابة:", error);
@@ -855,7 +899,10 @@ function loadState(data, dateString) {
     
     // هذا الجزء يعالج السيولة القديمة والجديدة
     if (data.accounts && Array.isArray(data.accounts) && data.accounts.length > 0) {
-        accounts = data.accounts;
+        accounts = data.accounts.map(acc => ({
+            ...acc,
+            balance: (typeof window.money === 'function') ? window.money(acc.balance) : (Number(acc.balance) || 0)
+        }));
     } else {
         console.log("Migrating old 'liquidity' value to new 'accounts' system.");
         accounts = [{ id: 'main', name: 'الخزينة الرئيسية', balance: parseFloat(data.liquidity) || 0 }];
@@ -915,6 +962,8 @@ function loadState(data, dateString) {
         const todayStr = (typeof getTodayDateString === 'function') 
             ? getTodayDateString() 
             : (typeof getCairoDateString === 'function' ? getCairoDateString() : new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' }));
+        window._isArchiveBrowsingMode = Boolean(dateString && dateString !== todayStr);
+        window._autoSaveDirty = false;
         const warningBanner = document.getElementById('historical-date-warning');
         const warningDateSpan = document.getElementById('historical-date-display');
         if (warningBanner) {
@@ -953,6 +1002,7 @@ function loadState(data, dateString) {
     stateHistory = []; 
     redoHistory = [];
     updateUndoRedoButtons();
+    if (window.FinancialIntegrityGuard && typeof window.FinancialIntegrityGuard.resetBaseline === 'function') window.FinancialIntegrityGuard.resetBaseline();
 }// ✅✅✅ الكود الجديد والصحيح لدالة resetState ✅✅✅
 function resetState() {
     console.log("resetState called - Clearing DAILY transactions only.");
@@ -991,7 +1041,7 @@ function resetState() {
         el.textContent = '';
         el.classList.remove('visible', 'error', 'success', 'info');
     });
-}        function logOperation(type, details){ const timestamp = new Date().toISOString(); operationLog.push({id: generateId("LOG"), timestamp, type, details}); updateLogDisplay() } // Log display updated immediately
+}        function logOperation(type, details){ window._autoSaveDirty = true; const timestamp = new Date().toISOString(); operationLog.push({id: generateId("LOG"), timestamp, type, details}); updateLogDisplay() } // Log display updated immediately
         function calculateTotalDebts(){ const total = (typeof window.money === 'function' ? window.money : Number)(debtors.reduce((sum, debtor) => sum + (Number(debtor.amount) || 0), 0)); return total; }
         function calculateTotalLiabilities(){ return (typeof window.money === 'function' ? window.money : Number)(liabilities.reduce((sum, liability) => sum + (Number(liability.amount) || 0), 0)); }
       
@@ -1029,12 +1079,25 @@ function calculateTotals() {
         return sum + cost;
     }, 0));
 
-    // 6. العربونات المستلمة (التزام مؤقت)
-    const totalPendingDeposits = m(pendingSales.reduce((sum, sale) => sum + (Number(sale.depositPaid) || 0), 0));
+    // 6. العربونات المستلمة (التزام مؤقت — يشمل الحقول البديلة لمنع التضخم الوهمي)
+    const totalPendingDeposits = m(pendingSales.reduce((sum, sale) => sum + (Number(sale.depositPaid || sale.paidAmount || sale.depositAmount) || 0), 0));
 
-    // حساب المبالغ المطلوبة من نظام الاستبدال (الفلوس اللي في الطريق) كأصل
+    // 7. صافي تأثير طلبيات الاستبدال المعلقة حسب المراحل المنفذة فعلياً (بالتكلفة وبدون مضاعفة الكاش أو أرباح وهمية قبل التسليم)
     const pendingOrdersAssetValue = m((window.pendingOrders || []).reduce((sum, order) => {
-        return sum + (Number(order.diffAmount) || 0);
+        if (!order) return sum;
+        const stages = order.stages || { newItemShipped: false, moneyCollected: false, oldItemReceived: false };
+        let nCost = Number(order.nMainCost) || 0;
+        if (Array.isArray(order.nAccs)) order.nAccs.forEach(a => { nCost += (Number(a.cost) || 0); });
+        let rCost = Number(order.rMainCost) || 0;
+        if (Array.isArray(order.rAccs)) order.rAccs.forEach(a => { rCost += (Number(a.cost) || 0); });
+        const diff = Number(order.diffAmount) || 0;
+
+        if (stages.newItemShipped && stages.oldItemReceived && stages.moneyCollected) return sum;
+        let orderNet = 0;
+        if (stages.newItemShipped) orderNet += nCost;
+        if (stages.oldItemReceived) orderNet -= rCost;
+        if (stages.moneyCollected) orderNet -= diff;
+        return sum + orderNet;
     }, 0));
 
     const totalCapital = m((totalInventoryValue + goodsOnConsignmentValue + totalLiquidity + totalDebtsValue + pendingPurchasesAssetValue + pendingReturnsAssetValue + pendingOrdersAssetValue) - (totalLiabilitiesValue + totalPendingDeposits));
@@ -1211,6 +1274,8 @@ window.FinanceTx = {
             if (!account && window.accounts.length > 0) account = window.accounts[0];
         }
         
+        if (typeof window.saveStateToHistory === 'function') window.saveStateToHistory();
+
         if (account) {
             if (type === 'add') {
                 account.balance = window.money((Number(account.balance) || 0) + numAmount);
@@ -1219,6 +1284,9 @@ window.FinanceTx = {
             }
         }
         
+        const liveTotalLiquidity = Array.isArray(window.accounts)
+            ? window.money(window.accounts.reduce((s, a) => s + (Number(a.balance) || 0), 0))
+            : 0;
         const entry = {
             id: generateGlobalID('liq'),
             date: new Date().toISOString(),
@@ -1230,14 +1298,14 @@ window.FinanceTx = {
             accountId: account ? account.id : 'unknown',
             accountName: account ? account.name : 'غير محدد',
             account: account ? account.name : 'غير محدد',
-            currentBalance: account ? account.balance : (typeof totalLiquidity !== 'undefined' ? totalLiquidity : 0)
+            accountBalance: account ? account.balance : 0,
+            currentBalance: liveTotalLiquidity
         };
         
         if (Array.isArray(window.liquidityLog)) {
             window.liquidityLog.push(entry);
         }
         
-        if (typeof window.saveStateToHistory === 'function') window.saveStateToHistory();
         if (typeof window.saveSystemToCloud === 'function') window.saveSystemToCloud();
         if (typeof window.updateUI === 'function') window.updateUI();
         return true;

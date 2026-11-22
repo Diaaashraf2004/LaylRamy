@@ -18,6 +18,7 @@
   let currentUserId = null;
   let lockDocRef = null;
   let frozenSignoutTimer = null;
+  let pendingLockWritePromise = null;
 
   function nowIso() {
     return new Date().toISOString();
@@ -95,13 +96,13 @@
   function askConfirm(opts) {
     return new Promise(resolve => {
       const overlay = document.createElement("div");
-      overlay.style.cssText = "position:fixed;inset:0;background:rgba(15,23,42,.75);z-index:2147483647;display:flex;align-items:center;justify-content:center;direction:rtl;font-family:inherit;";
+      overlay.style.cssText = "position:fixed;inset:0;padding:12px;overflow-y:auto;box-sizing:border-box;background:rgba(15,23,42,.75);z-index:2147483647;display:flex;align-items:center;justify-content:center;direction:rtl;font-family:inherit;";
       overlay.innerHTML = `
-        <div dir="rtl" style="background:#fff;border-radius:12px;padding:22px;width:min(400px,92vw);box-shadow:0 20px 50px rgba(0,0,0,.35);text-align:right;">
+        <div dir="rtl" style="background:#fff;border-radius:12px;padding:22px;width:min(400px,92vw);max-height:calc(100dvh - 24px);overflow-y:auto;box-sizing:border-box;box-shadow:0 20px 50px rgba(0,0,0,.35);text-align:right;">
           <div data-role="icon" style="font-size:34px;text-align:center;margin-bottom:6px;"></div>
           <h3 style="margin:0 0 8px;font-size:18px;font-weight:bold;color:#1e293b;"></h3>
           <p style="margin:0 0 16px;color:#475569;font-size:14px;line-height:1.8;white-space:pre-line;"></p>
-          <div style="display:flex;gap:8px;">
+          <div style="display:flex;flex-wrap:wrap;gap:8px;">
             <button data-act="ok" style="flex:1;background:#0d9488;color:#fff;border:0;border-radius:8px;padding:10px;font-weight:bold;cursor:pointer;"></button>
             <button data-act="cancel" style="flex:1;background:#e2e8f0;color:#334155;border:0;border-radius:8px;padding:10px;font-weight:bold;cursor:pointer;"></button>
           </div>
@@ -123,13 +124,13 @@
   function askSecret(opts) {
     return new Promise(resolve => {
       const overlay = document.createElement("div");
-      overlay.style.cssText = "position:fixed;inset:0;background:rgba(15,23,42,.75);z-index:2147483647;display:flex;align-items:center;justify-content:center;direction:rtl;font-family:inherit;";
+      overlay.style.cssText = "position:fixed;inset:0;padding:12px;overflow-y:auto;box-sizing:border-box;background:rgba(15,23,42,.75);z-index:2147483647;display:flex;align-items:center;justify-content:center;direction:rtl;font-family:inherit;";
       overlay.innerHTML = `
-        <div style="background:#fff;border-radius:12px;padding:22px;width:min(360px,92vw);box-shadow:0 20px 50px rgba(0,0,0,.35);text-align:right;">
+        <div style="background:#fff;border-radius:12px;padding:22px;width:min(360px,92vw);max-height:calc(100dvh - 24px);overflow-y:auto;box-sizing:border-box;box-shadow:0 20px 50px rgba(0,0,0,.35);text-align:right;">
           <h3 style="margin:0 0 8px;font-size:18px;font-weight:bold;color:#1e293b;"></h3>
           <p style="margin:0 0 14px;color:#475569;font-size:14px;line-height:1.6;white-space:pre-line;"></p>
           <input type="password" autocomplete="off" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font-size:18px;text-align:center;letter-spacing:4px;">
-          <div style="display:flex;gap:8px;margin-top:14px;">
+          <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;">
             <button data-act="ok" style="flex:1;background:#0d9488;color:#fff;border:0;border-radius:8px;padding:10px;font-weight:bold;cursor:pointer;">تأكيد</button>
             <button data-act="cancel" style="flex:1;background:#e2e8f0;color:#334155;border:0;border-radius:8px;padding:10px;font-weight:bold;cursor:pointer;">إلغاء</button>
           </div>
@@ -267,9 +268,9 @@
 
     const overlay = document.createElement("div");
     overlay.id = "session-frozen-overlay";
-    overlay.style.cssText = "position:fixed;inset:0;background:#0f172a;z-index:2147483646;display:flex;align-items:center;justify-content:center;direction:rtl;";
+    overlay.style.cssText = "position:fixed;inset:0;padding:12px;overflow-y:auto;box-sizing:border-box;background:#0f172a;z-index:2147483646;display:flex;align-items:center;justify-content:center;direction:rtl;";
     overlay.innerHTML = `
-      <div style="background:#fff;border-radius:14px;padding:26px;width:min(420px,92vw);text-align:center;">
+      <div style="background:#fff;border-radius:14px;padding:24px;width:min(420px,92vw);max-height:calc(100dvh - 24px);overflow-y:auto;box-sizing:border-box;text-align:center;">
         <div style="font-size:42px;">🔒</div>
         <h2 style="margin:8px 0;font-size:20px;font-weight:bold;color:#1e293b;">الجلسة متوقفة على هذا الجهاز</h2>
         <p style="color:#475569;font-size:14px;line-height:1.7;white-space:pre-line;margin:0 0 18px;"></p>
@@ -321,6 +322,9 @@
     if (!lockDocRef || !currentSessionId) return;
 
     try {
+      if (pendingLockWritePromise) {
+        try { await pendingLockWritePromise; } catch (_) { console.warn('[core-session-guard.js] تم تجاهل خطأ:', _); }
+      }
       const snap = await window.getDoc(lockDocRef);
       if (!snap.exists()) return;
 
@@ -341,29 +345,26 @@
     if (!lockDocRef || !currentSessionId) return;
 
     try {
-      const snap = await window.getDoc(lockDocRef);
-      if (!snap.exists()) return;
+      if (pendingLockWritePromise) {
+        try { await pendingLockWritePromise; } catch (_) { console.warn('[core-session-guard.js] تم تجاهل خطأ:', _); }
+      }
+      const snap = await window.getDoc(lockDocRef, { serverOnly: true });
+      if (!snap || snap._unreachable || !snap.exists()) return;
 
       const data = snap.data();
       const localDeviceId = getOrCreateDeviceId();
 
-      // لو نفس الجهاز، حدث بيانات الجلسة بصمت
-      if (data.deviceId === localDeviceId) {
-        currentSessionId = makeSessionId();
-        await window.setDoc(lockDocRef, {
-          sessionId: currentSessionId,
-          deviceId: localDeviceId,
-          deviceName: getDeviceName(),
-          lastHeartbeat: nowIso(),
-          status: "active"
-        }, { merge: true });
-        return;
-      }
-
-      // لو جهاز آخر استحوذ على الجلسة: تجميد + طلب PIN عند الاستعادة
-      if (data.sessionId !== currentSessionId) {
-        markNeedsVerify();
-        showFrozenScreen("تم إيقاف هذه الجلسة لأن الحساب اتفتح من مكان آخر.\nلاستعادتها هنا هتحتاج رمز PIN (أو كلمة المرور).");
+      // حماية ضد تضارب التبويبات والأجهزة: إذا استحوذت جلسة أحدث (حتى على نفس الجهاز) يتم تجميد الجلسة الأقدم فوراً بدلاً من سرقة القفل
+      if (data.sessionId && data.sessionId !== currentSessionId) {
+        if (data.deviceId !== localDeviceId) {
+          markNeedsVerify();
+        }
+        stopHeartbeat();
+        showFrozenScreen(
+          data.deviceId === localDeviceId
+            ? "تم فتح تبويب أو نافذة أحدث للبرنامج على نفس الجهاز.\nأغلق هذه الصفحة أو اضغط استعادة الجلسة لمنع تضارب الحفظ."
+            : "تم إيقاف هذه الجلسة لأن الحساب اتفتح من مكان آخر.\nلاستعادتها هنا هتحتاج رمز PIN (أو كلمة المرور)."
+        );
         return;
       }
 
@@ -385,7 +386,6 @@
 
   async function startHeartbeat() {
     stopHeartbeat();
-    await heartbeat();
     heartbeatTimer = setInterval(heartbeat, HEARTBEAT_MS);
   }
 
@@ -395,9 +395,9 @@
     const lockRef = await getLockDoc(user.uid);
 
     try {
-      // 1. قراءة حالة الجلسة (تعمل أوفلاين وسريعة جداً)
-      const snap = await window.getDoc(lockRef);
-      const data = snap.exists() ? snap.data() : null;
+      // 1. قراءة حالة الجلسة من الخادم مباشرة لضمان عدم قراءة قفل قديم من الكاش على شبكة بطيئة
+      const snap = await window.getDoc(lockRef, { serverOnly: true });
+      const data = (snap && !snap._unreachable && snap.exists()) ? snap.data() : null;
 
       const forceTakeover = sessionStorage.getItem(TAKEOVER_KEY) === "1";
       sessionStorage.removeItem(TAKEOVER_KEY);
@@ -440,8 +440,12 @@
         clearNeedsVerify();
       }
 
-      // 3. تحديث الجلسة (يعمل أوفلاين ويصطف في الطابور)
-      await writeLock(lockRef, {
+      currentUserId = user.uid;
+      currentSessionId = newSessionId;
+      lockDocRef = lockRef;
+
+      // 3. تحديث الجلسة: في الفتح العادي نكتب القفل بالخلفية مع تتبع الوعد لعدم تأخير عرض البيانات، وعند الاستحواذ من جهاز آخر ننتظر اكتماله
+      const lockWriteTask = writeLock(lockRef, {
         sessionId: newSessionId,
         userId: user.uid,
         deviceId: localDeviceId,
@@ -450,10 +454,17 @@
         lastHeartbeat: nowIso(),
         status: "active"
       });
+      pendingLockWritePromise = lockWriteTask
+        .catch(e => console.warn("Session lock write warning:", e))
+        .finally(() => {
+          if (pendingLockWritePromise === lockWriteTask) pendingLockWritePromise = null;
+        });
+      if (otherDeviceActive || lostAt) {
+        // عند سحب الجلسة من جهاز آخر بعد نافذة التأكيد/PIN نلغي الجلب المسبق لضمان قراءة أحدث حالة بعد تثبيت القفل الجديد
+        window._startupDataPrefetch = null;
+        await lockWriteTask;
+      }
 
-      currentUserId = user.uid;
-      currentSessionId = newSessionId;
-      lockDocRef = lockRef;
       await startHeartbeat();
 
       // عرض إنشاء رمز PIN مرة واحدة (بعد ما البرنامج يفتح)
@@ -480,12 +491,15 @@
     }
 
     try {
-      const snap = await window.getDoc(lockDocRef);
-      if (!snap.exists() || snap._unreachable) {
+      if (pendingLockWritePromise) {
+        try { await pendingLockWritePromise; } catch (_) { console.warn('[core-session-guard.js] تم تجاهل خطأ:', _); }
+      }
+      const snap = await window.getDoc(lockDocRef, { serverOnly: true });
+      if (!snap || !snap.exists() || snap._unreachable || snap._fromCache) {
           if (typeof window.showGlobalMessage === 'function') {
-              window.showGlobalMessage("فشل الحفظ: لا يمكن التأكد من الجلسة (قد يكون الإنترنت مقطوعاً). حاول مرة أخرى.", true, true);
+              window.showGlobalMessage("فشل الحفظ: لا يمكن التأكد من الجلسة من السيرفر (قد يكون الإنترنت مقطوعاً). حاول مرة أخرى.", true, true);
           } else {
-              notifyUser("فشل الحفظ: لا يمكن التأكد من الجلسة (قد يكون الإنترنت مقطوعاً). حاول مرة أخرى.");
+              notifyUser("فشل الحفظ: لا يمكن التأكد من الجلسة من السيرفر (قد يكون الإنترنت مقطوعاً). حاول مرة أخرى.");
           }
           return false;
       }
@@ -493,6 +507,7 @@
 
       if (data.sessionId !== currentSessionId) {
         if (data.deviceId !== getOrCreateDeviceId()) markNeedsVerify();
+        stopHeartbeat();
         showFrozenScreen("تم إيقاف الحفظ لأن هناك جلسة أحدث على جهاز (أو تبويب) آخر.\nلاستعادتها هنا هتحتاج رمز PIN (أو كلمة المرور).");
         return false;
       }

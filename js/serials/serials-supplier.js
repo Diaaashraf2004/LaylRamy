@@ -48,7 +48,7 @@ function displayFilteredSupplierSerials(searchTerm = '') {
                  );
 
                  if (filteredList.length === 0) {
-                      supplierSerialsResultsContainer.innerHTML = `<p class="text-center text-gray-500">لا توجد أرقام تسلسلية تطابق "${searchTerm}".</p>`;
+                      supplierSerialsResultsContainer.innerHTML = `<p class="text-center text-gray-500">لا توجد أرقام تسلسلية تطابق "${window.escapeHTML(searchTerm)}".</p>`;
                       return;
                  }
 

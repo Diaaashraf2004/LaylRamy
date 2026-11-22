@@ -59,11 +59,13 @@ window.showGlobalMessage = function showGlobalMessage(message, isError = false) 
         el.style.fontWeight = '700';
         el.style.fontFamily = 'inherit';
         el.style.direction = 'rtl';
+        el.style.maxWidth = 'calc(100vw - 24px)';
+        el.style.boxSizing = 'border-box';
         document.body.appendChild(el);
     }
     if (!el) return;
     el.textContent = message;
-    el.className = 'section-message ' + (isError ? 'error-message' : 'success-message');
+    el.className = 'section-message ' + (isError ? 'error error-message' : 'success success-message');
     el.style.display = 'block';
     clearTimeout(window._globalMsgTimer);
     window._globalMsgTimer = setTimeout(() => {
@@ -117,6 +119,7 @@ window.showConfirm = function showConfirm(message, options = {}) {
         overlay.style.direction = 'rtl';
         overlay.style.fontFamily = 'inherit';
         overlay.style.padding = '16px';
+        overlay.style.overflowY = 'auto';
 
         const box = document.createElement('div');
         box.style.background = '#ffffff';
@@ -125,6 +128,10 @@ window.showConfirm = function showConfirm(message, options = {}) {
         box.style.padding = '24px';
         box.style.maxWidth = '420px';
         box.style.width = '100%';
+        box.style.margin = 'auto';
+        box.style.maxHeight = 'calc(100dvh - 32px)';
+        box.style.overflowY = 'auto';
+        box.style.boxSizing = 'border-box';
         box.style.boxShadow = '0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.08)';
         box.style.border = '1px solid #e2e8f0';
 
@@ -145,6 +152,7 @@ window.showConfirm = function showConfirm(message, options = {}) {
 
         const btns = document.createElement('div');
         btns.style.display = 'flex';
+        btns.style.flexWrap = 'wrap';
         btns.style.gap = '10px';
         btns.style.justifyContent = 'flex-end';
 
@@ -232,6 +240,7 @@ window.showPrompt = function showPrompt(message, defaultValue = '', options = {}
         overlay.style.direction = 'rtl';
         overlay.style.fontFamily = 'inherit';
         overlay.style.padding = '16px';
+        overlay.style.overflowY = 'auto';
 
         const box = document.createElement('div');
         box.style.background = '#ffffff';
@@ -240,6 +249,10 @@ window.showPrompt = function showPrompt(message, defaultValue = '', options = {}
         box.style.padding = '24px';
         box.style.maxWidth = '420px';
         box.style.width = '100%';
+        box.style.margin = 'auto';
+        box.style.maxHeight = 'calc(100dvh - 32px)';
+        box.style.overflowY = 'auto';
+        box.style.boxSizing = 'border-box';
         box.style.boxShadow = '0 20px 25px -5px rgba(0, 0, 0, 0.2)';
         box.style.border = '1px solid #e2e8f0';
 
@@ -270,6 +283,7 @@ window.showPrompt = function showPrompt(message, defaultValue = '', options = {}
 
         const btns = document.createElement('div');
         btns.style.display = 'flex';
+        btns.style.flexWrap = 'wrap';
         btns.style.gap = '10px';
         btns.style.justifyContent = 'flex-end';
 
@@ -415,7 +429,10 @@ window._sharedFormatDateTime = window.formatDateTime;
 window._sharedGenerateGlobalID = window.generateGlobalID;
 
 // ── 7. نظام المعاملات الذرية وحماية الحالة من الانهيار (State Transactions) ───
-window.createStateTransaction = function createStateTransaction() {
+window.createStateTransaction = function createStateTransaction(txLabel) {
+    const _guardToken = (typeof window !== 'undefined' && window.FinancialIntegrityGuard && typeof window.FinancialIntegrityGuard.onTransactionStart === 'function')
+        ? window.FinancialIntegrityGuard.onTransactionStart(txLabel || '')
+        : null;
     const getArr = (name) => {
         const val = (typeof window !== 'undefined' && typeof window[name] !== 'undefined' && Array.isArray(window[name])) 
             ? window[name] 
@@ -450,7 +467,7 @@ window.createStateTransaction = function createStateTransaction() {
         serialNumbersLog: getArr('serialNumbersLog'),
         inboxTasks: getArr('inboxTasks'),
         operationLog: getArr('operationLog').length ? getArr('operationLog') : getArr('log'),
-        standaloneSerials: (typeof window !== 'undefined' && typeof window.getStandaloneSerials === 'function' ? window.getStandaloneSerials() : (typeof window !== 'undefined' && window._tempStandaloneSerials ? window._tempStandaloneSerials : [])),
+        standaloneSerials: JSON.parse(JSON.stringify(typeof window !== 'undefined' && typeof window.getStandaloneSerials === 'function' ? (window.getStandaloneSerials() || []) : (typeof window !== 'undefined' && window._tempStandaloneSerials ? window._tempStandaloneSerials : []))),
         expenses: getNum('expenses'),
         recordedLosses: getNum('recordedLosses'),
         totalProfit: getNum('totalProfit')
@@ -464,6 +481,9 @@ window.createStateTransaction = function createStateTransaction() {
         },
         commit() {
             rollbackActions.length = 0;
+            if (_guardToken && typeof window !== 'undefined' && window.FinancialIntegrityGuard && typeof window.FinancialIntegrityGuard.onTransactionCommit === 'function') {
+                try { window.FinancialIntegrityGuard.onTransactionCommit(_guardToken); } catch (gErr) { console.warn('[IntegrityGuard] commit check error:', gErr); }
+            }
         },
         async rollback() {
             try {
@@ -504,8 +524,13 @@ window.createStateTransaction = function createStateTransaction() {
                 restoreNum('recordedLosses', snap.recordedLosses);
                 restoreNum('totalProfit', snap.totalProfit);
 
-                if (typeof window !== 'undefined' && typeof window._tempStandaloneSerials !== 'undefined') {
-                    window._tempStandaloneSerials = JSON.parse(JSON.stringify(snap.standaloneSerials));
+                if (typeof window !== 'undefined') {
+                    const clonedStandalone = JSON.parse(JSON.stringify(snap.standaloneSerials || []));
+                    if (typeof window.setStandaloneSerials === 'function') {
+                        window.setStandaloneSerials(clonedStandalone, true);
+                    } else if (typeof window._tempStandaloneSerials !== 'undefined') {
+                        window._tempStandaloneSerials = clonedStandalone;
+                    }
                 }
 
                 // تنفيذ عمليات التراجع السحابية المسجلة بالتسلسل العكسي
@@ -517,6 +542,9 @@ window.createStateTransaction = function createStateTransaction() {
                     }
                 }
 
+                if (typeof window !== 'undefined' && window.FinancialIntegrityGuard && typeof window.FinancialIntegrityGuard.onTransactionRollback === 'function') {
+                    window.FinancialIntegrityGuard.onTransactionRollback(_guardToken);
+                }
                 if (typeof updateUI === 'function') updateUI();
                 else if (typeof window !== 'undefined' && typeof window.updateUI === 'function') window.updateUI();
                 console.warn("⚠️ [Transaction Rollback] تم التراجع الشامل عن التعديلات وإعادة حالة الذاكرة والسحابة كما كانت.");
@@ -526,4 +554,46 @@ window.createStateTransaction = function createStateTransaction() {
         }
     };
 };
+
+// === التحكم الذكي في حجم الخط والأيقونات (UI Font & Icons Scale) ===
+const UI_SCALE_STORAGE_KEY = 'erp_ui_font_scale';
+const UI_SCALE_LABELS = { 80: 'صغير جداً', 90: 'صغير', 100: 'افتراضي ذكي', 110: 'كبير', 120: 'كبير جداً' };
+
+window.applyUIFontScale = function(pct, persist = true) {
+    const num = Math.min(130, Math.max(75, Math.round(Number(pct) || 100)));
+    if (typeof document !== 'undefined' && document.documentElement) {
+        document.documentElement.style.setProperty('--ui-font-scale', String(+(num / 100).toFixed(2)));
+    }
+    if (persist) { try { localStorage.setItem(UI_SCALE_STORAGE_KEY, String(num)); } catch (_) { /* localStorage غير متاح (وضع خاص/بيئة اختبار) */ } }
+    if (typeof window.syncUIFontScaleUI === 'function') window.syncUIFontScaleUI(num);
+    return num;
+};
+window.stepUIFontScale = function(delta) {
+    let cur = 100;
+    try { cur = Number(localStorage.getItem(UI_SCALE_STORAGE_KEY)) || 100; } catch (_) { /* localStorage غير متاح (وضع خاص/بيئة اختبار) */ }
+    return window.applyUIFontScale(cur + (Number(delta) || 0), true);
+};
+window.resetUIFontScale = function() { return window.applyUIFontScale(100, true); };
+window.syncUIFontScaleUI = function(explicitPct) {
+    if (typeof document === 'undefined' || typeof document.querySelectorAll !== 'function') return;
+    let pct = explicitPct;
+    if (!pct) { try { pct = Number(localStorage.getItem(UI_SCALE_STORAGE_KEY)) || 100; } catch (_) { pct = 100; } }
+    const slider = document.getElementById('ui-font-scale-slider');
+    if (slider && String(slider.value) !== String(pct)) slider.value = String(pct);
+    const badge = document.getElementById('ui-font-scale-badge');
+    if (badge) badge.textContent = `${pct}%${UI_SCALE_LABELS[pct] ? ' — ' + UI_SCALE_LABELS[pct] : ''}`;
+    document.querySelectorAll('.ui-scale-preset-btn').forEach(btn => {
+        const active = Number(btn.dataset.scale) === pct;
+        btn.classList.toggle('bg-blue-600', active); btn.classList.toggle('text-white', active); btn.classList.toggle('border-blue-600', active);
+        btn.classList.toggle('bg-white', !active); btn.classList.toggle('text-slate-700', !active); btn.classList.toggle('border-slate-200', !active);
+    });
+};
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+    const initScale = () => {
+        let saved = 100;
+        try { saved = Number(localStorage.getItem(UI_SCALE_STORAGE_KEY)) || 100; } catch (_) { /* localStorage غير متاح (وضع خاص/بيئة اختبار) */ }
+        window.applyUIFontScale(saved, false);
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initScale); else initScale();
+}
 

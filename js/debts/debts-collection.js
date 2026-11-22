@@ -51,32 +51,41 @@ async function processTransfer(sourceDebtId) {
     const _tx = (typeof window.createStateTransaction === 'function') ? window.createStateTransaction() : null;
 
     try {
-        // خصم من المصدر
+        // خصم من المصدر مع الحفاظ الكامل على origin و linkedInvoice و saleId لمنع التحايل على الاسترداد النقدي
         const oldSourceName = sourceDebt.name;
-        sourceDebt.amount = window.money(sourceDebt.amount - transferAmount);
+        const cleanTransfer = window.money(Number(transferAmount) || 0);
+        const sourceOrigin = sourceDebt.origin || 'manual_debt';
+        sourceDebt.amount = window.money(Math.max(0, (Number(sourceDebt.amount) || 0) - cleanTransfer));
         if (sourceDebt.amount < 0.01) window.debtors.splice(sourceIndex, 1);
 
-        // إضافة للمستلم (أو دمج إذا كان لديه نفس السبب)
+        // إضافة للمستلم: يُسمح بالدمج فقط عند تطابق الأصل (origin) وعدم وجود ربط فاتورة
         let targetProfile = getOrCreateDebtorProfile(targetName);
-        const existingDebt = window.debtors.find(d => 
+        const existingDebt = (!sourceDebt.linkedInvoice) ? window.debtors.find(d => 
             d.customerId === targetProfile.id && 
+            !d.linkedInvoice &&
+            (d.origin || 'manual_debt') === sourceOrigin &&
             normalizeArabicText(d.reason) === normalizeArabicText(finalReason)
-        );
+        ) : null;
 
         if (existingDebt) {
-            existingDebt.amount = window.money(existingDebt.amount + transferAmount);
+            existingDebt.amount = window.money((Number(existingDebt.amount) || 0) + cleanTransfer);
         } else {
-            window.debtors.push({
+            const transferredDebt = {
                 id: generateId('debt'),
                 customerId: targetProfile.id,
                 name: targetProfile.name,
+                customerName: targetProfile.name,
                 reason: finalReason,
-                amount: transferAmount,
+                amount: cleanTransfer,
+                origin: sourceOrigin,
                 createdAt: new Date().toISOString()
-            });
+            };
+            if (sourceDebt.linkedInvoice) transferredDebt.linkedInvoice = sourceDebt.linkedInvoice;
+            if (sourceDebt.saleId) transferredDebt.saleId = sourceDebt.saleId;
+            window.debtors.push(transferredDebt);
         }
 
-        logOperation("تحويل دين", `تم تحويل ${formatCurrency(transferAmount)} من ${oldSourceName} إلى ${targetProfile.name}`);
+        logOperation("تحويل دين", `تم تحويل ${formatCurrency(cleanTransfer)} من ${oldSourceName} إلى ${targetProfile.name}`);
 
         if (_tx) _tx.commit();
         updateUI();
@@ -139,24 +148,27 @@ window.paySelectedDebtsForCustomer = async function(customerId) {
     let paidDebtIds = [];
     let paidDebtsList = [];
     
+    // قراءة المبالغ دائماً من المصفوفة الحية window.debtors لمنع السداد المزدوج أو استخدام قيم DOM قديمة
     checkboxes.forEach(cb => {
-        const itemAmt = parseFloat(cb.dataset.amount || 0);
+        const dObj = window.debtors.find(d => d.id === cb.dataset.debtId && (Number(d.amount) || 0) > 0.001);
+        if (!dObj) return;
+        const itemAmt = (typeof window.money === 'function' ? window.money : Number)(Number(dObj.amount) || 0);
         totalAmount = (typeof window.money === 'function' ? window.money : Number)(totalAmount + itemAmt);
-        paidDebtIds.push(cb.dataset.debtId);
-        const dObj = window.debtors.find(d => d.id === cb.dataset.debtId);
-        if (dObj) {
-            paidDebtsList.push(`${dObj.reason || 'دين'} (${formatCurrency(itemAmt)})`);
-        }
+        paidDebtIds.push(dObj.id);
+        paidDebtsList.push(`${dObj.reason || 'دين'} (${formatCurrency(itemAmt)})`);
     });
 
+    if (paidDebtIds.length === 0 || totalAmount <= 0.001) {
+        showGlobalMessage('الديون المحددة تم سدادها بالفعل أو لم تعد نشطة.', true);
+        return;
+    }
+
     if (confirm(`هل أنت متأكد من سداد ديون بقيمة ${formatCurrency(totalAmount)} وإيداعها في "${account.name}"؟`)) {
-        // حفظ الحالة للتراجع
         if (typeof saveStateToHistory === 'function') saveStateToHistory();
         const _tx = (typeof window.createStateTransaction === 'function') ? window.createStateTransaction() : null;
         
         try {
-            // تحديث الحساب
-            account.balance = window.money(account.balance + totalAmount);
+            account.balance = window.money((Number(account.balance) || 0) + totalAmount);
             
             const customerProfile = debtorProfiles.find(p => p.id === customerId);
             const customerName = customerProfile ? customerProfile.name : "عميل";
@@ -243,9 +255,12 @@ window.renderBulkDebtList = function() {
         const amount = Number(debt.amount) || 0;
         if (amount <= 0.001) return;
         
-        const customerId = debt.customerId;
+        const matchedProfile = debt.customerId
+            ? debtorProfiles.find(p => p.id === debt.customerId)
+            : debtorProfiles.find(p => normalizeArabicText(p.name) === normalizeArabicText(debt.name || debt.customerName || ''));
+        const customerId = debt.customerId || (matchedProfile ? matchedProfile.id : ('legacy_' + normalizeArabicText(debt.name || debt.customerName || 'unknown')));
         if (!grouped[customerId]) {
-            const profile = debtorProfiles.find(p => p.id === customerId) || {name: debt.name || 'غير معروف'};
+            const profile = matchedProfile || { id: customerId, name: debt.name || debt.customerName || 'غير معروف' };
             grouped[customerId] = {
                 customerId,
                 profile,
@@ -279,11 +294,11 @@ window.renderBulkDebtList = function() {
         div.style.cssText = 'border:1px solid #e5e7eb; border-radius:8px; margin-bottom:12px; overflow:hidden;';
         
         const header = document.createElement('div');
-        header.style.cssText = 'background:#f9fafb; padding:10px 14px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e5e7eb;';
+        header.style.cssText = 'background:#f9fafb; padding:10px 14px; display:flex; flex-wrap:wrap; gap:8px; justify-content:space-between; align-items:center; border-bottom:1px solid #e5e7eb;';
         
         header.innerHTML = `
-            <div style="display:flex; align-items:center; gap:8px;">
-                <label style="cursor:pointer; display:flex; align-items:center; gap:6px; font-weight:bold; color:#1f2937;">
+            <div style="display:flex; align-items:center; gap:8px; min-width:0;">
+                <label style="cursor:pointer; display:flex; flex-wrap:wrap; align-items:center; gap:6px; font-weight:bold; color:#1f2937;">
                     <input type="checkbox" class="bulk-customer-select-all" data-customer-id="${escapeHTML(group.customerId)}" onchange="toggleBulkSelectAll(this.dataset.customerId)" style="accent-color:#8b5cf6;">
                     ${escapeHTML(group.profile.name)} <span style="font-size:12px; color:#6b7280; background:#e5e7eb; padding:2px 6px; border-radius:10px;">${formatCurrency(group.total)}</span>
                 </label>
@@ -295,13 +310,13 @@ window.renderBulkDebtList = function() {
         
         group.debts.forEach(debt => {
             const itemDiv = document.createElement('div');
-            itemDiv.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid #f3f4f6; font-size:14px;';
+            itemDiv.style.cssText = 'display:flex; flex-wrap:wrap; gap:8px; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid #f3f4f6; font-size:14px;';
             if(debt === group.debts[group.debts.length-1]) itemDiv.style.borderBottom = 'none';
             
             const dateStr = debt.createdAt ? new Date(debt.createdAt).toLocaleDateString('ar-EG') : '';
             
             itemDiv.innerHTML = `
-                <label style="cursor:pointer; display:flex; align-items:center; gap:8px; color:#4b5563; flex:1;">
+                <label style="cursor:pointer; display:flex; flex-wrap:wrap; align-items:center; gap:8px; color:#4b5563; flex:1 1 160px; min-width:0;">
                     <input type="checkbox" class="bulk-debt-item-cb" data-customer-id="${escapeHTML(group.customerId)}" data-debt-id="${escapeHTML(debt.id)}" data-amount="${debt.amount}" onchange="updateBulkSelectionTotal()" style="accent-color:#8b5cf6;">
                     ${escapeHTML(debt.reason || 'دين بدون تفاصيل')} <span style="font-size:11px; color:#9ca3af;">${dateStr}</span>
                 </label>
@@ -357,29 +372,40 @@ window.confirmBulkDebtPayment = async function() {
     let totalAmount = 0;
     let paidDebtIds = [];
     let involvedCustomers = new Set();
+    const custAmounts = {};
     
+    // قراءة المبالغ من المصفوفة الحية window.debtors وليس من dataset القديمة
     checkboxes.forEach(cb => {
-        totalAmount += parseFloat(cb.dataset.amount || 0);
-        paidDebtIds.push(cb.dataset.debtId);
-        
-        const customerProfile = debtorProfiles.find(p => p.id === cb.dataset.customerId);
-        if (customerProfile) {
-            involvedCustomers.add(customerProfile.name);
-        }
+        const liveDebt = window.debtors.find(d => d.id === cb.dataset.debtId && (Number(d.amount) || 0) > 0.001);
+        if (!liveDebt) return;
+        const amt = window.money(Number(liveDebt.amount) || 0);
+        totalAmount = window.money(totalAmount + amt);
+        paidDebtIds.push(liveDebt.id);
+
+        const cId = liveDebt.customerId || cb.dataset.customerId;
+        const customerProfile = debtorProfiles.find(p => p.id === cId) || debtorProfiles.find(p => normalizeArabicText(p.name) === normalizeArabicText(liveDebt.name || ''));
+        involvedCustomers.add(customerProfile ? customerProfile.name : (liveDebt.name || 'عميل'));
+        const profKey = customerProfile ? customerProfile.id : cId;
+        if (!custAmounts[profKey]) custAmounts[profKey] = { total: 0, count: 0 };
+        custAmounts[profKey].total = window.money(custAmounts[profKey].total + amt);
+        custAmounts[profKey].count++;
     });
+
+    if (paidDebtIds.length === 0 || totalAmount <= 0.001) {
+        alert('الديون المحددة تم سدادها بالفعل أو لم تعد نشطة.');
+        return;
+    }
 
     const customerNamesStr = Array.from(involvedCustomers).join('، ');
 
     if (confirm(`تأكيد سداد ديون بقيمة ${formatCurrency(totalAmount)} لعدد ${involvedCustomers.size} عملاء وإيداعها في "${account.name}"؟`)) {
-        // حفظ الحالة للتراجع
         if (typeof saveStateToHistory === 'function') saveStateToHistory();
         const _tx = (typeof window.createStateTransaction === 'function') ? window.createStateTransaction() : null;
         
         try {
-            // تحديث الخزنة
-            account.balance = window.money(account.balance + totalAmount);
+            account.balance = window.money((Number(account.balance) || 0) + totalAmount);
             
-            const newTotalLiquidity = (typeof window.money === 'function' ? window.money : Number)(accounts.reduce((sum, acc) => sum + (Number(acc.balance) || 0), 0));
+            const newTotalLiquidity = window.money(accounts.reduce((sum, acc) => sum + (Number(acc.balance) || 0), 0));
             if (typeof liquidityLog !== 'undefined') {
                 liquidityLog.push({
                     id: generateId("liq"),
@@ -392,18 +418,7 @@ window.confirmBulkDebtPayment = async function() {
                 });
             }
 
-            // إزالة الديون المسددة
             window.debtors = window.debtors.filter(d => !paidDebtIds.includes(d.id));
-            
-            // تسجيل في بروفايل كل عميل تم السداد له لحفظ الأثر والرجوع إليه
-            const custAmounts = {};
-            checkboxes.forEach(cb => {
-                const cId = cb.dataset.customerId;
-                const amt = parseFloat(cb.dataset.amount || 0);
-                if (!custAmounts[cId]) custAmounts[cId] = { total: 0, count: 0 };
-                custAmounts[cId].total += amt;
-                custAmounts[cId].count++;
-            });
 
             Object.entries(custAmounts).forEach(([cId, data]) => {
                 const prof = debtorProfiles.find(p => p.id === cId);
@@ -445,77 +460,107 @@ window.deleteDebtItem = function(debtId) {
     const debt = window.debtors.find(d => d.id === debtId);
     if (!debt) return;
 
+    // الاسترداد النقدي متاح فقط للسلف النقدية (origin === 'cash_loan')؛ الديون الناتجة عن مبيعات آجلة أو مرتجعات أو استبدال لا يجوز تحويل شطبها لكاش
+    const isNonCashOrigin = (debt.origin === 'credit_sale' || debt.origin === 'exchange_debt' || debt.origin === 'purchase_return' || debt.origin === 'manual_debt' || (debt.linkedInvoice && debt.linkedInvoice !== 'بدون فاتورة'));
+    const canRefundCash = (debt.origin === 'cash_loan') || (!debt.origin && !isNonCashOrigin);
+
     const modal = document.getElementById('deleteDebtRefundModal');
-    document.getElementById('delete-debt-info').textContent = `سيتم حذف دين "${debt.reason}" بقيمة ${formatCurrency(debt.amount)}. اختر الحساب الذي تريد استرداد المبلغ إليه:`;
+    document.getElementById('delete-debt-info').textContent = canRefundCash
+        ? `سيتم حذف دين "${debt.reason}" بقيمة ${formatCurrency(debt.amount)}. اختر الإجراء المناسب:`
+        : `سيتم شطب وإلغاء دين "${debt.reason}" بقيمة ${formatCurrency(debt.amount)} (دين غير نقدي — يُشطب فقط دون إضافة أموال للخزينة لحماية رأس المال).`;
 
     const select = document.getElementById('delete-debt-account-select');
-    select.innerHTML = `<option value="NONE">-- حذف وسقوط الدين فقط (دون إضافة أموال للخزينة) --</option>` + window.accounts.map(acc => `<option value="${escapeHTML(acc.id)}">استرداد نقدي إلى: ${escapeHTML(acc.name)} (${formatCurrency(acc.balance)})</option>`).join('');
+    const refundOptions = canRefundCash
+        ? window.accounts.map(acc => `<option value="${escapeHTML(acc.id)}">استرداد سلفة نقدية إلى: ${escapeHTML(acc.name)} (${formatCurrency(acc.balance)})${!debt.origin ? ' [للسلف النقدية فقط]' : ''}</option>`).join('')
+        : '';
+    select.innerHTML = `<option value="NONE">-- شطب وإسقاط الدين فقط (دون إضافة أموال للخزينة) --</option>` + refundOptions;
 
-    document.getElementById('confirmDeleteRefundBtn').onclick = async () => {
+    const confirmBtn = document.getElementById('confirmDeleteRefundBtn');
+    confirmBtn.disabled = false;
+    confirmBtn.onclick = async () => {
+        if (confirmBtn.disabled) return;
+        // إعادة فحص وجود الدين لحظياً لمنع التكرار عند الضغط السريع
+        const liveDebt = window.debtors.find(d => d.id === debtId);
+        if (!liveDebt) {
+            closeDeleteDebtRefundModal();
+            return;
+        }
+        if (select.value !== "NONE" && !canRefundCash) {
+            showGlobalMessage("لا يمكن عمل استرداد نقدي لدين غير نقدي (مبيعات/مرتجع/استبدال).", true);
+            return;
+        }
+        if (select.value !== "NONE" && !liveDebt.origin) {
+            if (!confirm("تأكيد أمان: هل هذا الدين كان سلفة نقدية خُصمت فعلياً من الخزنة عند إنشائه؟\nإذا كان دين مبيعات أو رصيد غير نقدي، اختر (إلغاء) ثم اختر (شطب الدين فقط).")) {
+                return;
+            }
+        }
+
+        confirmBtn.disabled = true;
         saveStateToHistory();
         const _tx = (typeof window.createStateTransaction === 'function') ? window.createStateTransaction() : null;
         try {
+            const debtAmt = window.money(Number(liveDebt.amount) || 0);
             if (select.value === "NONE") {
                 window.debtors = window.debtors.filter(d => d.id !== debtId);
+                if (typeof recordedLosses !== 'undefined') {
+                    recordedLosses = window.money((Number(recordedLosses) || 0) + debtAmt);
+                }
                 
-                // تسجيل شطب الدين في بروفايل العميل
-                let cProf = debt.customerId ? debtorProfiles.find(p => p.id === debt.customerId) : debtorProfiles.find(p => normalizeArabicText(p.name) === normalizeArabicText(debt.name));
+                let cProf = liveDebt.customerId ? debtorProfiles.find(p => p.id === liveDebt.customerId) : debtorProfiles.find(p => normalizeArabicText(p.name) === normalizeArabicText(liveDebt.name));
                 if (cProf) {
                     if (!Array.isArray(cProf.paymentHistory)) cProf.paymentHistory = [];
                     cProf.paymentHistory.unshift({
                         id: generateId("pay"),
                         date: new Date().toISOString(),
-                        amount: Number(debt.amount) || 0,
+                        amount: debtAmt,
                         accountId: 'CANCEL',
                         accountName: 'شطب / إعفاء',
-                        debtReason: debt.reason || 'شطب دين',
+                        debtReason: liveDebt.reason || 'شطب دين',
                         type: 'cancelled',
-                        note: `شطب وإعفاء الدين بقيمة ${formatCurrency(debt.amount)} دون استرداد نقدي`
+                        note: `شطب وإعفاء الدين بقيمة ${formatCurrency(debtAmt)} دون استرداد نقدي`
                     });
                 }
 
-                logOperation("إلغاء دين", `شطب/حذف دين ${debt.name} بقيمة ${formatCurrency(debt.amount)} دون تعديل الخزينة.`);
+                logOperation("إلغاء دين", `شطب/حذف دين ${liveDebt.name} بقيمة ${formatCurrency(debtAmt)} دون تعديل الخزينة.`);
                 if (_tx) _tx.commit();
                 updateUI();
                 closeDeleteDebtRefundModal();
-                showGlobalMessage("تم حذف الدين بنجاح.");
+                showGlobalMessage("تم شطب وحذف الدين بنجاح.");
                 if (typeof saveSystemToCloud === 'function') saveSystemToCloud().catch(e => console.error(e));
             } else {
                 const account = window.accounts.find(a => a.id === select.value);
                 if (account) {
-                    const refundAmount = Number(debt.amount) || 0;
-                    account.balance = window.money(account.balance + refundAmount);
+                    account.balance = window.money((Number(account.balance) || 0) + debtAmt);
                     window.debtors = window.debtors.filter(d => d.id !== debtId);
                     
-                    // تسجيل استرداد المبلغ في بروفايل العميل
-                    let cProf = debt.customerId ? debtorProfiles.find(p => p.id === debt.customerId) : debtorProfiles.find(p => normalizeArabicText(p.name) === normalizeArabicText(debt.name));
+                    let cProf = liveDebt.customerId ? debtorProfiles.find(p => p.id === liveDebt.customerId) : debtorProfiles.find(p => normalizeArabicText(p.name) === normalizeArabicText(liveDebt.name));
                     if (cProf) {
                         if (!Array.isArray(cProf.paymentHistory)) cProf.paymentHistory = [];
                         cProf.paymentHistory.unshift({
                             id: generateId("pay"),
                             date: new Date().toISOString(),
-                            amount: refundAmount,
+                            amount: debtAmt,
                             accountId: account.id,
                             accountName: account.name,
-                            debtReason: debt.reason || 'استرداد نقدي',
+                            debtReason: liveDebt.reason || 'استرداد سلفة نقدية',
                             type: 'refund',
-                            note: `إلغاء الدين واسترداد المبلغ لحساب "${account.name}"`
+                            note: `إلغاء السلفة واسترداد المبلغ لحساب "${account.name}"`
                         });
                     }
 
-                    const newTotalLiquidity = (typeof window.money === 'function' ? window.money : Number)(window.accounts.reduce((sum, a) => sum + (Number(a.balance) || 0), 0));
+                    const newTotalLiquidity = window.money(window.accounts.reduce((sum, a) => sum + (Number(a.balance) || 0), 0));
                     if (typeof liquidityLog !== 'undefined') {
                         liquidityLog.push({
                             id: generateId("liq"),
                             timestamp: new Date().toISOString(),
                             type: "add",
-                            amount: refundAmount,
-                            description: `استرداد نقدي بعد حذف دين "${debt.name}" (${debt.reason}) في حساب "${account.name}"`,
+                            amount: debtAmt,
+                            description: `استرداد سلفة نقدية بعد حذف دين "${liveDebt.name}" (${liveDebt.reason}) في حساب "${account.name}"`,
                             currentBalance: newTotalLiquidity,
                             accountId: account.id
                         });
                     }
-                    logOperation("إلغاء دين", `إعادة ${formatCurrency(refundAmount)} لحساب ${account.name} بعد حذف دين ${debt.name}`);
+                    logOperation("إلغاء دين", `إعادة ${formatCurrency(debtAmt)} لحساب ${account.name} بعد حذف سلفة ${liveDebt.name}`);
                     if (_tx) _tx.commit();
                     updateUI();
                     closeDeleteDebtRefundModal();
@@ -527,6 +572,8 @@ window.deleteDebtItem = function(debtId) {
             if (_tx) await _tx.rollback();
             console.error("فشل حذف الدين:", err);
             showGlobalMessage("فشل حذف الدين؛ تم التراجع عن التعديلات: " + (err.message || ''), true);
+        } finally {
+            confirmBtn.disabled = false;
         }
     };
     modal.style.display = 'block';
@@ -575,27 +622,37 @@ async function performTwoPartyOffset() {
 
                 try {
                     // --- Apply Offset ---
+                    const cleanOffset = window.money(Number(offsetAmount) || 0);
                     // Reduce Debtor's Debt
-                    let remainingOffsetForDebtor = offsetAmount;
+                    let remainingOffsetForDebtor = cleanOffset;
                     debtors = debtors.map(debt => {
-                        if (debt.name === debtorName && remainingOffsetForDebtor > 0 && (Number(debt.amount) || 0) > 0.001) {
-                            const deduction = Math.min(Number(debt.amount) || 0, remainingOffsetForDebtor);
-                            debt.amount = (Number(debt.amount) || 0) - deduction;
-                            remainingOffsetForDebtor -= deduction;
+                        if (debt.name === debtorName && remainingOffsetForDebtor > 0.001 && (Number(debt.amount) || 0) > 0.001) {
+                            const deduction = window.money(Math.min(Number(debt.amount) || 0, remainingOffsetForDebtor));
+                            debt.amount = window.money(Math.max(0, (Number(debt.amount) || 0) - deduction));
+                            remainingOffsetForDebtor = window.money(Math.max(0, remainingOffsetForDebtor - deduction));
                         }
                         return debt;
-                    }).filter(debt => (Number(debt.amount) || 0) > 0.001); // Remove zeroed debts
+                    }).filter(debt => (Number(debt.amount) || 0) > 0.001);
 
-                    // Reduce Creditor's Liability
-                    let remainingOffsetForCreditor = offsetAmount;
+                    // Reduce Creditor's Liability + sync linked purchases & supplier balance
+                    let remainingOffsetForCreditor = cleanOffset;
                     liabilities = liabilities.map(liability => {
-                        if (liability.name === creditorName && remainingOffsetForCreditor > 0 && (Number(liability.amount) || 0) > 0.001) {
-                            const deduction = Math.min(Number(liability.amount) || 0, remainingOffsetForCreditor);
-                            liability.amount = (Number(liability.amount) || 0) - deduction;
-                            remainingOffsetForCreditor -= deduction;
+                        if (liability.name === creditorName && remainingOffsetForCreditor > 0.001 && (Number(liability.amount) || 0) > 0.001) {
+                            const deduction = window.money(Math.min(Number(liability.amount) || 0, remainingOffsetForCreditor));
+                            liability.amount = window.money(Math.max(0, (Number(liability.amount) || 0) - deduction));
+                            remainingOffsetForCreditor = window.money(Math.max(0, remainingOffsetForCreditor - deduction));
                             if (liability.amount < 0.001) {
                                 liability.amount = 0;
                                 liability.status = 'paid';
+                            }
+                            if (typeof window.updateLinkedPurchasePayment === 'function') {
+                                window.updateLinkedPurchasePayment(liability, deduction);
+                            }
+                            if (liability.supplierId && liability.source !== 'purchase_extra_cost' && typeof suppliers !== 'undefined' && Array.isArray(suppliers)) {
+                                const sup = suppliers.find(s => s.id === liability.supplierId);
+                                if (sup && sup.balance !== undefined) {
+                                    sup.balance = window.money(Math.max(0, (Number(sup.balance) || 0) - deduction));
+                                }
                             }
                             if (!Array.isArray(liability.paymentHistory)) liability.paymentHistory = [];
                             liability.paymentHistory.unshift({

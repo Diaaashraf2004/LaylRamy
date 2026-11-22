@@ -4,11 +4,16 @@
 window.captureHistoricalBaseline = function(dateStr) {
     const todayStr = typeof getTodayDateString === 'function' ? getTodayDateString() : (typeof getCairoDateString === 'function' ? getCairoDateString() : new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' }));
     if (dateStr !== todayStr) {
-        console.log('[Smart Delta] Capturing baseline for historical day:', dateStr);
+        console.log('[Smart Delta] Capturing full balance-sheet baseline for historical day:', dateStr);
         window.historicalBaseline = {
             accounts: JSON.parse(JSON.stringify(typeof accounts !== 'undefined' ? accounts : (window.accounts || []))),
             products: JSON.parse(JSON.stringify(typeof products !== 'undefined' ? products : (window.products || []))),
-            debtors: JSON.parse(JSON.stringify(typeof debtors !== 'undefined' ? debtors : (window.debtors || [])))
+            debtors: JSON.parse(JSON.stringify(typeof debtors !== 'undefined' ? debtors : (window.debtors || []))),
+            liabilities: JSON.parse(JSON.stringify(typeof liabilities !== 'undefined' ? liabilities : (window.liabilities || []))),
+            pendingSales: JSON.parse(JSON.stringify(typeof pendingSales !== 'undefined' ? pendingSales : (window.pendingSales || []))),
+            pendingPurchases: JSON.parse(JSON.stringify(typeof pendingPurchases !== 'undefined' ? pendingPurchases : (window.pendingPurchases || []))),
+            pendingReturns: JSON.parse(JSON.stringify(typeof pendingReturns !== 'undefined' ? pendingReturns : (window.pendingReturns || []))),
+            pendingOrders: JSON.parse(JSON.stringify(window.pendingOrders || []))
         };
     } else {
         window.historicalBaseline = null;
@@ -21,108 +26,166 @@ window.processSmartDeltaRollover = async function(newState, dateStr) {
     const userId = window.currentUser ? window.currentUser.uid : null;
     if (!userId) return;
 
-    let deltaApplied = false;
-    let accountsDelta = {};
-    (newState.accounts || []).forEach(newAcc => {
-        const oldAcc = oldState.accounts.find(a => a.id === newAcc.id) || { balance: 0 };
-        const diff = (newAcc.balance || 0) - (oldAcc.balance || 0);
-        if (diff !== 0) { accountsDelta[newAcc.id] = diff; deltaApplied = true; }
+    if (window.SessionGuard && typeof window.SessionGuard.assertCanWrite === 'function') {
+        const canWrite = await window.SessionGuard.assertCanWrite();
+        if (!canWrite) return;
+    }
+
+    const m = (v) => (typeof window.money === 'function' ? window.money(v) : Math.round((Number(v) || 0) * 100) / 100);
+    const computeNumDeltaMap = (oldArr, newArr, getVal) => {
+        const deltaMap = {};
+        const added = [];
+        const deletedIds = [];
+        let changed = false;
+        (newArr || []).forEach(n => {
+            const o = (oldArr || []).find(x => x.id === n.id);
+            if (!o) {
+                added.push(JSON.parse(JSON.stringify(n)));
+                changed = true;
+            } else {
+                const diff = m(getVal(n) - getVal(o));
+                if (diff !== 0) {
+                    deltaMap[n.id] = diff;
+                    changed = true;
+                }
+            }
+        });
+        (oldArr || []).forEach(o => {
+            if (!(newArr || []).some(n => n.id === o.id)) {
+                deletedIds.push(o.id);
+                changed = true;
+            }
+        });
+        return { deltaMap, added, deletedIds, changed };
+    };
+
+    const accDiff = computeNumDeltaMap(oldState.accounts, newState.accounts, a => Number(a.balance) || 0);
+    const prodQtyDiff = computeNumDeltaMap(oldState.products, newState.products, p => Number(p.quantity) || 0);
+    const prodCostChanged = {};
+    (newState.products || []).forEach(np => {
+        const op = (oldState.products || []).find(x => x.id === np.id);
+        if (op && Number(op.costPrice) !== Number(np.costPrice)) {
+            prodCostChanged[np.id] = Number(np.costPrice) || 0;
+            prodQtyDiff.changed = true;
+        }
     });
+    const debtDiff = computeNumDeltaMap(oldState.debtors, newState.debtors, d => d.amount !== undefined ? Number(d.amount) : (Number(d.total_debt) || 0));
+    const liabDiff = computeNumDeltaMap(oldState.liabilities, newState.liabilities, l => Number(l.amount) || 0);
 
-    let productsDelta = {};
-    (newState.products || []).forEach(newProd => {
-        const oldProd = oldState.products.find(p => p.id === newProd.id) || { quantity: 0 };
-        const diff = (newProd.quantity || 0) - (oldProd.quantity || 0);
-        if (diff !== 0) { productsDelta[newProd.id] = diff; deltaApplied = true; }
-    });
+    const syncListDiff = (oldArr, newArr) => {
+        const added = (newArr || []).filter(n => !(oldArr || []).some(o => o.id === n.id)).map(n => JSON.parse(JSON.stringify(n)));
+        const deletedIds = (oldArr || []).filter(o => !(newArr || []).some(n => n.id === o.id)).map(o => o.id);
+        const modified = (newArr || []).filter(n => {
+            const o = (oldArr || []).find(x => x.id === n.id);
+            return o && JSON.stringify(o) !== JSON.stringify(n);
+        }).map(n => JSON.parse(JSON.stringify(n)));
+        return { added, deletedIds, modified, changed: added.length > 0 || deletedIds.length > 0 || modified.length > 0 };
+    };
 
-    let debtorsDelta = {};
-    (newState.debtors || []).forEach(newDebtor => {
-        const oldDebtor = oldState.debtors.find(d => d.id === newDebtor.id) || {};
-        const newAmt = newDebtor.amount !== undefined ? Number(newDebtor.amount) : (newDebtor.total_debt !== undefined ? Number(newDebtor.total_debt) : 0);
-        const oldAmt = oldDebtor.amount !== undefined ? Number(oldDebtor.amount) : (oldDebtor.total_debt !== undefined ? Number(oldDebtor.total_debt) : 0);
-        const diff = newAmt - oldAmt;
-        if (diff !== 0) { debtorsDelta[newDebtor.id] = diff; deltaApplied = true; }
-    });
+    const psDiff = syncListDiff(oldState.pendingSales, newState.pendingSales);
+    const ppDiff = syncListDiff(oldState.pendingPurchases, newState.pendingPurchases);
+    const prDiff = syncListDiff(oldState.pendingReturns, newState.pendingReturns);
+    const poDiff = syncListDiff(oldState.pendingOrders, newState.pendingOrders);
 
-    // Detect deletions from old state
-    const deletedAccountIds = (oldState.accounts || []).filter(a => !(newState.accounts || []).find(na => na.id === a.id)).map(a => a.id);
-    const deletedProductIds = (oldState.products || []).filter(p => !(newState.products || []).find(np => np.id === p.id)).map(p => p.id);
-    const deletedDebtorIds = (oldState.debtors || []).filter(d => !(newState.debtors || []).find(nd => nd.id === d.id)).map(d => d.id);
-    const hasDeletions = deletedAccountIds.length > 0 || deletedProductIds.length > 0 || deletedDebtorIds.length > 0;
+    const anyChanged = accDiff.changed || prodQtyDiff.changed || debtDiff.changed || liabDiff.changed
+        || psDiff.changed || ppDiff.changed || prDiff.changed || poDiff.changed;
+    if (!anyChanged) return;
 
-    if (!deltaApplied && !hasDeletions) return;
+    const applyAllDeltasToDoc = (targetData) => {
+        const applyNum = (arr, diffObj, field, altField) => {
+            let out = JSON.parse(JSON.stringify(arr || []));
+            out.forEach(item => {
+                if (diffObj.deltaMap[item.id]) {
+                    const key = (item[field] !== undefined || !altField) ? field : altField;
+                    item[key] = m((Number(item[key]) || 0) + diffObj.deltaMap[item.id]);
+                }
+            });
+            diffObj.added.forEach(a => { if (!out.some(x => x.id === a.id)) out.push(JSON.parse(JSON.stringify(a))); });
+            out = out.filter(x => !diffObj.deletedIds.includes(x.id));
+            return out;
+        };
+
+        const applyList = (arr, diffObj) => {
+            let out = JSON.parse(JSON.stringify(arr || []));
+            out = out.filter(x => !diffObj.deletedIds.includes(x.id));
+            diffObj.modified.forEach(mod => {
+                const idx = out.findIndex(x => x.id === mod.id);
+                if (idx > -1) out[idx] = JSON.parse(JSON.stringify(mod));
+            });
+            diffObj.added.forEach(a => { if (!out.some(x => x.id === a.id)) out.push(JSON.parse(JSON.stringify(a))); });
+            return out;
+        };
+
+        const updatedProducts = applyNum(targetData.products, prodQtyDiff, 'quantity', null);
+        updatedProducts.forEach(p => {
+            if (prodCostChanged[p.id] !== undefined) p.costPrice = prodCostChanged[p.id];
+        });
+
+        const updatedLiabilities = applyNum(targetData.liabilities, liabDiff, 'amount', null);
+        updatedLiabilities.forEach(l => {
+            if ((Number(l.amount) || 0) <= 0.001) {
+                l.amount = 0;
+                l.status = 'paid';
+            }
+        });
+
+        const updatedPendingReturns = applyList(targetData.pendingReturns, prDiff);
+        const updatedPendingReturnsValue = m(updatedPendingReturns.reduce((s, r) => s + (Number(r.returnedAmount) || 0), 0));
+
+        return {
+            accounts: applyNum(targetData.accounts, accDiff, 'balance', null),
+            products: updatedProducts,
+            debtors: applyNum(targetData.debtors, debtDiff, 'amount', 'total_debt'),
+            liabilities: updatedLiabilities,
+            pendingSales: applyList(targetData.pendingSales, psDiff),
+            pendingPurchases: applyList(targetData.pendingPurchases, ppDiff),
+            pendingReturns: updatedPendingReturns,
+            pendingReturnsValue: updatedPendingReturnsValue,
+            pendingOrders: applyList(targetData.pendingOrders, poDiff),
+            lastUpdated: new Date().toISOString()
+        };
+    };
 
     try {
         const db = window.db;
-        const docRef = window.doc(db, 'users', userId, 'summaries', 'latestBalances');
-        const docSnap = await window.getDoc(docRef);
-        if (!docSnap.exists()) return;
-        
-        let latestData = docSnap.data();
-        
-        let updatedAccounts = [...(latestData.accounts || [])];
-        (newState.accounts || []).forEach(newAcc => {
-            let existing = updatedAccounts.find(a => a.id === newAcc.id);
-            if (existing) { 
-                if (accountsDelta[newAcc.id]) {
-                    existing.balance = Math.round(((Number(existing.balance) || 0) + accountsDelta[newAcc.id]) * 100) / 100;
-                }
-            } else { 
-                const wasInOldState = (oldState.accounts || []).some(a => a.id === newAcc.id);
-                if (!wasInOldState) updatedAccounts.push({ ...newAcc }); 
-            }
-        });
-        
-        let updatedProducts = [...(latestData.products || [])];
-        (newState.products || []).forEach(newProd => {
-            let existing = updatedProducts.find(p => p.id === newProd.id);
-            if (existing) { 
-                if (productsDelta[newProd.id]) {
-                    existing.quantity = (Number(existing.quantity) || 0) + productsDelta[newProd.id];
-                }
-            } else { 
-                const wasInOldState = (oldState.products || []).some(p => p.id === newProd.id);
-                if (!wasInOldState) updatedProducts.push({ ...newProd }); 
-            }
-        });
-        
-        let updatedDebtors = [...(latestData.debtors || [])];
-        (newState.debtors || []).forEach(newDebtor => {
-            let existing = updatedDebtors.find(d => d.id === newDebtor.id);
-            if (existing) {
-                if (debtorsDelta[newDebtor.id]) {
-                    if (existing.amount !== undefined) {
-                        existing.amount = Math.round(((Number(existing.amount) || 0) + debtorsDelta[newDebtor.id]) * 100) / 100;
-                    } else {
-                        existing.total_debt = Math.round(((Number(existing.total_debt) || 0) + debtorsDelta[newDebtor.id]) * 100) / 100;
-                    }
-                }
-            } else { 
-                const wasInOldState = (oldState.debtors || []).some(d => d.id === newDebtor.id);
-                if (!wasInOldState) updatedDebtors.push({ ...newDebtor }); 
-            }
-        });
-        
-        // Sync deletions: items that existed in the historical baseline but are missing now were deleted locally
-        updatedAccounts = updatedAccounts.filter(a => !deletedAccountIds.includes(a.id));
-        updatedProducts = updatedProducts.filter(p => !deletedProductIds.includes(p.id));
-        updatedDebtors = updatedDebtors.filter(d => !deletedDebtorIds.includes(d.id));
+        const summaryRef = window.doc(db, 'users', userId, 'summaries', 'latestBalances');
+        const summarySnap = await window.getDoc(summaryRef, { serverOnly: true });
+        if (!summarySnap || summarySnap._unreachable) {
+            throw new Error('Smart Delta aborted: latestBalances server read unreachable');
+        }
+        if (summarySnap.exists()) {
+            const patch = applyAllDeltasToDoc(summarySnap.data() || {});
+            await window.setDoc(summaryRef, patch, { merge: true });
+        }
 
-        await window.setDoc(docRef, { 
-            accounts: updatedAccounts, 
-            products: updatedProducts, 
-            debtors: updatedDebtors,
-            lastUpdated: new Date().toISOString()
-        }, { merge: true });
-        console.log('[Smart Delta] Successfully rolled over deltas to latestBalances');
+        // أيضاً تطبيق نفس الفروقات على وثيقة اليوم الحالي (days/{todayStr}) إذا كانت موجودة بالفعل حتى لا تُمسح عند العودة لليوم
+        const todayStr = typeof getTodayDateString === 'function' ? getTodayDateString() : (typeof getCairoDateString === 'function' ? getCairoDateString() : new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' }));
+        if (todayStr && todayStr !== dateStr) {
+            const todayRef = window.doc(db, 'users', userId, 'days', todayStr);
+            const todaySnap = await window.getDoc(todayRef, { serverOnly: true });
+            if (!todaySnap || todaySnap._unreachable) {
+                throw new Error(`Smart Delta aborted: days/${todayStr} server read unreachable`);
+            }
+            if (todaySnap.exists()) {
+                const todayPatch = applyAllDeltasToDoc(todaySnap.data() || {});
+                await window.setDoc(todayRef, todayPatch, { merge: true });
+            }
+        }
+
+        console.log('[Smart Delta] Successfully rolled over full balance-sheet deltas to latestBalances & today doc');
         window.historicalBaseline = {
             accounts: JSON.parse(JSON.stringify(newState.accounts || [])),
             products: JSON.parse(JSON.stringify(newState.products || [])),
-            debtors: JSON.parse(JSON.stringify(newState.debtors || []))
+            debtors: JSON.parse(JSON.stringify(newState.debtors || [])),
+            liabilities: JSON.parse(JSON.stringify(newState.liabilities || [])),
+            pendingSales: JSON.parse(JSON.stringify(newState.pendingSales || [])),
+            pendingPurchases: JSON.parse(JSON.stringify(newState.pendingPurchases || [])),
+            pendingReturns: JSON.parse(JSON.stringify(newState.pendingReturns || [])),
+            pendingOrders: JSON.parse(JSON.stringify(newState.pendingOrders || []))
         };
     } catch (err) {
-        console.error('Smart Delta error:', err);
+        console.error('Smart Delta error (historicalBaseline NOT advanced so delta can retry):', err);
+        throw err;
     }
 };
 

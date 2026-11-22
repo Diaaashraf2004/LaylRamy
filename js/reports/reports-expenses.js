@@ -305,7 +305,7 @@ window.generateExpensesReportExternal = async function(deps) {
                     <td class="p-3 text-sm text-gray-600">${window.escapeHTML ? window.escapeHTML(exp.details) : exp.details}</td>
                     <td class="p-3 text-sm text-center font-mono ${amountClass}">${amountSign}${typeof formatCurrency === 'function' ? formatCurrency(exp.amount) : exp.amount}</td>
                     <td class="p-3 text-sm text-center">
-                        ${exp.category === 'refund' ? '<span class="text-xs text-gray-400">-</span>' : `
+                        ${(exp.category === 'refund' || exp.category === 'liability') ? '<span class="text-xs text-gray-400" title="سدادات الالتزامات والاستردادات تُعكس عبر التراجع أو قسم الالتزامات لحماية رأس المال">-</span>' : `
                         <button data-timestamp="${typeof escapeHTML === 'function' ? escapeHTML(exp.timestamp) : (window.escapeHTML ? window.escapeHTML(exp.timestamp) : exp.timestamp)}" 
                                 data-source="${typeof escapeHTML === 'function' ? escapeHTML(exp.source) : (window.escapeHTML ? window.escapeHTML(exp.source) : exp.source)}" 
                                 data-amount="${Number(exp.amount) || 0}" 
@@ -376,83 +376,130 @@ window.deleteExpenseEntry = function(timestamp, source, amount) {
     
     if (!confirm(`هل أنت متأكد من حذف هذا المصروف بقيمة ${typeof formatCurrency === 'function' ? formatCurrency(amount) : amount}؟ سيتم إرجاع المبلغ لحسابه الأصلي في الخزينة.`)) return;
 
-    let foundAndDeleted = false;
+    const targetMs = timestamp ? new Date(timestamp).getTime() : NaN;
+    const isNearTimestamp = (ts) => {
+        if (!ts || !timestamp) return false;
+        if (ts === timestamp) return true;
+        const ms = new Date(ts).getTime();
+        return Number.isFinite(targetMs) && Number.isFinite(ms) && Math.abs(ms - targetMs) <= 3000;
+    };
 
-    // 1. Remove from operationLog
+    // فحص مسبق: منع حذف قيد سداد التزام من تقرير المصروفات حتى لا تتضخم السيولة بدون استعادة الالتزام
     if (typeof window.operationLog !== 'undefined' && Array.isArray(window.operationLog)) {
-        const idx = window.operationLog.findIndex(log => 
-            log.type !== 'إضافة إيراد' && 
-            ((log.type || '').includes('مصروف') || (log.type || '').includes('التزام') || (log.details || '').includes('مصروف') || (log.details || '').includes('التزام')) && 
-            (log.timestamp === timestamp || Math.abs(Number(log.amount) - amount) < 0.01)
+        const matchedLiabOp = window.operationLog.find(log =>
+            log && isNearTimestamp(log.timestamp) &&
+            (((log.type || '').includes('التزام')) || ((log.details || '').includes('تسديد التزام')) || ((log.details || '').includes('سداد التزام')))
         );
-        if (idx !== -1) {
-            window.operationLog.splice(idx, 1);
-            foundAndDeleted = true;
+        if (matchedLiabOp) {
+            alert("لا يمكن حذف سداد الالتزام من تقرير المصروفات مباشرة لأن ذلك يرجع المبلغ للخزينة دون إعادة الالتزام. استخدم زر التراجع (Undo) لحماية رأس المال.");
+            return;
         }
     }
 
-    // 2. Remove from liquidityLog and restore account balance
-    if (typeof window.liquidityLog !== 'undefined' && Array.isArray(window.liquidityLog) && typeof window.accounts !== 'undefined') {
-        const lIdx = window.liquidityLog.findIndex(l => 
-            l.type !== 'add' && 
-            (l.isExpense || l.type === 'remove' || (l.description || '').includes('مصروف') || (l.description || '').includes('التزام')) && 
-            (l.timestamp === timestamp || Math.abs(Number(l.amount) - amount) < 0.01)
-        );
-        if (lIdx !== -1) {
-            const lEntry = window.liquidityLog[lIdx];
-            window.liquidityLog.splice(lIdx, 1);
+    if (typeof window.saveStateToHistory === 'function') window.saveStateToHistory();
+    let foundAndDeleted = false;
+    let restoredCashAmount = 0;
+    const _delExpTx = typeof createStateTransaction === 'function' ? createStateTransaction('إلغاء مصروف') : null;
+    try {
+        // 1. Remove from operationLog (مطابقة زمنية دقيقة أو ضمن 3 ثوانٍ مع فحص المصروف)
+        if (typeof window.operationLog !== 'undefined' && Array.isArray(window.operationLog)) {
+            let idx = window.operationLog.findIndex(log =>
+                log && log.type !== 'إضافة إيراد' &&
+                ((log.type || '').includes('مصروف') || (log.details || '').includes('مصروف')) &&
+                isNearTimestamp(log.timestamp)
+            );
+            if (idx === -1) {
+                idx = window.operationLog.findIndex(log =>
+                    log && log.type === 'تسجيل مصروف' &&
+                    Number.isFinite(Number(log.amount)) && Math.abs(Number(log.amount) - amount) < 0.01
+                );
+            }
+            if (idx !== -1) {
+                window.operationLog.splice(idx, 1);
+                foundAndDeleted = true;
+            }
+        }
+
+        // 2. Remove from liquidityLog, restore account balance, and sync subsequent running balances
+        if (typeof window.liquidityLog !== 'undefined' && Array.isArray(window.liquidityLog) && typeof window.accounts !== 'undefined') {
+            let lIdx = window.liquidityLog.findIndex(l =>
+                l && l.type !== 'add' &&
+                (l.isExpense || (l.description || '').includes('مصروف')) &&
+                isNearTimestamp(l.timestamp) &&
+                Math.abs(Number(l.amount) - amount) < 0.01
+            );
+            if (lIdx === -1) {
+                lIdx = window.liquidityLog.findIndex(l =>
+                    l && l.isExpense && l.type !== 'add' &&
+                    Math.abs(Number(l.amount) - amount) < 0.01
+                );
+            }
+            if (lIdx !== -1) {
+                const lEntry = window.liquidityLog[lIdx];
+                restoredCashAmount = window.money(Number(lEntry.amount || amount));
+                window.liquidityLog.splice(lIdx, 1);
+                
+                // Restore account balance
+                let restored = false;
+                if (lEntry.accountId) {
+                    const acc = window.accounts.find(a => String(a.id) === String(lEntry.accountId));
+                    if (acc) { 
+                        acc.balance = window.money((Number(acc.balance) || 0) + restoredCashAmount); 
+                        restored = true; 
+                    }
+                }
+                if (!restored && lEntry.description) {
+                    const match = lEntry.description.match(/من حساب "([^"]+)"/);
+                    if (match && match[1]) {
+                        const accName = match[1];
+                        const acc = window.accounts.find(a => a.name === accName);
+                        if (acc) acc.balance = window.money((Number(acc.balance) || 0) + restoredCashAmount);
+                    }
+                }
+                // إعادة موازنة currentBalance لكل القيود اللاحقة في سجل السيولة حتى لا تنكسر سلسلة السيولة
+                for (let k = lIdx; k < window.liquidityLog.length; k++) {
+                    if (window.liquidityLog[k] && window.liquidityLog[k].currentBalance != null) {
+                        window.liquidityLog[k].currentBalance = window.money((Number(window.liquidityLog[k].currentBalance) || 0) + restoredCashAmount);
+                    }
+                }
+                foundAndDeleted = true;
+            }
+        }
+
+        // 3. Subtract from global expenses
+        if (foundAndDeleted && typeof window.expenses !== 'undefined') {
+            window.expenses = Math.max(0, window.money((Number(window.expenses) || 0) - (restoredCashAmount || amount)));
+        }
+
+        if (foundAndDeleted) {
+            if (typeof window.logOperation === 'function') {
+                window.logOperation("إلغاء مصروف", `تم حذف مصروف بقيمة ${typeof formatCurrency === 'function' ? formatCurrency(restoredCashAmount || amount) : (restoredCashAmount || amount)} يدوياً من التقرير وإرجاع المبلغ للخزينة.`);
+            }
+            if (_delExpTx) _delExpTx.commit();
+            if (typeof window.updateUI === 'function') window.updateUI();
+            if (typeof window.saveCurrentStateByDate === 'function') {
+                const d = typeof window.currentLoadedDate !== 'undefined' && window.currentLoadedDate ? window.currentLoadedDate : (typeof getCairoDateString === 'function' ? getCairoDateString() : new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' }));
+                window.saveCurrentStateByDate(d);
+            }
             
-            // Restore account balance
-            let restored = false;
-            if (lEntry.accountId) {
-                const acc = window.accounts.find(a => String(a.id) === String(lEntry.accountId));
-                if (acc) { 
-                    acc.balance = window.money((Number(acc.balance) || 0) + Number(lEntry.amount || amount)); 
-                    restored = true; 
-                }
+            // Save to cloud immediately!
+            if (typeof window.saveSystemToCloud === 'function') {
+                window.saveSystemToCloud().catch(e => console.error("Cloud save failed after expense deletion", e));
             }
-            if (!restored && lEntry.description) {
-                const match = lEntry.description.match(/من حساب "([^"]+)"/);
-                if (match && match[1]) {
-                    const accName = match[1];
-                    const acc = window.accounts.find(a => a.name === accName);
-                    if (acc) acc.balance = window.money((Number(acc.balance) || 0) + Number(lEntry.amount || amount));
-                }
+            
+            if (typeof generateExpensesReport === 'function') generateExpensesReport();
+            
+            if (typeof showGlobalMessage === 'function') {
+                showGlobalMessage("تم حذف المصروف وإرجاع المبلغ بنجاح.", false);
+            } else {
+                alert("تم حذف المصروف وإرجاع المبلغ بنجاح.");
             }
-            foundAndDeleted = true;
-        }
-    }
-
-    // 3. Subtract from global expenses
-    if (foundAndDeleted && typeof window.expenses !== 'undefined') {
-        window.expenses = Math.max(0, window.money((Number(window.expenses) || 0) - amount));
-    }
-
-    if (foundAndDeleted) {
-        if (typeof window.saveStateToHistory === 'function') window.saveStateToHistory();
-        if (typeof window.updateUI === 'function') window.updateUI();
-        if (typeof window.saveCurrentStateByDate === 'function') {
-            const d = typeof window.currentLoadedDate !== 'undefined' && window.currentLoadedDate ? window.currentLoadedDate : (typeof getCairoDateString === 'function' ? getCairoDateString() : new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' }));
-            window.saveCurrentStateByDate(d);
-        }
-        
-        // Save to cloud immediately!
-        if (typeof window.saveSystemToCloud === 'function') {
-            window.saveSystemToCloud().catch(e => console.error("Cloud save failed after expense deletion", e));
-        }
-        
-        if (typeof window.logOperation === 'function') {
-            window.logOperation("إلغاء مصروف", `تم حذف مصروف بقيمة ${typeof formatCurrency === 'function' ? formatCurrency(amount) : amount} يدوياً من التقرير وإرجاع المبلغ للخزينة.`);
-        }
-        
-        if (typeof generateExpensesReport === 'function') generateExpensesReport();
-        
-        if (typeof showGlobalMessage === 'function') {
-            showGlobalMessage("تم حذف المصروف وإرجاع المبلغ بنجاح.", false);
         } else {
-            alert("تم حذف المصروف وإرجاع المبلغ بنجاح.");
+            if (_delExpTx) _delExpTx.rollback();
+            alert("لم يتم العثور على المصروف في سجلات اليوم الحالي.");
         }
-    } else {
-        alert("لم يتم العثور على المصروف في سجلات اليوم الحالي.");
+    } catch (e) {
+        if (_delExpTx) _delExpTx.rollback();
+        throw e;
     }
 };

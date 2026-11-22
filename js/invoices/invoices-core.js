@@ -2,6 +2,7 @@
         function resetProductForm() {
              editingProductName = null;
              window.currentEditingProductID = null;
+             window.currentDuplicateProductID = null;
              window.bypassDuplicateCheck = false;
              if(productNameInput) productNameInput.value = "";
              if(productQuantityInput) productQuantityInput.value = "0";
@@ -131,9 +132,18 @@
                      isValid = false; errors.push('يجب إضافة بند واحد على الأقل للفاتورة.');
                  } else {
                      itemRows.forEach(row => {
-                         const q = parseFloat(row.dataset.itemQty || row.querySelector('.row-qty-input')?.value || '0');
+                         const qtyInput = row.querySelector('.row-qty-input');
+                         const priceInput = row.querySelector('.row-price-input');
+                         const q = qtyInput ? parseFloat(qtyInput.value) : parseFloat(row.dataset.itemQty || '0');
+                         const p = priceInput ? parseFloat(priceInput.value) : parseFloat(row.dataset.itemPrice || '0');
                          if (isNaN(q) || q <= 0) { isValid = false; errors.push('يجب أن تكون كمية كل بند في الفاتورة أكبر من صفر.'); }
+                         if (isNaN(p) || p < 0) { isValid = false; errors.push('لا يمكن أن يكون سعر بيع أي بند سالباً.'); }
                      });
+                 }
+                 const shipInput = inv_shippingCostInput || document.getElementById('inv_shippingCost');
+                 if (shipInput) {
+                     const shipVal = parseInputNumber(shipInput);
+                     if (!isNaN(shipVal) && shipVal < 0) { isValid = false; errors.push('لا يمكن أن تكون مصاريف الشحن سالبة.'); }
                  }
                  // Validate deductible items stock just before saving
                  const dedContainer = inv_deductibleCostsContainer || document.getElementById('inv_deductibleCostsContainer');
@@ -246,7 +256,7 @@ function updateGlobalState(account, amountToCollect, customerName, grandTotal, d
                 }
 
                 const totalCost = m(goodsCost + deductedItemsCost);
-                let expectedProfit = m(goodsTotal - totalCost);
+                let expectedProfit = m(grandTotal - totalCost);
                 const dedToggleInv = document.getElementById('inv-deduction-toggle');
                 const dedAmountInv = document.getElementById('inv-deduction-amount');
                 if (dedToggleInv && dedToggleInv.checked && dedAmountInv) {
@@ -286,7 +296,7 @@ function updateGlobalState(account, amountToCollect, customerName, grandTotal, d
     if (inv_invoiceItemsBody) {
         const rows = Array.from(inv_invoiceItemsBody.querySelectorAll('.invoice-item-row'));
         rows.forEach(row => {
-            const id = row.dataset.productId || "", name = (row.dataset.itemName || "").toLowerCase().trim();
+            const id = (row.dataset.productId || "").trim().toLowerCase(), name = (row.dataset.itemName || "").split(' (S/N:')[0].toLowerCase().trim();
             const qty = parseInt(row.dataset.itemQty) || 0, key = id || name;
             if (key) itemsInTable[key] = (itemsInTable[key] || 0) + qty;
         });
@@ -296,7 +306,7 @@ function updateGlobalState(account, amountToCollect, customerName, grandTotal, d
     const prevDeducted = (!forceReset && pendingSaleOriginData && (
         (pendingSaleOriginData.invoiceData && pendingSaleOriginData.invoiceData.deductedItems) || 
         pendingSaleOriginData.deductedItems || 
-        (!pendingSaleOriginData.mainProduct && pendingSaleOriginData.additionalItems)
+        pendingSaleOriginData.additionalItems
     )) || [];
     
     const prevDeductedMap = new Map();
@@ -363,6 +373,7 @@ function updateGlobalState(account, amountToCollect, customerName, grandTotal, d
         const uniqueId = `inv_deductcost_${generateId(product.id || product.name)}`;
         const label = document.createElement('label');
         label.style.display = 'flex';
+        label.style.flexWrap = 'wrap';
         label.style.alignItems = 'center';
         label.style.gap = '8px';
         label.style.marginBottom = '5px';
@@ -381,20 +392,11 @@ function updateGlobalState(account, amountToCollect, customerName, grandTotal, d
        data-cost="${cost}" 
        data-available="${product.realAvailable}"
        ${isChecked}>
-            <span style="flex-grow: 1; font-size: 0.9em;">
+            <span class="inv-deductible-item-info" style="flex: 1 1 120px; min-width: 0; font-size: 0.9em;">
                  ${escapeHTML(product.name)} <span class="text-xs text-blue-500">(${escapeHTML(product.category || 'عام')})</span>
-                 <span class="text-gray-500 text-xs" style="display:block;">
-                    (ت: ${formatCurrency(cost)} | المتبقي المتاح: ${product.realAvailable})
-                 </span>
+                 <span class="text-gray-500 text-xs" style="display:block;">(ت: ${formatCurrency(cost)} | المتبقي المتاح: ${product.realAvailable})</span>
             </span>
-            <span style="flex-shrink: 0; font-size: 0.8em; color: #555;">خصم:</span>
-            <input type="number" 
-                   class="inv-deducted-item-quantity" 
-                   min="1" 
-                   max="${product.realAvailable}" 
-                   value="${qtyValue}" 
-                   style="width: 50px; text-align: center; flex-shrink: 0; border: 1px solid #ccc; border-radius: 4px; padding: 2px; font-size: 0.9em;" 
-                   onclick="event.stopPropagation()">
+            <span style="display:inline-flex;align-items:center;gap:6px;flex-shrink:0;"><span style="flex-shrink: 0; font-size: 0.8em; color: #555;">خصم:</span><input type="number" class="inv-deducted-item-quantity" min="1" max="${product.realAvailable}" value="${qtyValue}" style="width: 50px; text-align: center; flex-shrink: 0; border: 1px solid #ccc; border-radius: 4px; padding: 2px; font-size: 0.9em;" onclick="event.stopPropagation()"></span>
         `;
         const targetContainer = inv_deductibleCostsContainer || document.getElementById('inv_deductibleCostsContainer');
         if (targetContainer) targetContainer.appendChild(label);
@@ -459,9 +461,9 @@ function openManageSerialsModal(productIdOrName) {
             registeredSerials.sort((a, b) => a.serial.localeCompare(b.serial)).forEach(log => {
                 let statusColor = log.status === 'in_stock' ? 'text-green-600' : (log.status === 'sold' ? 'text-red-500' : 'text-gray-500');
                 let statusText = log.status === 'in_stock' ? 'متوفر' : (log.status === 'sold' ? 'مباع' : (log.status === 'in_invoice_temp' ? 'في فاتورة' : log.status));
-                listHtml += `<li class="text-sm flex justify-between items-center bg-gray-50 p-1 rounded border border-gray-100">
-                                <span class="font-mono"><strong>${escapeHTML(log.serial || '')}</strong></span>
-                                <span class="text-xs ${statusColor}">[${statusText}]</span>
+                listHtml += `<li class="text-sm flex flex-wrap justify-between items-center gap-1.5 bg-gray-50 p-1.5 rounded border border-gray-100">
+                                <span class="font-mono break-all"><strong>${escapeHTML(log.serial || '')}</strong></span>
+                                <span class="text-xs ${statusColor} flex-shrink-0">[${statusText}]</span>
                              </li>`;
             });
             listHtml += '</ul>';
@@ -589,9 +591,9 @@ window.saveAddedSerialsFromModal = function saveAddedSerialsFromModal() {
                   let statusText = log.status === 'in_stock' ? 'متوفر' : (log.status === 'sold' ? 'مباع' : (log.status === 'in_invoice_temp' ? 'في فاتورة' : log.status));
                   
                   // تصحيح صياغة الـ HTML بالكامل هنا من الأخطاء النصية القديمة
-                  listHtml += `<li class="text-sm flex justify-between items-center bg-gray-50 p-1 rounded border border-gray-100">
-                                   <span class="font-mono"><strong>${escapeHTML(log.serial || '')}</strong></span>
-                                   <span class="text-xs ${statusColor}">[${statusText}]</span>
+                  listHtml += `<li class="text-sm flex flex-wrap justify-between items-center gap-1.5 bg-gray-50 p-1.5 rounded border border-gray-100">
+                                   <span class="font-mono break-all"><strong>${escapeHTML(log.serial || '')}</strong></span>
+                                   <span class="text-xs ${statusColor} flex-shrink-0">[${statusText}]</span>
                                </li>`;
               });
               listHtml += '</ul>';

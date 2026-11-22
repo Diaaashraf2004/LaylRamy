@@ -91,8 +91,27 @@
         const deductions = Array.isArray(itemsToDeduct) ? itemsToDeduct : [];
         const sale = (originData !== undefined) ? originData : (typeof window !== 'undefined' ? window.pendingSaleOriginData : null);
 
-        // تجميع الكميات المرتجعة من البيعة القديمة لكل صنف
-        const returnsMap = {}; // key -> qty
+        // دالة مساعدة لتحليل أي بند إلى فهرسه القانوني في مصفوفة products (بالـ ID أولاً ثم بالاسم النظيف)
+        function resolveProductIndex(item) {
+            if (!item) return -1;
+            const idKey = item.id ? String(item.id).trim().toLowerCase() : '';
+            const nameKey = cleanProductName(item.name);
+            let idx = -1;
+            if (idKey) {
+                idx = products.findIndex(p => p.id && String(p.id).trim().toLowerCase() === idKey);
+            }
+            if (idx === -1 && nameKey) {
+                idx = products.findIndex(p => cleanProductName(p.name) === nameKey);
+            }
+            if (idx === -1 && idKey) {
+                // fallback لو تم تمرير الاسم في حقل id بالخطأ
+                idx = products.findIndex(p => cleanProductName(p.name) === idKey);
+            }
+            return idx;
+        }
+
+        // تجميع الكميات المرتجعة من البيعة القديمة لكل منتج بفهرسه القانوني
+        const returnsByIndex = new Map(); // prodIndex -> qty
         if (sale) {
             const oldItems = [];
             if (Array.isArray(sale.items) && sale.items.length > 0) oldItems.push(...sale.items);
@@ -109,46 +128,53 @@
             }
 
             oldItems.filter(Boolean).forEach(it => {
-                const key = it.id ? String(it.id).trim().toLowerCase() : cleanProductName(it.name);
-                if (key) {
+                const prodIndex = resolveProductIndex(it);
+                if (prodIndex !== -1) {
                     const q = (it.quantity !== '' && it.quantity != null && !isNaN(it.quantity)) ? Number(it.quantity) : 1;
-                    returnsMap[key] = (returnsMap[key] || 0) + q;
+                    if (q > 0) {
+                        returnsByIndex.set(prodIndex, (returnsByIndex.get(prodIndex) || 0) + q);
+                    }
                 }
             });
         }
 
-        // تجميع الكميات المطلوب خصمها
-        const deductionsMap = {}; // key -> { qty, item }
+        // تجميع الكميات المطلوب خصمها ورفض أي كميات <= 0
+        const deductionsByIndex = new Map(); // prodIndex -> qty
+        const invalidItems = [];
         deductions.forEach(it => {
             if (!it) return;
-            const key = it.id ? String(it.id).trim().toLowerCase() : cleanProductName(it.name);
-            if (key) {
-                if (!deductionsMap[key]) deductionsMap[key] = { qty: 0, item: it };
-                const q = (it.quantity !== '' && it.quantity != null && !isNaN(it.quantity)) ? Number(it.quantity) : 1;
-                deductionsMap[key].qty += q;
+            const q = (it.quantity !== '' && it.quantity != null && !isNaN(it.quantity)) ? Number(it.quantity) : 0;
+            if (!Number.isFinite(q) || q <= 0) {
+                invalidItems.push(it.name || it.id || 'بند غير معروف');
+                return;
+            }
+            const prodIndex = resolveProductIndex(it);
+            if (prodIndex !== -1) {
+                deductionsByIndex.set(prodIndex, (deductionsByIndex.get(prodIndex) || 0) + q);
             }
         });
+
+        if (invalidItems.length > 0) {
+            return {
+                valid: false,
+                insufficientItems: [],
+                changes: [],
+                error: `كمية غير صالحة (يجب أن تكون أكبر من صفر) للأصناف: ${invalidItems.join('، ')}`
+            };
+        }
 
         // التحقق من كفاية المخزون لكل المنتجات وتجهيز الحركات
         const changes = [];
         const insufficientItems = [];
 
-        // قائمة بكل المفاتيح المشتركة
-        const allKeys = new Set([...Object.keys(returnsMap), ...Object.keys(deductionsMap)]);
+        const allIndices = new Set([...returnsByIndex.keys(), ...deductionsByIndex.keys()]);
 
-        allKeys.forEach(key => {
-            // البحث عن المنتج في قائمة المنتجات بالـ id أولاً ثم بالاسم
-            let prodIndex = products.findIndex(p => p.id && String(p.id).trim().toLowerCase() === key);
-            if (prodIndex === -1) {
-                prodIndex = products.findIndex(p => cleanProductName(p.name) === key);
-            }
-
-            if (prodIndex === -1) return; // صنف غير موجود في جدول المنتجات (خدمة مثلاً)
-
+        allIndices.forEach(prodIndex => {
             const prod = products[prodIndex];
+            if (!prod) return;
             const currentStock = Number(prod.quantity) || 0;
-            const returnQty = returnsMap[key] || 0;
-            const deductQty = deductionsMap[key] ? deductionsMap[key].qty : 0;
+            const returnQty = returnsByIndex.get(prodIndex) || 0;
+            const deductQty = deductionsByIndex.get(prodIndex) || 0;
             const maxAvailable = currentStock + returnQty;
 
             if (deductQty > maxAvailable) {

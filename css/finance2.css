@@ -165,12 +165,16 @@ input[type="radio"]:checked + .cancel-title { color: #e53e3e; }
     to { opacity: 1; transform: translateY(0); }
 }
 
-/* 📱 تحسينات الشاشات الصغيرة (الموبايل والتابلت) 📱 */
-@media (max-width: 768px) {
-    .exchange-card { padding: 15px; }
-    .grid-2 { grid-template-columns: 1fr; /* تحويل الأعمدة إلى عمود واحد في الموبايل */ }
-    .profit-analysis { grid-template-columns: 1fr; /* جعل ملخص الأرباح تحت بعضه */ }
-    .radio-group { flex-direction: column; }
-    .ex-modal-footer { flex-direction: column; }
-    .ex-btn-modal { width: 100%; margin-bottom: 10px; }
+/* 📱 تحسينات الشاشات الصغيرة (الموبايل والتابلت <= 767px فقط) 📱 */
+@media (max-width: 767px) {
+    .exchange-card, .ex-card, .box-panel { padding: 14px; }
+    .exchange-grid { grid-template-columns: 1fr; }
+    .grid-2 { grid-template-columns: 1fr !important; }
+    .profit-analysis { grid-template-columns: 1fr; }
+    .radio-group { flex-direction: column; gap: 8px; }
+    .radio-group label { width: 100%; min-width: 0; }
+    .ex-modal-overlay { padding: 12px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+    .ex-modal-content { width: 95vw; max-width: 100%; max-height: calc(100dvh - 24px); overflow-y: auto; padding: 16px; }
+    .ex-modal-footer { flex-direction: column-reverse; }
+    .ex-btn-modal { width: 100%; margin-bottom: 0; }
 }

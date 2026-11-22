@@ -38,41 +38,56 @@ window.executeCancellation = async function(saleId, accountId, amount) {
     }
 
     const sale = pendingSales[saleIndex];
+    const cleanRefundAmt = (typeof window.money === 'function' ? window.money : Number)(Number(amount) || 0);
 
-    // �� 1. أخذ لقطة للحالة قبل التنفيذ لكي يعمل زر التراجع (Undo)
+    // التحقق من توفر حساب ورصيد كافٍ قبل أي تعديل لمنع السحب على المكشوف أو حذف البيعة دون رد العربون
+    let refundAcc = null;
+    if (cleanRefundAmt > 0.001) {
+        if (!accountId) {
+            alert("يرجى اختيار الحساب المالي لرد العربون قبل إلغاء البيعة.");
+            return;
+        }
+        refundAcc = accounts.find(a => String(a.id) === String(accountId));
+        if (!refundAcc) {
+            alert("الحساب المالي المختار لرد العربون غير موجود.");
+            return;
+        }
+        if (cleanRefundAmt > (Number(refundAcc.balance) || 0) + 0.001) {
+            alert(`رصيد حساب "${refundAcc.name}" (${formatCurrency(refundAcc.balance)}) غير كافٍ لرد العربون (${formatCurrency(cleanRefundAmt)}).`);
+            return;
+        }
+    }
+
     if (typeof saveStateToHistory === 'function') {
         saveStateToHistory();
     }
+    const _tx = (typeof window.createStateTransaction === 'function') ? window.createStateTransaction() : null;
 
     try {
         // أ. معالجة السيولة (رد العربون أو المدفوع)
-        if (accountId && Number(amount) > 0) {
-            const acc = accounts.find(a => String(a.id) === String(accountId));
-            if (acc) {
-                acc.balance = Number(acc.balance) - Number(amount);
-                liquidityLog.push({
-                    id: generateId("liq-refund"),
-                    timestamp: new Date().toISOString(),
-                    type: "remove",
-                    amount: Number(amount),
-                    description: `رد عربون (إلغاء بيعة مؤقتة) - عميل: ${sale.customerName || '-'}`,
-                    accountId: acc.id,
-                    currentBalance: accounts.reduce((sum, a) => sum + Number(a.balance), 0)
-                });
-            }
+        if (refundAcc && cleanRefundAmt > 0.001) {
+            refundAcc.balance = (typeof window.money === 'function' ? window.money : Number)((Number(refundAcc.balance) || 0) - cleanRefundAmt);
+            const newTotalLiq = (typeof window.money === 'function' ? window.money : Number)(accounts.reduce((sum, a) => sum + (Number(a.balance) || 0), 0));
+            liquidityLog.push({
+                id: generateId("liq-refund"),
+                timestamp: new Date().toISOString(),
+                type: "remove",
+                amount: cleanRefundAmt,
+                description: `رد عربون (إلغاء بيعة مؤقتة) - عميل: ${sale.customerName || '-'}`,
+                accountId: refundAcc.id,
+                currentBalance: newTotalLiq
+            });
         }
 
         // ب. إرجاع البضاعة للمخزن (تجميع الأصناف بحذر لتجنب التكرار)
         let itemsToReturn = [];
         
         if (sale.mainProduct) {
-            // هذا لبيعات السريع المؤقتة (تحتوي على mainProduct و additionalItems منفصلة)
             itemsToReturn.push(sale.mainProduct);
             if (sale.additionalItems && Array.isArray(sale.additionalItems)) {
                 itemsToReturn.push(...sale.additionalItems);
             }
         } else {
-            // للفواتير التفصيلية المؤقتة
             if (sale.items && sale.items.length > 0) {
                 itemsToReturn.push(...sale.items);
             } else if (sale.invoiceData && sale.invoiceData.items) {
@@ -82,8 +97,6 @@ window.executeCancellation = async function(saleId, accountId, amount) {
         
         const extraDeducted = sale.deductedItems || (sale.invoiceData ? sale.invoiceData.deductedItems : []) || [];
         itemsToReturn.push(...extraDeducted);
-
-        // إزالة أي قيم فارغة (null/undefined)
         itemsToReturn = itemsToReturn.filter(Boolean);
 
         const restoreCancellationSerials = (it) => {
@@ -106,47 +119,47 @@ window.executeCancellation = async function(saleId, accountId, amount) {
             });
         };
 
-      itemsToReturn.forEach(item => {
-    // تنظيف الاسم من السيريال إن وجد للبحث الدقيق
-    const cleanItemName = (item.name || '').split(' (S/N:')[0].trim().toLowerCase();
-    
-    let product = (item.id ? products.find(p => String(p.id) === String(item.id)) : null) || 
-                  products.find(p => p.name.trim().toLowerCase() === cleanItemName);
-                  
-    const returnedQty = Number(item.quantity) || 1;
+        itemsToReturn.forEach(item => {
+            const cleanItemName = (item.name || '').split(' (S/N:')[0].trim().toLowerCase();
+            let product = (item.id ? products.find(p => String(p.id) === String(item.id)) : null) || 
+                          products.find(p => p.name.trim().toLowerCase() === cleanItemName);
+            const returnedQty = Number(item.quantity) || 1;
+            const retCost = Number(item.costPrice || item.cost || 0) || 0;
 
-    if (product) {
-        // إذا كان المنتج موجوداً، نزيد كميته فقط
-        product.quantity = Number(product.quantity || 0) + returnedQty;
-        restoreCancellationSerials(item);
-    } else {
-        // ��️ حماية حرجـة لرأس المال: إذا قمت بحذف المنتج يدوياً سابقاً ولم يجده البرنامج
-        // نقوم بإعادة إنشائه وضخه في المخزن فوراً بتكلفته الأصلية حتى لا يقل رأس المال
-        products.push({
-            id: item.id || generateId('P'),
-            name: (item.name || '').split(' (S/N:')[0].trim(),
-            quantity: returnedQty,
-            costPrice: Number(item.costPrice || item.cost) || 0,
-            supplierId: item.supplierId || "",
-            category: item.category || "عام"
+            if (product) {
+                const oldQty = Number(product.quantity) || 0;
+                const oldCost = Number(product.costPrice) || 0;
+                const newQty = oldQty + returnedQty;
+                if (newQty > 0 && retCost > 0) {
+                    product.costPrice = Math.round((((oldQty * oldCost) + (returnedQty * retCost)) / newQty) * 1e6) / 1e6;
+                }
+                product.quantity = newQty;
+                restoreCancellationSerials(item);
+            } else {
+                products.push({
+                    id: item.id || generateId('P'),
+                    name: (item.name || '').split(' (S/N:')[0].trim(),
+                    quantity: returnedQty,
+                    costPrice: Math.round(retCost * 1e6) / 1e6,
+                    supplierId: item.supplierId || "",
+                    category: item.category || "عام"
+                });
+                restoreCancellationSerials(item);
+            }
         });
-        restoreCancellationSerials(item);
-    }
-});
-        // ج. معالجة "الربح المتوقع" 
+
+        // ج. معالجة "الربح المتوقع"
         if (typeof expectedProfitsTotal !== 'undefined' && sale.expectedProfit) {
             expectedProfitsTotal -= Number(sale.expectedProfit);
         }
 
-        // تسجيل عملية الإلغاء في سجل العمليات وسجل المبيعات
+        // تسجيل عملية الإلغاء في سجل العمليات
         if (typeof logOperation === 'function') {
             const cust = sale.customerName || 'عميل نقدي';
             const itemsSummary = (itemsToReturn || []).map(i => `${i.quantity || 1}x ${i.name || ''}`).join(', ');
             let refundTxt = '';
-            if (accountId && Number(amount) > 0) {
-                const acc = accounts.find(a => String(a.id) === String(accountId));
-                const accName = acc ? acc.name : 'الحساب المالي';
-                refundTxt = ` مع رد عربون بقيمة ${formatCurrency(amount)} من "${accName}"`;
+            if (refundAcc && cleanRefundAmt > 0.001) {
+                refundTxt = ` مع رد عربون بقيمة ${formatCurrency(cleanRefundAmt)} من "${refundAcc.name}"`;
             }
             logOperation("إلغاء بيع مؤقت", `تم إلغاء البيع المؤقت للعميل "${cust}" (${itemsSummary || 'بدون أصناف'})${refundTxt} وإرجاع البضاعة للمخزن.`);
         }
@@ -158,26 +171,24 @@ window.executeCancellation = async function(saleId, accountId, amount) {
             goodsOnConsignmentValue = calculateConsignmentValue();
         }
         
-        // هـ. حفظ البيانات (Cloud & Local)
-        if (typeof saveData === 'function') await saveData();
+        if (_tx) _tx.commit();
+        // هـ. حفظ البيانات السحابية فوراً (استبدال saveData المعطوبة بـ saveSystemToCloud)
+        if (typeof saveSystemToCloud === 'function') {
+            await saveSystemToCloud({ immediate: true });
+        }
 
-        // و. تحديث الواجهة بالكامل لتختفي البيعة ويتعدل الربح أمامك
         if (typeof updateUI === 'function') updateUI();
         if (typeof renderPendingSales === 'function') renderPendingSales(); 
         if (typeof renderDashboard === 'function') renderDashboard(); 
+        if (typeof updateUndoRedoButtons === 'function') updateUndoRedoButtons();
 
-        // �� 2. تحديث وتفعيل أزرار التراجع بعد إتمام العملية بنجاح
-        if (typeof updateUndoRedoButtons === 'function') {
-            updateUndoRedoButtons();
-        }
-
-        // ز. رسالة النجاح
         if (typeof showGlobalMessage === 'function') {
             showGlobalMessage(`تم الإلغاء بنجاح: تم استرداد ${itemsToReturn.length} صنف للمخزن وإلغاء الأرباح المتوقعة.`, false);
         }
 
     } catch (error) {
-        console.error("خطأ حرج في تنفيذ الإلغاء:", error);
+        if (_tx) await _tx.rollback();
+        console.error("خطأ حرج في تنفيذ الإلغاء (تم التراجع):", error);
         throw error; 
     }
 };

@@ -1,23 +1,38 @@
 function pi_addItem() {
-    const name = piItemNameInput.value.trim();
+    const nameInput = piItemNameInput || d('pi_item_name');
     const categoryInput = document.getElementById('pi_item_category');
+    const qtyInput = piItemQuantityInput || d('pi_item_quantity');
+    const costInput = piItemCostInput || d('pi_item_cost');
+    const totalCostInput = document.getElementById('pi_item_total_cost') || d('pi_item_total_cost');
+    const serialsTextarea = piItemSerialsTextarea || d('pi_item_serials');
+    const serialsContainer = piItemSerialsContainer || d('pi_item_serials_container');
+    const itemAddMsg = piItemAddMessage || d('pi_item_add_message');
+    const itemsBody = piItemsBody || d('pi_items_body');
+    const noItemsEl = piNoItemsMsg || d('pi_no_items_msg');
+
+    if (!nameInput || !qtyInput || !costInput) {
+        console.error("عناصر نموذج إضافة البند غير متوفرة.");
+        return;
+    }
+
+    const name = nameInput.value.trim();
     const category = categoryInput ? categoryInput.value.trim() : ""; 
-    const quantity = parseInt(piItemQuantityInput.value);
+    const quantity = parseInt(qtyInput.value);
     // نعتمد على سعر الوحدة كمرجع أساسي لأنه الأدق في التخزين
-    const cost = parseFloat(piItemCostInput.value) || 0;
+    const cost = parseFloat(costInput.value) || 0;
     // نستخدم السعر الإجمالي للعرض أو التحقق
-    const totalCostInput = document.getElementById('pi_item_total_cost');
     const totalCost = totalCostInput ? (parseFloat(totalCostInput.value) || 0) : (quantity * cost);
-    const serialsInput = piItemSerialsTextarea.value.trim();
+    const serialsInput = serialsTextarea ? serialsTextarea.value.trim() : "";
+
     // التحقق
     if (!name || isNaN(quantity) || quantity <= 0 || cost < 0) {
-        showMessage(piItemAddMessage, "يرجى إدخال البيانات بشكل صحيح.", true);
+        if (itemAddMsg) showMessage(itemAddMsg, "يرجى إدخال البيانات بشكل صحيح.", true);
         return;
     }
 
     const serials = serialsInput ? serialsInput.split('\n').map(s => s.trim()).filter(Boolean) : [];
     if (serials.length > 0 && serials.length !== quantity) {
-         showMessage(piItemAddMessage, `عدد السيريالات (${serials.length}) لا يطابق الكمية (${quantity}).`, true);
+        if (itemAddMsg) showMessage(itemAddMsg, `عدد السيريالات (${serials.length}) لا يطابق الكمية (${quantity}).`, true);
         return;
     }
 
@@ -32,8 +47,8 @@ function pi_addItem() {
     newRow.dataset.serials = JSON.stringify(serials);
     newRow.innerHTML = `
         <td class="border p-2">
-            ${name} 
-            ${category ? `<span class="text-xs text-blue-600 block">(${category})</span>` : ''} 
+            ${escapeHTML(name)} 
+            ${category ? `<span class="text-xs text-blue-600 block">(${escapeHTML(category)})</span>` : ''} 
             ${serials.length > 0 ? `<span class="text-xs text-gray-500 block">(${serials.length} S/N)</span>` : ''}
         </td>
         <td class="border p-2 text-center font-mono">${quantity}</td>
@@ -44,46 +59,63 @@ function pi_addItem() {
             <button type="button" class="pi_remove_item_btn text-red-500 hover:text-red-700 font-bold" title="حذف البند">×</button>
         </td>
     `;
-    piItemsBody.appendChild(newRow);
-    pi_no_items_msg.classList.add('hidden');
-    pi_updateTotals();
+    if (itemsBody) itemsBody.appendChild(newRow);
+    if (noItemsEl) noItemsEl.classList.add('hidden');
+    if (window.pi_updateTotals) window.pi_updateTotals();
+
     // تنظيف الحقول
-    piItemNameInput.value = '';
-    if(categoryInput) categoryInput.value = '';
-    piItemQuantityInput.value = '1';
-    piItemCostInput.value = '0';
-    if(totalCostInput) totalCostInput.value = '0'; // تصفير الإجمالي أيضاً
-    piItemSerialsTextarea.value = '';
-    piItemSerialsContainer.classList.add('hidden');
-    showMessage(piItemAddMessage, "");
-    piItemNameInput.focus();
+    nameInput.value = '';
+    if (categoryInput) categoryInput.value = '';
+    qtyInput.value = '1';
+    costInput.value = '0';
+    if (totalCostInput) totalCostInput.value = '0'; // تصفير الإجمالي أيضاً
+    if (serialsTextarea) serialsTextarea.value = '';
+    if (serialsContainer) serialsContainer.classList.add('hidden');
+    if (itemAddMsg) showMessage(itemAddMsg, "");
+    nameInput.focus();
 }
+window.pi_addItem = pi_addItem;
 function pi_clearForm(shouldShowMessage = true) {
     // 1. مسح الحقول الأساسية
-    d('pi_invoice_number').value = '';
-    d('pi_date').value = (typeof getCairoDateString === 'function' ? getCairoDateString() : new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' }));
-    piSupplierSelect.value = '';
+    const invoiceNum = d('pi_invoice_number'); if (invoiceNum) invoiceNum.value = '';
+    const dateInp = d('pi_date'); if (dateInp) dateInp.value = (typeof getCairoDateString === 'function' ? getCairoDateString() : new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' }));
+    const supplierSel = piSupplierSelect || d('pi_supplier'); if (supplierSel) supplierSel.value = '';
+    
     // 2. مسح جدول المنتجات
-    piItemsBody.innerHTML = '';
-    d('pi_no_items_msg').classList.remove('hidden');
+    const itemsBody = piItemsBody || d('pi_items_body'); if (itemsBody) itemsBody.innerHTML = '';
+    const noItemsEl = piNoItemsMsg || d('pi_no_items_msg'); if (noItemsEl) noItemsEl.classList.remove('hidden');
+    
     // 3. مسح الحقول المالية
-    piPaidAmountInput.value = '0';
-    d('pi_goods_received').checked = true; // الوضع الافتراضي
-    d('pi_deduct_from_liquidity').checked = true; // الوضع الافتراضي
-    if(d('pi_payment_account')) d('pi_payment_account').value = ''; // تصفير الحساب
+    const paidInp = piPaidAmountInput || d('pi_paid_amount'); if (paidInp) paidInp.value = '0';
+    const goodsRec = d('pi_goods_received'); if (goodsRec) goodsRec.checked = true; // الوضع الافتراضي
+    const deductLiq = d('pi_deduct_from_liquidity'); if (deductLiq) deductLiq.checked = true; // الوضع الافتراضي
+    const payAcc = d('pi_payment_account'); if (payAcc) payAcc.value = ''; // تصفير الحساب
+    const payAccCont = d('pi-payment-account-container'); if (payAccCont) payAccCont.classList.remove('hidden');
 
-    // 4. مسح التكاليف الإضافية الديناميكية وإظهار رسالة الحالة الفارغة
+    // 4. مسح حقول إضافة بند جديد أيضاً
+    const nameInp = piItemNameInput || d('pi_item_name'); if (nameInp) nameInp.value = '';
+    const catInp = document.getElementById('pi_item_category'); if (catInp) catInp.value = '';
+    const qtyInp = piItemQuantityInput || d('pi_item_quantity'); if (qtyInp) qtyInp.value = '1';
+    const costInp = piItemCostInput || d('pi_item_cost'); if (costInp) costInp.value = '0';
+    const totalCostInp = document.getElementById('pi_item_total_cost') || d('pi_item_total_cost'); if (totalCostInp) totalCostInp.value = '0';
+    const serialsText = piItemSerialsTextarea || d('pi_item_serials'); if (serialsText) serialsText.value = '';
+    const serialsCont = piItemSerialsContainer || d('pi_item_serials_container'); if (serialsCont) serialsCont.classList.add('hidden');
+    const itemAddMsg = piItemAddMessage || d('pi_item_add_message'); if (itemAddMsg) showMessage(itemAddMsg, "");
+
+    // 5. مسح التكاليف الإضافية الديناميكية وإظهار رسالة الحالة الفارغة
     const costsContainer = d('pi_additional_costs_container');
     if (costsContainer) {
         costsContainer.innerHTML = ''; // حذف كل صفوف التكاليف المضافة
     }
     const noCostsMsg = d('pi_no_extra_costs_msg');
     if (noCostsMsg) noCostsMsg.style.display = 'block';
-    // 5. تحديث الإجماليات لتظهر أصفار
-    pi_updateTotals();
+
+    // 6. تحديث الإجماليات لتظهر أصفار
+    if (window.pi_updateTotals) window.pi_updateTotals();
     // رسائل النظام
     if (shouldShowMessage !== false) {
-        showMessage(piFormMessage, "تم بدء فاتورة جديدة فارغة.", false);
+        const formMsg = piFormMessage || d('pi_form_message');
+        if (formMsg) showMessage(formMsg, "تم بدء فاتورة جديدة فارغة.", false);
     }
 }
 /**
@@ -112,17 +144,22 @@ function pi_validateForm() {
 
     const grandTotal = parseFloat(piGrandTotalSpan.textContent) || 0;
     const paidAmount = parseInputNumber(piPaidAmountInput) || 0;
+    if (paidAmount < 0) {
+        errors.push("لا يمكن أن يكون المبلغ المدفوع سالباً.");
+    }
     if (paidAmount > grandTotal + 0.001) {
         errors.push(`المبلغ المدفوع (${formatCurrency(paidAmount)}) لا يمكن أن يكون أكبر من إجمالي الفاتورة (${formatCurrency(grandTotal)}).`);
     }
 
-    // --- التحقق من رصيد الحساب المحدد ---
-    if (deductFromLiquidity && paidAmount > 0) {
+    // --- التحقق من رصيد الحساب المحدد ومنع تضخم رأس المال ---
+    if (!deductFromLiquidity && paidAmount > 0.001) {
+        errors.push("لا يمكن تسجيل مبلغ مدفوع مع إلغاء خيار الخصم من السيولة؛ صفّر المبلغ المدفوع أو فعّل الخصم من الخزينة لحماية رأس المال.");
+    } else if (deductFromLiquidity && paidAmount > 0) {
         const selectedAccountId = d('pi_payment_account').value;
         const account = accounts.find(acc => acc.id === selectedAccountId);
         if (!account) {
             errors.push("يرجى اختيار حساب الدفع للتحقق من الرصيد.");
-        } else if (paidAmount > account.balance) {
+        } else if (paidAmount > (Number(account.balance) || 0) + 0.001) {
             errors.push(`رصيد حساب "${account.name}" (${formatCurrency(account.balance)}) غير كافٍ لتغطية المبلغ المدفوع (${formatCurrency(paidAmount)}).`);
         }
     }
@@ -149,6 +186,39 @@ function pi_updateRecentPurchasesDisplay() {
         const liabText = extraLiab > 0 
             ? `متبقي المورد: ${formatCurrency(invoice.remainingBalance)} | ديون إضافية: ${formatCurrency(extraLiab)} | <strong class="text-purple-700">إجمالي الالتزام: ${formatCurrency(totalLiab)}</strong>` 
             : `المتبقي كالتزام: ${formatCurrency(invoice.remainingBalance)}`;
+        
+        const items = Array.isArray(invoice.items) ? invoice.items : [];
+        const totalQty = items.reduce((s, i) => s + (Number(i.quantity) || 0), 0);
+        const returnedQty = items.reduce((s, i) => s + (Number(i.returnedQuantity) || 0), 0);
+        const isFullyReturned = totalQty > 0 && returnedQty >= totalQty;
+        const isPartiallyReturned = returnedQty > 0 && !isFullyReturned;
+
+        let returnActionHTML = '';
+        if (isFullyReturned) {
+            returnActionHTML = `
+                <span class="text-xs bg-emerald-100 text-emerald-800 font-bold py-1 px-3 rounded-lg border border-emerald-300 flex items-center gap-1 shadow-2xs">
+                    <i class="fas fa-check-circle text-emerald-600"></i> مرتجع بالكامل
+                </span>
+            `;
+        } else if (isPartiallyReturned) {
+            returnActionHTML = `
+                <div class="flex flex-wrap items-center gap-2">
+                    <span class="text-xs bg-amber-100 text-amber-800 font-bold py-1 px-2.5 rounded-lg border border-amber-300">
+                        مرتجع جزئي (${returnedQty}/${totalQty})
+                    </span>
+                    <button data-invoice-id="${escapeHTML(invoice.id)}" onclick="window.openPurchaseReturnModal(this.dataset.invoiceId)" class="text-xs bg-red-50 hover:bg-red-100 text-red-700 font-semibold py-1 px-3 rounded border border-red-300 transition flex items-center gap-1">
+                        <i class="fas fa-undo-alt mr-1"></i> متابعة المرتجع (${totalQty - returnedQty} متبقي)
+                    </button>
+                </div>
+            `;
+        } else {
+            returnActionHTML = `
+                <button data-invoice-id="${escapeHTML(invoice.id)}" onclick="window.openPurchaseReturnModal(this.dataset.invoiceId)" class="text-xs bg-red-50 hover:bg-red-100 text-red-700 font-semibold py-1 px-3 rounded border border-red-300 transition flex items-center gap-1">
+                    <i class="fas fa-undo-alt mr-1"></i> عمل مرتجع للمورد
+                </button>
+            `;
+        }
+
         return `
             <div class="p-3 border rounded-md bg-gray-50 shadow-sm mb-2">
                 <div class="flex justify-between items-center flex-wrap gap-2">
@@ -162,14 +232,42 @@ function pi_updateRecentPurchasesDisplay() {
                     المدفوع: ${formatCurrency(invoice.paidAmount)} | ${liabText}
                 </div>
                 <div class="mt-2 pt-2 border-t border-gray-200 flex justify-end">
-                    <button data-invoice-id="${escapeHTML(invoice.id)}" onclick="window.openPurchaseReturnModal(this.dataset.invoiceId)" class="text-xs bg-red-50 hover:bg-red-100 text-red-700 font-semibold py-1 px-3 rounded border border-red-300 transition">
-                        <i class="fas fa-undo-alt mr-1"></i> عمل مرتجع للمورد
-                    </button>
+                    ${returnActionHTML}
                 </div>
             </div>
         `;
     }).join('');
 }
+
+function getPendingPurchaseActiveDebt(purchase) {
+    if (!purchase) return 0;
+    const m = (typeof window.money === 'function') ? window.money : Number;
+    const extraCostsList = Array.isArray(purchase.extraCosts) ? purchase.extraCosts : [];
+    const extraCostByLiabId = new Map();
+    extraCostsList.forEach(c => {
+        if (c && c.isLiability && c.linkedLiabilityId) {
+            extraCostByLiabId.set(c.linkedLiabilityId, m((extraCostByLiabId.get(c.linkedLiabilityId) || 0) + (Number(c.amount) || 0)));
+        }
+    });
+    let total = 0;
+    let foundAny = false;
+    if (typeof liabilities !== 'undefined' && Array.isArray(liabilities)) {
+        liabilities.forEach(l => {
+            const liveAmt = Number(l.amount) || 0;
+            if (liveAmt <= 0.001) return;
+            if (extraCostByLiabId.has(l.id)) {
+                total = m(total + Math.min(liveAmt, extraCostByLiabId.get(l.id)));
+                foundAny = true;
+            } else if (l.purchaseInvoiceId === purchase.id) {
+                total = m(total + liveAmt);
+                foundAny = true;
+            }
+        });
+    }
+    if (foundAny) return total;
+    return m(Math.min(Number(purchase.remainingBalance) || 0, Math.max(0, (Number(purchase.grandTotal) || 0) - (Number(purchase.paidAmount) || 0))));
+}
+window.getPendingPurchaseActiveDebt = getPendingPurchaseActiveDebt;
 
 function pi_updatePendingPurchasesDisplay() {
     if (!d('pending-purchases-list')) return;
@@ -183,8 +281,7 @@ function pi_updatePendingPurchasesDisplay() {
     container.innerHTML = sortedInvoices.map(invoice => {
         const supplier = suppliers.find(s => s.id === invoice.supplierId);
 
-        const allInvoiceLiabs = (typeof liabilities !== 'undefined' && Array.isArray(liabilities)) ? liabilities.filter(l => l.purchaseInvoiceId === invoice.id || (invoice.extraCosts || []).some(c => c.isLiability && c.linkedLiabilityId === l.id)) : [];
-        const activeDebt = allInvoiceLiabs.length > 0 ? allInvoiceLiabs.reduce((s, l) => s + (Number(l.amount) || 0), 0) : Math.min(Number(invoice.remainingBalance) || 0, Math.max(0, (Number(invoice.grandTotal) || 0) - (Number(invoice.paidAmount) || 0)));
+        const activeDebt = getPendingPurchaseActiveDebt(invoice);
         const hasDebt = activeDebt > 0.001;
 
         let receiveAndPayButtonHTML = '';
@@ -193,24 +290,26 @@ function pi_updatePendingPurchasesDisplay() {
         }
 
         const itemsTableHTML = `
-            <table class="w-full text-sm mt-2" style="border-top: 1px dashed #e2e8f0;">
-                <thead>
-                    <tr class="text-gray-600">
-                        <th class="p-1 text-right">المنتج</th>
-                        <th class="p-1 text-center">الكمية</th>
-                        <th class="p-1 text-center">التكلفة</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${invoice.items.map(item => `
-                        <tr class="border-b border-gray-100">
-                            <td class="p-1">${escapeHTML(item.name)}</td>
-                            <td class="p-1 text-center font-mono">${item.quantity}</td>
-                            <td class="p-1 text-center font-mono">${formatCurrency(item.cost)}</td>
+            <div class="overflow-x-auto mt-2">
+                <table class="w-full text-sm min-w-[360px]" style="border-top: 1px dashed #e2e8f0;">
+                    <thead>
+                        <tr class="text-gray-600">
+                            <th class="p-1 text-right">المنتج</th>
+                            <th class="p-1 text-center">الكمية</th>
+                            <th class="p-1 text-center">التكلفة</th>
                         </tr>
-                    `).join('')}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        ${invoice.items.map(item => `
+                            <tr class="border-b border-gray-100">
+                                <td class="p-1">${escapeHTML(item.name)}</td>
+                                <td class="p-1 text-center font-mono">${item.quantity}</td>
+                                <td class="p-1 text-center font-mono">${formatCurrency(item.cost)}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
         `;
 
         return `
@@ -225,7 +324,7 @@ function pi_updatePendingPurchasesDisplay() {
 
                 ${itemsTableHTML}
 
-                <div class="text-sm mt-2 pt-2 border-t flex justify-end gap-2">
+                <div class="text-sm mt-2 pt-2 border-t flex flex-wrap justify-end gap-2">
                     <button data-pending-purchase-id="${invoice.id}" class="cancel-pending-purchase-btn text-xs bg-red-500 hover:bg-red-600 active:scale-95 text-white font-semibold py-1.5 px-3 rounded shadow-sm transition-all duration-150">إلغاء الشراء</button>
                     ${receiveAndPayButtonHTML}
                     <button data-pending-purchase-id="${invoice.id}" class="receive-goods-btn text-xs ${hasDebt ? 'bg-green-600 hover:bg-green-700' : 'bg-emerald-600 hover:bg-emerald-700'} active:scale-95 text-white font-semibold py-1.5 px-3 rounded shadow-sm transition-all duration-150">${hasDebt ? 'استلام (بقاء الدين)' : '<i class="fas fa-check-circle ml-1"></i> استلام البضاعة (مسددة)'}</button>
@@ -251,60 +350,62 @@ function handlePendingPurchaseActions(event) {
 
     // --- التعديل هنا: دالة تحديث المخزون المطورة ---
     const updateInventoryFromPurchase = (p) => {
-        // 1. حساب إجمالي التكاليف الإضافية (مثل الشحن والعتالة) المسجلة في الفاتورة
         const totalExtraCosts = (p.extraCosts || []).reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
-        
-        // 2. حساب إجمالي قيمة البضاعة الأساسية لعمل توزيع نسبي عادل
-        const totalBaseGoodsValue = p.items.reduce((sum, item) => sum + (item.quantity * item.cost), 0);
+        const totalBaseGoodsValue = p.items.reduce((sum, item) => sum + ((Number(item.quantity) || 0) * (Number(item.cost) || 0)), 0);
+        const totalBaseQty = p.items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
 
         p.items.forEach(item => {
-            // 3. توزيع التكاليف الإضافية نسبياً على كل قطعة
+            const itemQty = Number(item.quantity) || 0;
+            const itemCost = Number(item.cost) || 0;
             let extraCostPerUnit = 0;
-            if (totalBaseGoodsValue > 0 && totalExtraCosts > 0) {
-                const itemTotalBaseCost = item.quantity * item.cost;
-                const itemShareOfExtra = (itemTotalBaseCost / totalBaseGoodsValue) * totalExtraCosts;
-                extraCostPerUnit = itemShareOfExtra / item.quantity;
+            if (totalExtraCosts > 0 && itemQty > 0) {
+                if (totalBaseGoodsValue > 0) {
+                    const itemTotalBaseCost = itemQty * itemCost;
+                    const itemShareOfExtra = (itemTotalBaseCost / totalBaseGoodsValue) * totalExtraCosts;
+                    extraCostPerUnit = itemShareOfExtra / itemQty;
+                } else if (totalBaseQty > 0) {
+                    extraCostPerUnit = totalExtraCosts / totalBaseQty;
+                }
             }
-            
-            // التكلفة النهائية للوحدة = السعر الأساسي + نصيبها من المصاريف الإضافية
-            const finalUnitCost = item.cost + extraCostPerUnit;
+            const finalUnitCost = Math.round((itemCost + extraCostPerUnit) * 1e6) / 1e6;
 
-// �� [تعديل د. ضياء الحصري]: البحث بالـ ID الممرر من الفاتورة لضمان خيارات الفصل والدمج
-const productIndex = products.findIndex(prod => (item.id && prod.id === item.id) || prod.name.toLowerCase() === item.name.toLowerCase());            
+            const productIndex = (item.duplicateResolution === 'separate')
+                ? -1
+                : products.findIndex(prod => (item.id && prod.id === item.id) || prod.name.toLowerCase() === item.name.toLowerCase());
+            let targetProdId = null;
+
             if (productIndex !== -1) {
-                // تحديث منتج موجود
                 const existing = products[productIndex];
                 const oldQty = Number(existing.quantity) || 0;
                 const oldCost = Number(existing.costPrice) || 0;
-                const totalQty = oldQty + item.quantity;
+                const totalQty = oldQty + itemQty;
                 
                 existing.quantity = totalQty;
-                // تحديث متوسط التكلفة بناءً على السعر الشامل الجديد
-                existing.costPrice = totalQty > 0 ? (typeof window.money === 'function' ? window.money(((oldQty * oldCost) + (item.quantity * finalUnitCost)) / totalQty) : ((oldQty * oldCost) + (item.quantity * finalUnitCost)) / totalQty) : finalUnitCost;
-                
-                // ✅ تحديث التصنيف لضمان انتقاله للمخزون
+                existing.costPrice = totalQty > 0
+                    ? Math.round((((oldQty * oldCost) + (itemQty * finalUnitCost)) / totalQty) * 1e6) / 1e6
+                    : finalUnitCost;
                 if (item.category) existing.category = item.category;
+                targetProdId = existing.id;
             } else {
-                // إضافة منتج جديد تماماً
-            // �� [تعديل د. ضياء]: توليد كود فريد للمنتج عند النقل
-const uniqueProductCodeTransfer = (typeof window.generateGlobalID === 'function') ? window.generateGlobalID('code') : ('code_' + Date.now().toString(36));
-products.push({ 
-    id: uniqueProductCodeTransfer, // �� حفر الكود الفريد هنا
-    name: item.name, 
-    quantity: item.quantity, 
-    costPrice: finalUnitCost, 
-    supplierId: p.supplierId,
-    category: item.category || "" // ✅ نقل التصنيف هنا
-});
+                const uniqueProductCodeTransfer = (typeof window.generateGlobalID === 'function') ? window.generateGlobalID('code') : ('code_' + Date.now().toString(36));
+                products.push({ 
+                    id: uniqueProductCodeTransfer,
+                    name: item.name, 
+                    quantity: itemQty, 
+                    costPrice: finalUnitCost, 
+                    supplierId: p.supplierId,
+                    category: item.category || ""
+                });
+                targetProdId = uniqueProductCodeTransfer;
             }
 
-            // معالجة السيريالات
             if (item.serials && item.serials.length > 0) {
                 item.serials.forEach(serial => {
                     if (!serialNumbersLog.some(s => s.serial === serial)) {
                         serialNumbersLog.push({
-                id: generateId("SER"),
-                serial, 
+                            id: generateId("SER"),
+                            serial,
+                            productId: targetProdId,
                             productName: item.name, 
                             supplierId: p.supplierId, 
                             addedTimestamp: p.timestamp, 
@@ -316,78 +417,153 @@ products.push({
         });
     };
 
-    // --- باقي العمليات تبقى كما هي تماماً لضمان عدم تعطل النظام ---
     if (target.classList.contains('receive-goods-btn')) {
         if (!confirm(`هل أنت متأكد من استلام بضاعة الفاتورة من المورد "${supplier?.name || '-'}"؟ سيتم توزيع التكاليف الإضافية على البضاعة.`)) return;
         saveStateToHistory();
-        updateInventoryFromPurchase(purchase);
+        const _recTx = typeof createStateTransaction === 'function' ? createStateTransaction('استلام بضاعة') : null;
+        try {
+            updateInventoryFromPurchase(purchase);
 
-        const allInvoiceLiabs = (typeof liabilities !== 'undefined' && Array.isArray(liabilities)) ? liabilities.filter(l => l.purchaseInvoiceId === purchase.id || (purchase.extraCosts || []).some(c => c.isLiability && c.linkedLiabilityId === l.id)) : [];
-        const activeDebt = allInvoiceLiabs.length > 0 ? allInvoiceLiabs.reduce((s, l) => s + (Number(l.amount) || 0), 0) : Math.min(Number(purchase.remainingBalance) || 0, Math.max(0, (Number(purchase.grandTotal) || 0) - (Number(purchase.paidAmount) || 0)));
-        if (activeDebt <= 0.001) {
-            purchase.remainingBalance = 0;
-            purchase.paidAmount = purchase.grandTotal;
+            const activeDebt = getPendingPurchaseActiveDebt(purchase);
+            if (activeDebt <= 0.001) {
+                purchase.remainingBalance = 0;
+                purchase.paidAmount = purchase.grandTotal;
+            }
+
+            purchase.status = 'Confirmed';
+            if (!purchase.id) purchase.id = generateId("PINV");
+            purchaseInvoices.push(purchase);
+            pendingPurchases.splice(purchaseIndex, 1);
+            logOperation("استلام بضاعة", `تم استلام بضاعة من "${supplier?.name}" وتوزيع التكاليف وتحديث التصنيفات.`);
+            if (_recTx) _recTx.commit();
+        } catch (e) {
+            if (_recTx) _recTx.rollback();
+            throw e;
         }
-
-        purchase.status = 'Confirmed';
-        if (!purchase.id) purchase.id = generateId("PINV");
-        purchaseInvoices.push(purchase);
-        pendingPurchases.splice(purchaseIndex, 1);
-        logOperation("استلام بضاعة", `تم استلام بضاعة من "${supplier?.name}" وتوزيع التكاليف وتحديث التصنيفات.`);
         showGlobalMessage("تم استلام البضاعة وتحديث المخزون بالتصنيفات والتكاليف الصحيحة.", false);
+        if (typeof saveSystemToCloud === 'function') saveSystemToCloud().catch(e => console.error(e));
 
     } else if (target.classList.contains('receive-and-pay-btn')) {
         const paymentForm = d('pending-purchase-payment-form');
         d('pp-payment-supplier-name').textContent = supplier?.name || 'غير محدد';
-        const allInvoiceLiabs = (typeof liabilities !== 'undefined' && Array.isArray(liabilities)) ? liabilities.filter(l => l.purchaseInvoiceId === purchase.id || (purchase.extraCosts || []).some(c => c.isLiability && c.linkedLiabilityId === l.id)) : [];
-        const curDebt = allInvoiceLiabs.length > 0 ? allInvoiceLiabs.reduce((s, l) => s + (Number(l.amount) || 0), 0) : Math.min(Number(purchase.remainingBalance) || 0, Math.max(0, (Number(purchase.grandTotal) || 0) - (Number(purchase.paidAmount) || 0)));
+        const curDebt = getPendingPurchaseActiveDebt(purchase);
         d('pp-payment-remaining-amount').textContent = formatCurrency(curDebt);
         d('pp-confirm-payment-btn').dataset.pendingId = pendingId;
         paymentForm.classList.remove('hidden');
         paymentForm.scrollIntoView({ behavior: 'smooth' });
 
-} else if (target.classList.contains('cancel-pending-purchase-btn')) {
-    // 1. تحديد المعرف بدقة
-    const pendingId = target.dataset.pendingPurchaseId || purchase.id;
+    } else if (target.classList.contains('cancel-pending-purchase-btn')) {
+        const targetPendingId = target.dataset.pendingPurchaseId || purchase.id;
 
-    if (!confirm(`هل أنت متأكد من إلغاء فاتورة الشراء المعلقة من المورد "${supplier?.name || '-'}"؟ سيتم حذف الالتزام المرتبط بها.`)) return;
-    
-    saveStateToHistory();
-    
-    // 2. إرجاع العربون للسيولة
-    if (purchase.deductedFromLiquidity && purchase.paidAmount > 0 && purchase.paidFromAccountId) {
-        const accountToRefund = accounts.find(acc => acc.id === purchase.paidFromAccountId);
-        if (accountToRefund) {
-            accountToRefund.balance = window.money(accountToRefund.balance + purchase.paidAmount);
-            liquidityLog.push({ 
-                id: generateId("liq"), 
-                type: "add", 
-                amount: purchase.paidAmount, 
-                description: `إلغاء شراء وإرجاع عربون للفاتورة ${pendingId}`, 
-                currentBalance: accounts.reduce((sum, acc) => sum + acc.balance, 0) 
-            });
+        // حارس حماية رأس المال: منع إلغاء شراء معلق تم تسوية التزامه بمقاصة غير نقدية أو تم سداد جزء من التزام مصاريفه المشترك بالفعل
+        if (purchase.hasNonCashOffset && (Number(purchase.offsetAmount) || 0) > 0.001) {
+            showGlobalMessage(`لا يمكن إلغاء هذه الفاتورة المعلقة تلقائياً لأن التزامها تمت تسويته بمقاصة غير نقدية (${formatCurrency(purchase.offsetAmount)}). يرجى عكس التسوية يدوياً أولاً لحماية رأس المال.`, true);
+            return;
+        }
+        const extraCostsCheck = Array.isArray(purchase.extraCosts) ? purchase.extraCosts : [];
+        const sharedNeedByLiab = new Map();
+        extraCostsCheck.forEach(c => {
+            if (c && c.isLiability && c.linkedLiabilityId) {
+                sharedNeedByLiab.set(c.linkedLiabilityId, window.money((sharedNeedByLiab.get(c.linkedLiabilityId) || 0) + (Number(c.amount) || 0)));
+            }
+        });
+        for (const [lid, totalShare] of sharedNeedByLiab.entries()) {
+            if (typeof liabilities !== 'undefined' && Array.isArray(liabilities)) {
+                const sharedLiab = liabilities.find(l => l.id === lid && l.purchaseInvoiceId !== targetPendingId);
+                if (sharedLiab && (Number(sharedLiab.amount) || 0) + 0.001 < totalShare) {
+                    showGlobalMessage(`لا يمكن إلغاء هذه الفاتورة المعلقة تلقائياً لأن الالتزام المشترك المرتبط بمصاريفها ("${sharedLiab.name}") تم سداده أو تقليصه بالفعل عن إجمالي حصته (${formatCurrency(totalShare)}).`, true);
+                    return;
+                }
+            }
+        }
+
+        if (!confirm(`هل أنت متأكد من إلغاء فاتورة الشراء المعلقة من المورد "${supplier?.name || '-'}"؟ سيتم إرجاع كافة المدفوعات وتسوية الالتزامات المرتبطة بها.`)) return;
+        
+        saveStateToHistory();
+        const _cancelPurTx = typeof createStateTransaction === 'function' ? createStateTransaction('إلغاء فاتورة شراء معلقة') : null;
+        try {
+            // إرجاع كافة المدفوعات المسجلة (الدفعة المقدمة + أي دفعات تمت لاحقاً من قسم الالتزامات) إلى حساباتها الدقيقة
+            if (Array.isArray(purchase.payments) && purchase.payments.length > 0) {
+                purchase.payments.forEach(pay => {
+                    const amt = window.money(Number(pay.amount) || 0);
+                    if (amt <= 0.001) return;
+                    const accountToRefund = accounts.find(acc => acc.id === pay.accountId) || accounts[0];
+                    if (accountToRefund) {
+                        accountToRefund.balance = window.money((Number(accountToRefund.balance) || 0) + amt);
+                        const totalLiq = window.money(accounts.reduce((sum, acc) => sum + (Number(acc.balance) || 0), 0));
+                        liquidityLog.push({ 
+                            id: generateId("liq"),
+                            timestamp: new Date().toISOString(),
+                            type: "add", 
+                            amount: amt, 
+                            description: `إلغاء شراء معلق وإرجاع دفعة للفاتورة ${targetPendingId}`, 
+                            currentBalance: totalLiq,
+                            accountId: accountToRefund.id
+                        });
+                    }
+                });
+            } else if (purchase.deductedFromLiquidity && Number(purchase.paidAmount) > 0 && purchase.paidFromAccountId) {
+                const refundAmt = window.money(Number(purchase.paidAmount) || 0);
+                const accountToRefund = accounts.find(acc => acc.id === purchase.paidFromAccountId);
+                if (accountToRefund) {
+                    accountToRefund.balance = window.money((Number(accountToRefund.balance) || 0) + refundAmt);
+                    const totalLiq = window.money(accounts.reduce((sum, acc) => sum + (Number(acc.balance) || 0), 0));
+                    liquidityLog.push({ 
+                        id: generateId("liq"),
+                        timestamp: new Date().toISOString(),
+                        type: "add", 
+                        amount: refundAmt, 
+                        description: `إلغاء شراء وإرجاع عربون للفاتورة ${targetPendingId}`, 
+                        currentBalance: totalLiq,
+                        accountId: accountToRefund.id
+                    });
+                }
+            }
+
+            // تسوية الالتزامات المرتبطة بدقة: خصم مساهمة المصاريف الإضافية من أي التزام مشترك دون مسح رصيده القديم
+            if (typeof liabilities !== 'undefined' && Array.isArray(liabilities)) {
+                const ownedLiabIds = new Set(liabilities.filter(l => l && l.purchaseInvoiceId === targetPendingId).map(l => l.id));
+                const externalRef = (pendingPurchases || []).find(other =>
+                    other && other.id !== targetPendingId &&
+                    Array.isArray(other.extraCosts) &&
+                    other.extraCosts.some(c => c && c.isLiability && c.linkedLiabilityId && ownedLiabIds.has(c.linkedLiabilityId))
+                );
+                if (externalRef) {
+                    if (_cancelPurTx) _cancelPurTx.rollback();
+                    showGlobalMessage(`لا يمكن إلغاء هذه الفاتورة المعلقة لأن التزامها مرتبط بمصاريف فاتورة معلقة أخرى (${externalRef.invoiceNumber || externalRef.id}). ألغِ أو سوِّ الفاتورة الأخرى أولاً لحماية رأس المال.`, true);
+                    return;
+                }
+                const extraCostsList = Array.isArray(purchase.extraCosts) ? purchase.extraCosts : [];
+                extraCostsList.forEach(c => {
+                    if (c && c.isLiability && c.linkedLiabilityId) {
+                        const sharedLiab = liabilities.find(l => l.id === c.linkedLiabilityId && l.purchaseInvoiceId !== targetPendingId);
+                        if (sharedLiab) {
+                            sharedLiab.amount = window.money(Math.max(0, (Number(sharedLiab.amount) || 0) - (Number(c.amount) || 0)));
+                            if (sharedLiab.amount <= 0.001) {
+                                sharedLiab.amount = 0;
+                                sharedLiab.status = 'paid';
+                            }
+                        }
+                    }
+                });
+                liabilities = liabilities.filter(l => l.purchaseInvoiceId !== targetPendingId);
+            }
+            
+            pendingPurchases.splice(purchaseIndex, 1);
+            
+            logOperation("إلغاء فاتورة شراء معلقة", `تم إلغاء شراء من "${supplier?.name}" وإرجاع المدفوعات وتسوية الالتزامات.`);
+            if (_cancelPurTx) _cancelPurTx.commit();
+        } catch (e) {
+            if (_cancelPurTx) _cancelPurTx.rollback();
+            throw e;
+        }
+        showGlobalMessage("تم إلغاء الشراء وإرجاع المدفوعات وتسوية الالتزامات بنجاح.", false, true);
+
+        if (typeof updateUI === 'function') updateUI(); 
+        if (typeof saveSystemToCloud === 'function') {
+            saveSystemToCloud().catch(e => console.error(e));
         }
     }
-
-    // 3. الخطوة الحاسمة: حذف الالتزام
-    liabilities = liabilities.filter(l => l.purchaseInvoiceId !== pendingId);
-    
-    // 4. حذف الفاتورة من المعلقات
-    pendingPurchases.splice(purchaseIndex, 1);
-    
-    logOperation("إلغاء فاتورة شراء معلقة", `تم إلغاء شراء من "${supplier?.name}" وحذف الالتزامات.`);
-    showGlobalMessage("تم إلغاء الشراء وحذف الالتزام بنجاح.", false, true);
-
-    // 5. التحديث والحفظ (استخدام المسميات الصحيحة في مشروعك)
-    if (typeof updateUI === 'function') updateUI(); 
-    
-    // تأكد من استخدام دالة الحفظ المتاحة في ملفك (غالباً هي saveSystemToCloud أو saveToLocalStorage)
-    if (typeof saveSystemToCloud === 'function') {
-        saveSystemToCloud();
-    } else if (typeof saveToLocalStorage === 'function') {
-        saveToLocalStorage();
-    }
-}
     updateUI();
 }
 async function pi_confirmPurchaseInvoice() {
@@ -395,12 +571,13 @@ async function pi_confirmPurchaseInvoice() {
 
     const goodsReceived = d('pi_goods_received').checked;
     const deductFromLiquidity = d('pi_deduct_from_liquidity').checked;
-    const paidAmountValue = parseInputNumber(piPaidAmountInput) || 0;
+    const paidAmountValue = parseInputNumber(piPaidAmountInput || d('pi_paid_amount')) || 0;
     const selectedAccountId = d('pi_payment_account').value;
     const account = accounts.find(acc => acc.id === selectedAccountId);
 
     let itemsSubtotal = 0;
-    const rawItems = Array.from(piItemsBody.querySelectorAll('tr')).map(row => {
+    const targetItemsBody = piItemsBody || d('pi_items_body');
+    const rawItems = Array.from(targetItemsBody ? targetItemsBody.querySelectorAll('tr') : []).map(row => {
         const q = parseInt(row.dataset.quantity);
         const c = parseFloat(row.dataset.cost);
         itemsSubtotal += (q * c);
@@ -438,37 +615,52 @@ async function pi_confirmPurchaseInvoice() {
         }
     });
 
-    const trueGrandTotal = itemsSubtotal + totalExtraCostsVal;
-    const maxCashPayment = trueGrandTotal - totalLiabilitiesVal;
+    const trueGrandTotal = window.money(itemsSubtotal + totalExtraCostsVal);
+    const maxCashPayment = window.money(trueGrandTotal - totalLiabilitiesVal);
+    const cleanPaidAmount = window.money(Number(paidAmountValue) || 0);
 
-    if (paidAmountValue > (maxCashPayment + 0.5)) {
-        showMessage(piFormMessage, `تنبيه: المبلغ المدفوع أكبر من المستحق نقداً.`, true);
+    const formMsg = piFormMessage || d('pi_form_message');
+
+    if (cleanPaidAmount < 0) {
+        if (formMsg) showMessage(formMsg, `تنبيه: لا يمكن أن يكون المبلغ المدفوع سالباً.`, true);
         return;
     }
 
-    if (deductFromLiquidity && paidAmountValue > 0) {
-        if (!selectedAccountId || !account || paidAmountValue > account.balance) {
-            showMessage(piFormMessage, `تنبيه: تحقق من رصيد الحساب المختار.`, true);
+    if (cleanPaidAmount > (maxCashPayment + 0.001)) {
+        if (formMsg) showMessage(formMsg, `تنبيه: المبلغ المدفوع أكبر من المستحق نقداً.`, true);
+        return;
+    }
+
+    if (deductFromLiquidity && cleanPaidAmount > 0) {
+        if (!selectedAccountId || !account || cleanPaidAmount > (Number(account.balance) || 0) + 0.001) {
+            if (formMsg) showMessage(formMsg, `تنبيه: تحقق من رصيد الحساب المختار.`, true);
             return;
         }
     }
 
     saveStateToHistory();
 
+    const supplierSel = piSupplierSelect || d('pi_supplier');
+    const invoiceNumInput = piInvoiceNumberInput || d('pi_invoice_number');
+    const dateInput = piDateInput || d('pi_date');
+
     const invoiceData = {
         id: generateId('pi'),
-        supplierId: piSupplierSelect.value,
-        invoiceNumber: piInvoiceNumberInput.value.trim(),
-        date: piDateInput.value,
+        supplierId: supplierSel ? supplierSel.value : '',
+        invoiceNumber: invoiceNumInput ? invoiceNumInput.value.trim() : '',
+        date: dateInput ? dateInput.value : '',
         timestamp: new Date().toISOString(),
         items: rawItems,
         extraCosts: extraCostsList,
         grandTotal: trueGrandTotal,
-        paidAmount: paidAmountValue,
-        remainingBalance: trueGrandTotal - paidAmountValue - totalLiabilitiesVal,
+        paidAmount: cleanPaidAmount,
+        remainingBalance: window.money(Math.max(0, trueGrandTotal - cleanPaidAmount - totalLiabilitiesVal)),
         status: goodsReceived ? 'Confirmed' : 'Pending',
-        deductedFromLiquidity: deductFromLiquidity && paidAmountValue > 0,
-        paidFromAccountId: (deductFromLiquidity && paidAmountValue > 0) ? selectedAccountId : null
+        deductedFromLiquidity: deductFromLiquidity && cleanPaidAmount > 0,
+        paidFromAccountId: (deductFromLiquidity && cleanPaidAmount > 0) ? selectedAccountId : null,
+        payments: (deductFromLiquidity && cleanPaidAmount > 0 && selectedAccountId)
+            ? [{ accountId: selectedAccountId, amount: cleanPaidAmount, date: new Date().toISOString(), source: 'initial_payment' }]
+            : []
     };
 
     // =====================================================================
@@ -493,6 +685,7 @@ async function pi_confirmPurchaseInvoice() {
                     
                     window.pendingPurchaseInvoiceItem = {
                         item: item,
+                        rowIndex: i,
                         duplicate: duplicate,
                         resumeCallback: async () => {
                             if (typeof pi_confirmPurchaseInvoice === 'function') {
@@ -527,14 +720,18 @@ async function pi_confirmPurchaseInvoice() {
 
             const existingLiability = cost.linkedLiabilityId ? liabilities.find(l => l.id === cost.linkedLiabilityId) : null;
             if (existingLiability) {
-                existingLiability.amount = (Number(existingLiability.amount) || 0) + cost.amount;
-                if (!existingLiability.purchaseInvoiceId) existingLiability.purchaseInvoiceId = invoiceData.id;
+                existingLiability.amount = window.money((Number(existingLiability.amount) || 0) + (Number(cost.amount) || 0));
+                existingLiability.status = 'active';
+                // لا نطبع purchaseInvoiceId على التزام عام موجود مسبقاً حتى لا يختلط برصيد الفاتورة أو يُحذف عند إلغائها
+                if (!Array.isArray(existingLiability.extraCostContributions)) existingLiability.extraCostContributions = [];
+                existingLiability.extraCostContributions.push({ invoiceId: invoiceData.id, name: cost.name, amount: window.money(cost.amount), date: new Date().toISOString() });
                 logOperation("ربط تكلفة إضافية بالتزام موجود", `تمت إضافة "${cost.name}" بقيمة ${formatCurrency(cost.amount)} إلى الالتزام "${existingLiability.name}" ضمن فاتورة الشراء رقم "${invoiceData.invoiceNumber || invoiceData.id}".`);
             } else {
                 const newLiability = {
                     id: generateId('liab') || generateId("LIA"),
                     name: `${cost.name} - ${supplier?.name || 'مورد غير محدد'}`,
-                    amount: cost.amount,
+                    amount: window.money(cost.amount),
+                    status: 'active',
                     date: invoiceData.date || (typeof getCairoDateString === 'function' ? getCairoDateString() : new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' })),
                     purchaseInvoiceId: invoiceData.id,
                     source: 'purchase_extra_cost',
@@ -543,6 +740,7 @@ async function pi_confirmPurchaseInvoice() {
                     type: "supplier",
                     createdAt: new Date().toISOString()
                 };
+                cost.linkedLiabilityId = newLiability.id;
                 liabilities.push(newLiability);
                 logOperation("إنشاء التزام تكلفة إضافية", `تم إنشاء التزام جديد باسم "${newLiability.name}" بقيمة ${formatCurrency(cost.amount)} من فاتورة الشراء رقم "${invoiceData.invoiceNumber || invoiceData.id}".`);
             }
@@ -550,8 +748,8 @@ async function pi_confirmPurchaseInvoice() {
 
         // تنفيذ الخصم المالي الفعلي من حساب السيولة
         if (invoiceData.paidAmount > 0 && deductFromLiquidity && account) {
-            account.balance = window.money(account.balance - invoiceData.paidAmount);
-            const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
+            account.balance = window.money((Number(account.balance) || 0) - invoiceData.paidAmount);
+            const newTotalLiquidity = window.money(accounts.reduce((sum, acc) => sum + (Number(acc.balance) || 0), 0));
             liquidityLog.push({ 
                 id: generateId("liq"),
                 timestamp: new Date().toISOString(),
@@ -565,49 +763,61 @@ async function pi_confirmPurchaseInvoice() {
 
         // ترحيل البضائع للمخزن الفعلي أو الحفظ كفاتورة معلقة
         if (goodsReceived) {
+            const totalInvoiceQty = invoiceData.items.reduce((sum, it) => sum + (Number(it.quantity) || 0), 0);
             invoiceData.items.forEach(item => {
+                const itemQty = Number(item.quantity) || 0;
+                const itemCost = Number(item.cost) || 0;
                 let extraCostPerUnit = 0;
-                if (itemsSubtotal > 0) {
-                    const itemTotalBaseCost = item.quantity * item.cost;
-                    const itemShareOfExtra = (itemTotalBaseCost / itemsSubtotal) * totalExtraCostsVal;
-                    extraCostPerUnit = itemShareOfExtra / item.quantity;
+                if (totalExtraCostsVal > 0 && itemQty > 0) {
+                    if (itemsSubtotal > 0) {
+                        const itemTotalBaseCost = itemQty * itemCost;
+                        const itemShareOfExtra = (itemTotalBaseCost / itemsSubtotal) * totalExtraCostsVal;
+                        extraCostPerUnit = itemShareOfExtra / itemQty;
+                    } else if (totalInvoiceQty > 0) {
+                        extraCostPerUnit = totalExtraCostsVal / totalInvoiceQty;
+                    }
                 }
-                const finalCostPerUnit = item.cost + extraCostPerUnit;
+                const finalCostPerUnit = Math.round((itemCost + extraCostPerUnit) * 1e6) / 1e6;
 
                 let productIndex = -1;
                 if (item.duplicateResolution === 'separate') {
-                    productIndex = -1; // إجبار السيستم على الفصل ومنحه كود جديد
+                    productIndex = -1;
                 } else {
                     productIndex = products.findIndex(p => p.name.toLowerCase() === item.name.toLowerCase());
                 }
+                let targetProdId = null;
 
                 if (productIndex !== -1) {
                     const existing = products[productIndex];
                     const oldQty = Number(existing.quantity) || 0;
                     const oldCost = Number(existing.costPrice) || 0;
-                    existing.quantity += item.quantity;
-                    existing.costPrice = existing.quantity > 0 ? (typeof window.money === 'function' ? window.money(((oldQty * oldCost) + (item.quantity * finalCostPerUnit)) / existing.quantity) : ((oldQty * oldCost) + (item.quantity * finalCostPerUnit)) / existing.quantity) : finalCostPerUnit;
+                    existing.quantity = oldQty + itemQty;
+                    existing.costPrice = existing.quantity > 0
+                        ? Math.round((((oldQty * oldCost) + (itemQty * finalCostPerUnit)) / existing.quantity) * 1e6) / 1e6
+                        : finalCostPerUnit;
                     if (item.category) existing.category = item.category;
+                    targetProdId = existing.id;
                 } else {
                     const uniqueProductCode = (typeof window.generateGlobalID === 'function') ? window.generateGlobalID('code') : ('code_' + Date.now().toString(36));
                     products.push({ 
                         id: uniqueProductCode, 
                         name: item.name, 
-                        quantity: item.quantity, 
+                        quantity: itemQty, 
                         costPrice: finalCostPerUnit, 
                         supplierId: invoiceData.supplierId, 
                         category: item.category || "" 
                     });
+                    targetProdId = uniqueProductCode;
                 }
-                delete item.duplicateResolution; // تنظيف فلاج القرار بعد اكتمال الترحيل الآمن
+                delete item.duplicateResolution;
 
-                // تسجيل أرقام السيريال في سجل السيريالات العام
                 if (item.serials && item.serials.length > 0 && typeof serialNumbersLog !== 'undefined') {
                     item.serials.forEach(serial => {
                         if (!serialNumbersLog.some(s => s.serial === serial)) {
                             serialNumbersLog.push({
                                 id: generateId("SER"),
                                 serial: serial,
+                                productId: targetProdId,
                                 productName: item.name,
                                 supplierId: invoiceData.supplierId,
                                 addedTimestamp: invoiceData.timestamp,
@@ -631,6 +841,7 @@ async function pi_confirmPurchaseInvoice() {
         purchaseInvoiceId: invoiceData.id, 
         name: `متبقي فاتورة لـ: ${supplier?.name || '-'}`, 
         amount: invoiceData.remainingBalance,
+        status: 'active',
         date: invoiceData.date || (typeof getCairoDateString === 'function' ? getCairoDateString() : new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' })), // التاريخ ليظهر في الجدول
         supplierId: invoiceData.supplierId, // لربط الدين بالمورد
         type: "supplier" // لتحديد نوع الالتزام
@@ -639,13 +850,14 @@ async function pi_confirmPurchaseInvoice() {
     // �� أهم سطر: الأرشفة السحابية تعمل الآن في الحالتين
     // حفظ محلي فوري واستجابة سريعة للواجهة
     logOperation(goodsReceived ? "فاتورة شراء" : "شراء معلق", `فاتورة من ${supplier?.name} بقيمة ${formatCurrency(invoiceData.grandTotal)}.`);
+    if (_tx) _tx.commit();
     localStorage.removeItem('finance_pi_draft');
     pi_clearForm(false);
     updateUI();
     const successMsg = goodsReceived 
         ? "تم تأكيد الفاتورة وإدخال البضاعة بنجاح." 
         : "تم تسجيل فاتورة الشراء بنجاح (قيد الاستلام).";
-    showMessage(piFormMessage, successMsg, false);
+    showMessage(piFormMessage || d('pi_form_message'), successMsg, false);
 
     savePurchaseInvoiceToCloud(invoiceData).catch(e => console.warn(e));
     if (typeof saveSystemToCloud === 'function') saveSystemToCloud().catch(e => console.warn(e));
@@ -653,7 +865,7 @@ async function pi_confirmPurchaseInvoice() {
         if (_tx) await _tx.rollback();
         console.error("❌ فشل حفظ فاتورة المشتريات (تم التراجع عن التعديلات):", piErr);
         if (typeof showMessage === 'function') {
-            showMessage(piFormMessage, "تعذر الحفظ في السحابة؛ تم التراجع التلقائي عن أي تعديل في المخزن أو الخزنة.", true);
+            showMessage(piFormMessage || d('pi_form_message'), "تعذر الحفظ في السحابة؛ تم التراجع التلقائي عن أي تعديل في المخزن أو الخزنة.", true);
         }
         return;
     }
@@ -702,19 +914,22 @@ function pi_saveDraft() {
         timestamp: new Date().toISOString()
     };
 
+    const formMsg = piFormMessage || d('pi_form_message');
+
     if (items.length === 0 && !draft.supplierId && !draft.invoiceNumber && extraCosts.length === 0) {
-        showMessage(piFormMessage, 'لا توجد بيانات بالفاتورة لحفظها كمسودة.', true);
+        if (formMsg) showMessage(formMsg, 'لا توجد بيانات بالفاتورة لحفظها كمسودة.', true);
         return;
     }
 
     localStorage.setItem('finance_pi_draft', JSON.stringify(draft));
-    showMessage(piFormMessage, 'تم حفظ مسودة فاتورة الشراء بنجاح. يمكنك استعادتها في أي وقت.', false);
+    if (formMsg) showMessage(formMsg, 'تم حفظ مسودة فاتورة الشراء بنجاح. يمكنك استعادتها في أي وقت.', false);
 }
 
 function pi_loadDraft() {
+    const formMsg = piFormMessage || d('pi_form_message');
     const draftStr = localStorage.getItem('finance_pi_draft');
     if (!draftStr) {
-        showMessage(piFormMessage, 'لا توجد مسودة محفوظة حالياً.', true);
+        if (formMsg) showMessage(formMsg, 'لا توجد مسودة محفوظة حالياً.', true);
         return;
     }
     try {
@@ -786,10 +1001,10 @@ function pi_loadDraft() {
             }
         }
         if (window.pi_updateTotals) window.pi_updateTotals();
-        showMessage(piFormMessage, 'تم استعادة المسودة بنجاح.', false);
+        if (formMsg) showMessage(formMsg, 'تم استعادة المسودة بنجاح.', false);
     } catch (err) {
         console.error('Error loading draft:', err);
-        showMessage(piFormMessage, 'حدث خطأ أثناء تحميل المسودة.', true);
+        if (formMsg) showMessage(formMsg, 'حدث خطأ أثناء تحميل المسودة.', true);
     }
 }
 window.pi_saveDraft = pi_saveDraft;
@@ -827,7 +1042,7 @@ window.pi_addExtraCostRow = function() {
                 <label class="block text-[10px] text-gray-500 font-bold mb-1">المبلغ</label>
                 <div class="relative">
                     <input type="number" placeholder="0" value="" min="0" step="0.01" 
-                           class="pi-cost-amount w-full text-sm font-bold text-blue-700 border-gray-300 rounded px-2 py-1.5 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-center" 
+                           class="pi-cost-amount w-full text-sm font-bold text-blue-700 border-gray-300 rounded pl-8 pr-2 py-1.5 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-center" 
                            oninput="window.pi_updateTotals()">
                     <span class="absolute left-1 top-1.5 text-[10px] text-gray-400 font-normal pointer-events-none">ج.م</span>
                 </div>
@@ -942,5 +1157,12 @@ window.pi_updateTotals = function() {
         extraSpan.textContent = totalLiabilities.toFixed(2) + " جنيه";
     }
     if (totalDebtSpan) totalDebtSpan.textContent = m(remaining + totalLiabilities).toFixed(2) + " جنيه";
+
+    // تحديث حالة رسالة التكاليف الإضافية الفارغة
+    const costsContainer = document.getElementById('pi_additional_costs_container');
+    const noCostsMsg = document.getElementById('pi_no_extra_costs_msg');
+    if (costsContainer && noCostsMsg) {
+        noCostsMsg.style.display = costsContainer.querySelectorAll('.pi-extra-cost-row').length === 0 ? 'block' : 'none';
+    }
 };
 

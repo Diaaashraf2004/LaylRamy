@@ -45,7 +45,7 @@ function initExchangeSystem() {
         const btn = document.createElement('button');
         btn.id = 'exchange-btn';
         btn.className = 'nav-button';
-        btn.style.cssText = "border-right: 5px solid #2b6cb0 !important; background: #ebf8ff; font-weight: bold; color: #2b6cb0;";
+        btn.style.cssText = "border-right: 4px solid #2b6cb0; background-color: #ebf8ff; font-weight: bold; color: #2b6cb0;";
         btn.innerHTML = "🔄 استبدال وتسليم";
         
         nav.addEventListener('click', (e) => {
@@ -98,7 +98,7 @@ function renderExchangeUI(panel) {
                     حدد حالة تسليم الأجهزة الجديدة والسيولة النقدية:
                     <div class="radio-group" style="margin-top:10px;">
                         <input type="radio" id="del_now" name="delivery_type" value="immediate" checked onchange="updateUIState()">
-                        <label for="del_now" style="margin-left: 15px;">📦 استبدال فوري (العميل في المحل وتم التبادل)</label>
+                        <label for="del_now">📦 استبدال فوري (العميل في المحل وتم التبادل)</label>
                         
                         <input type="radio" id="del_later" name="delivery_type" value="pending" onchange="updateUIState()">
                         <label for="del_later">⏳ شحن للعميل (تعليق البضاعة/الفلوس حتى التسليم)</label>
@@ -113,7 +113,7 @@ function renderExchangeUI(panel) {
                     </div>
                     <div id="shipping_info" style="display:none; margin-top:15px; padding:10px; background:#f0fff4; border-radius:6px; border:1px solid #9ae6b4;">
                         <p style="margin:0 0 10px 0; font-weight:bold; color:#276749;">بيانات الشحن:</p>
-                        <div class="grid-2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <div class="grid-2">
                             <div><label>شركة الشحن</label><input type="text" id="ex_shipping_company" class="form-control" placeholder="مثال: ارامكس"></div>
                             <div><label>رقم التتبع / الشحنة</label><input type="text" id="ex_tracking_number" class="form-control" placeholder="رقم بوليصة الشحن"></div>
                         </div>
@@ -122,7 +122,7 @@ function renderExchangeUI(panel) {
 
                 <div class="customer-details" style="margin-bottom: 20px; padding: 15px; background: #f8fafc; border: 1px solid #cbd5e0; border-radius: 8px;">
                     <h4 style="margin: 0 0 10px 0; color: #2d3748;">👤 بيانات العميل</h4>
-                    <div class="grid-2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div class="grid-2" style="gap: 15px;">
                         <div><label style="font-size: 14px;">اسم العميل</label><input type="text" id="ex_customer_name" class="form-control" placeholder="اختياري..."></div>
                         <div><label style="font-size: 14px;">رقم الهاتف</label><input type="text" id="ex_customer_phone" class="form-control" placeholder="اختياري..."></div>
                     </div>
@@ -142,7 +142,7 @@ function renderExchangeUI(panel) {
                             <select id="r_main_cat" class="form-control" style="margin-top:5px;"></select>
                         </div>
                         <div class="item-row" style="margin-top: 20px;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">
+                            <div style="display: flex; flex-wrap: wrap; gap: 6px; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">
                                 <h4 style="margin:0;">🎧 مشتملات مسترجعة</h4>
                                 <button type="button" onclick="addAccRow('r')" style="background:#3182ce; color:#fff; border:none; padding:4px 8px; border-radius:4px; font-size:12px; cursor:pointer;">+ إضافة مشتمل</button>
                             </div>
@@ -161,7 +161,7 @@ function renderExchangeUI(panel) {
                             </div>
                         </div>
                         <div class="item-row" style="margin-top: 20px;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">
+                            <div style="display: flex; flex-wrap: wrap; gap: 6px; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">
                                 <h4 style="margin:0;">🎧 إضافات مباعة</h4>
                                 <button type="button" onclick="addAccRow('n')" style="background:#38a169; color:#fff; border:none; padding:4px 8px; border-radius:4px; font-size:12px; cursor:pointer;">+ إضافة ملحق</button>
                             </div>
@@ -185,9 +185,9 @@ function renderExchangeUI(panel) {
 
                 <div class="pending-section">
                     <h3>⏳ فواتير وطلبيات في الطريق (خصمت البضاعة وبانتظار التحصيل)</h3>
-                    <div style="overflow-x: auto;">
+                    <div style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
                         <table class="pending-table" id="local-pending-table">
-                            <thead><tr><th>العميل</th><th>المنتجات المطلوبة</th><th>المبلغ المعلق</th><th>إجراءات</th></tr></thead>
+                            <thead><tr><th>العميل</th><th>المنتجات المطلوبة</th><th>الشحن</th><th>المبلغ المعلق</th><th>المراحل</th><th>إجراءات</th></tr></thead>
                             <tbody></tbody>
                         </table>
                     </div>
@@ -241,20 +241,20 @@ window.addAccRow = function(type) {
     
     const row = document.createElement('div');
     row.className = `acc-row ${type}-acc-row`;
-    row.style.cssText = "display: flex; gap: 8px; margin-top: 10px; align-items: center;";
+    row.style.cssText = "display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; align-items: center;";
     
     let catSelect = '';
     if (type === 'r') {
         const catHtml = document.getElementById('r_main_cat') ? document.getElementById('r_main_cat').innerHTML : '<option value="عام">عام</option>';
-        catSelect = `<select class="acc-cat form-control" style="width: 25%; padding:4px;">${catHtml}</select>`;
+        catSelect = `<select class="acc-cat form-control" style="flex: 1 1 100px; min-width: 90px; padding:4px;">${catHtml}</select>`;
     }
 
     row.innerHTML = `
-        <input list="p-list" class="acc-name form-control" style="width: 40%; padding:4px;" placeholder="اسم الصنف..." onchange="autoFillAccRow(this)">
-        <input type="number" class="acc-cost form-control" style="width: 20%; padding:4px;" placeholder="التكلفة" value="0" oninput="runCalc()">
-        <input type="number" class="acc-price form-control" style="width: 20%; padding:4px;" placeholder="السعر" value="0" oninput="runCalc()">
+        <input list="p-list" class="acc-name form-control" style="flex: 2 1 140px; min-width: 0; padding:4px;" placeholder="اسم الصنف..." onchange="autoFillAccRow(this)">
+        <input type="number" class="acc-cost form-control" style="flex: 1 1 80px; min-width: 75px; padding:4px;" placeholder="التكلفة" value="0" oninput="runCalc()">
+        <input type="number" class="acc-price form-control" style="flex: 1 1 80px; min-width: 75px; padding:4px;" placeholder="السعر" value="0" oninput="runCalc()">
         ${catSelect}
-        <button type="button" onclick="this.parentElement.remove(); runCalc()" style="background: #fc8181; color: white; border: none; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size:12px;">❌</button>
+        <button type="button" onclick="this.parentElement.remove(); runCalc()" style="flex: 0 0 auto; background: #fc8181; color: white; border: none; border-radius: 4px; padding: 6px 10px; cursor: pointer; font-size:12px;">❌</button>
     `;
     container.appendChild(row);
 };

@@ -18,16 +18,16 @@
         if (document.getElementById('sell-deduction-amount')) return; // موجودة بالفعل
 
         const deductionHTML = `
-            <div class="mt-3 p-3 bg-purple-50/60 rounded-lg border border-purple-200" id="deduction-quick-sell-container">
-                <div class="flex items-center justify-between mb-2">
+            <div class="col-span-full mt-3 p-3 bg-purple-50/60 rounded-lg border border-purple-200" id="deduction-quick-sell-container">
+                <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
                     <label class="inline-flex items-center cursor-pointer">
-                        <input type="checkbox" id="sell-deduction-toggle" class="rounded border-gray-300 text-purple-600 shadow-sm focus:border-purple-300 focus:ring focus:ring-purple-200 focus:ring-opacity-50 mr-2">
-                        <span class="text-sm font-bold text-purple-800"><i class="fas fa-cut mr-1"></i>استقطاع مخفي</span>
+                        <input type="checkbox" id="sell-deduction-toggle" class="rounded border-gray-300 text-purple-600 shadow-sm focus:border-purple-300 focus:ring focus:ring-purple-200 focus:ring-opacity-50 ml-2">
+                        <span class="text-sm font-bold text-purple-800"><i class="fas fa-cut ml-1"></i>استقطاع مخفي</span>
                     </label>
                     <span id="sell-deduction-profit-hint" class="text-xs text-purple-500 hidden">الربح الفعلي: <strong id="sell-deduction-real-profit">0</strong> ج.م</span>
                 </div>
                 <div id="sell-deduction-fields" class="hidden space-y-2">
-                    <div class="flex gap-2">
+                    <div class="flex flex-col sm:flex-row gap-2">
                         <div class="flex-1">
                             <label class="block text-gray-600 text-xs mb-1">مبلغ الاستقطاع:</label>
                             <input type="number" id="sell-deduction-amount" value="0" min="0" step="0.01" 
@@ -42,7 +42,7 @@
                             <datalist id="existing-liabilities-list"></datalist>
                         </div>
                     </div>
-                    <p class="text-xs text-purple-400 m-0"><i class="fas fa-info-circle mr-1"></i>الفاتورة ستظهر بالسعر الكامل، والاستقطاع سيُسجل كالتزام منفصل عند إتمام البيع.</p>
+                    <p class="text-xs text-purple-400 m-0"><i class="fas fa-info-circle ml-1"></i>الفاتورة ستظهر بالسعر الكامل، والاستقطاع سيُسجل كالتزام منفصل عند إتمام البيع.</p>
                 </div>
             </div>
         `;
@@ -98,12 +98,12 @@
             <div class="mt-3 p-3 bg-purple-50/60 rounded-lg border border-purple-200" id="deduction-invoice-container">
                 <div class="flex items-center justify-between mb-2">
                     <label class="inline-flex items-center cursor-pointer">
-                        <input type="checkbox" id="inv-deduction-toggle" class="rounded border-gray-300 text-purple-600 shadow-sm mr-2">
-                        <span class="text-sm font-bold text-purple-800"><i class="fas fa-cut mr-1"></i>استقطاع مخفي</span>
+                        <input type="checkbox" id="inv-deduction-toggle" class="rounded border-gray-300 text-purple-600 shadow-sm ml-2">
+                        <span class="text-sm font-bold text-purple-800"><i class="fas fa-cut ml-1"></i>استقطاع مخفي</span>
                     </label>
                 </div>
                 <div id="inv-deduction-fields" class="hidden space-y-2">
-                    <div class="flex gap-2">
+                    <div class="flex flex-col gap-2">
                         <div class="flex-1">
                             <label class="block text-gray-600 text-xs mb-1">مبلغ الاستقطاع:</label>
                             <input type="number" id="inv-deduction-amount" value="0" min="0" step="0.01" 
@@ -118,7 +118,7 @@
                             <datalist id="existing-liabilities-list-inv"></datalist>
                         </div>
                     </div>
-                    <p class="text-xs text-purple-400 m-0"><i class="fas fa-info-circle mr-1"></i>الفاتورة ستظهر بالسعر الكامل، والاستقطاع سيُسجل كالتزام منفصل عند إتمام البيع.</p>
+                    <p class="text-xs text-purple-400 m-0"><i class="fas fa-info-circle ml-1"></i>الفاتورة ستظهر بالسعر الكامل، والاستقطاع سيُسجل كالتزام منفصل عند إتمام البيع.</p>
                 </div>
             </div>
         `;
@@ -161,7 +161,7 @@
     // 3. حقن حقول الاستقطاع في شاشة البيع الموحدة (USM)
     // ========================================================
     function injectDeductionFieldsToUSM() {
-        const usmModal = document.getElementById('unified-sell-modal');
+        const usmModal = document.getElementById('unifiedSellProductModal') || document.getElementById('unified-sell-modal');
         if (!usmModal) return;
         if (document.getElementById('usm-deduction-amount')) return;
 
@@ -169,15 +169,15 @@
         const targetParent = saleTypeSelect ? saleTypeSelect.closest('div') : null;
 
         const deductionHTML = `
-            <div class="mt-3 p-3 bg-purple-50/60 rounded-lg border border-purple-200" id="deduction-usm-container">
+            <div class="col-span-full mt-3 p-3 bg-purple-50/60 rounded-lg border border-purple-200" id="deduction-usm-container">
                 <div class="flex items-center justify-between mb-2">
                     <label class="inline-flex items-center cursor-pointer">
-                        <input type="checkbox" id="usm-deduction-toggle" class="rounded border-gray-300 text-purple-600 shadow-sm mr-2">
-                        <span class="text-sm font-bold text-purple-800"><i class="fas fa-cut mr-1"></i>استقطاع مخفي</span>
+                        <input type="checkbox" id="usm-deduction-toggle" class="rounded border-gray-300 text-purple-600 shadow-sm ml-2">
+                        <span class="text-sm font-bold text-purple-800"><i class="fas fa-cut ml-1"></i>استقطاع مخفي</span>
                     </label>
                 </div>
                 <div id="usm-deduction-fields" class="hidden space-y-2">
-                    <div class="flex gap-2">
+                    <div class="flex flex-col sm:flex-row gap-2">
                         <div class="flex-1">
                             <label class="block text-gray-600 text-xs mb-1">مبلغ الاستقطاع:</label>
                             <input type="number" id="usm-deduction-amount" value="0" min="0" step="0.01"
@@ -277,7 +277,7 @@
     // ========================================================
     // 7. تطبيق الاستقطاع: تسجيل الالتزام وتعديل الربح
     // ========================================================
-    window.applyDeduction = function(deductionData, saleRecord) {
+    window.applyDeduction = function(deductionData, saleRecord, options = {}) {
         if (!deductionData || deductionData.error) return;
 
         // ============================================================
@@ -289,8 +289,10 @@
             return;
         }
 
-        const amount = deductionData.amount;
-        const liabilityName = deductionData.liabilityName;
+        const amount = typeof window.money === 'function' ? window.money(Number(deductionData.amount) || 0) : (Number(deductionData.amount) || 0);
+        if (amount <= 0) return;
+        const liabilityName = String(deductionData.liabilityName || '').trim();
+        if (!liabilityName) return;
         const appLiabilities = (typeof window.getLiabilities === 'function') ? window.getLiabilities() : [];
 
         // ============================================================
@@ -300,7 +302,7 @@
             const liabForCheck = appLiabilities.find(l =>
                 (l.name || l.description || '').trim().toLowerCase() === liabilityName.trim().toLowerCase()
             );
-            const alreadyRecorded = (liabForCheck?.history || []).find(h => h.saleId === saleRecord.id);
+            const alreadyRecorded = (liabForCheck?.history || []).find(h => h.saleId === saleRecord.id && !h.isReversal);
             if (alreadyRecorded) {
                 console.warn(`⛔ [Deduction Guard] تجاهل التكرار: الفاتورة "${saleRecord.id}" مسجلة بالفعل في history.`);
                 return;
@@ -313,8 +315,11 @@
         );
 
         if (existingLiability) {
-            // إضافة على الالتزام القديم (تراكمي)
-            existingLiability.amount = (Number(existingLiability.amount) || 0) + amount;
+            // إضافة على الالتزام القديم (تراكمي) وإعادة تفعيله إن كان مدفوعاً
+            existingLiability.amount = typeof window.money === 'function'
+                ? window.money((Number(existingLiability.amount) || 0) + amount)
+                : ((Number(existingLiability.amount) || 0) + amount);
+            existingLiability.status = 'active';
             existingLiability.lastUpdated = new Date().toISOString();
             // إضافة سجل التعديل
             if (!existingLiability.history) existingLiability.history = [];
@@ -333,6 +338,7 @@
                 description: liabilityName,
                 amount: amount,
                 originalAmount: amount,
+                status: 'active',
                 type: 'استقطاع مخفي',
                 createdAt: new Date().toISOString(),
                 lastUpdated: new Date().toISOString(),
@@ -355,10 +361,6 @@
             saleRecord.deductionLiabilityId = existingLiability.id;
         }
 
-        // تم نقل تعديل الربح إلى الدوال الأصلية (sellProduct / handleSaveInvoice / convertPendingSaleToDebt) لمنع الخصم المزدوج.
-
-        // تم نقل تعديل الربح الإجمالي إلى الدوال الأصلية لمنع الخصم المزدوج.
-
         // تسجيل في سجل العمليات
         if (typeof logOperation === 'function') {
             logOperation('استقطاع مخفي', `استقطاع ${amount} ج.م → التزام "${liabilityName}" (فاتورة ${saleRecord?.invoiceNumber || saleRecord?.id || ''})`);
@@ -366,11 +368,86 @@
 
         // تحديث القوائم
         populateLiabilityDatalist();
-        
-        // 🛡️ حفظ سحابي فوري لمنع ضياع الاستقطاع
-        if (typeof window.saveSystemToCloud === 'function') {
+
+        // لا نحفظ سحابياً منتصف معاملة إلا لو طُلب صراحة (المستدعي يحفظ مرة واحدة بعد اكتمال المعاملة)
+        if (options && options.immediateSave && typeof window.saveSystemToCloud === 'function') {
             window.saveSystemToCloud().catch(e => console.error("Failed to save deduction:", e));
         }
+    };
+
+    // ========================================================
+    // 7.5 عكس الاستقطاع المخفي عند حذف أو إرجاع فاتورة/بيعة
+    // ========================================================
+    window.reverseDeduction = function(saleRecord, ratio = 1) {
+        if (!saleRecord) return 0;
+        // البيعات المعلقة لا يُطبَّق عليها الاستقطاع أصلاً، لذا يُمنع عكسه عنها حتى لا يُخصم من التزامات مبيعات أخرى
+        if (saleRecord.status === 'pending') return 0;
+        const originalDeduction = Number(saleRecord.deductionAmount || 0);
+        if (originalDeduction <= 0) return 0;
+        const safeRatio = Math.max(0, Math.min(1, Number(ratio) || 0));
+        if (safeRatio <= 0) return 0;
+
+        const alreadyReversed = Number(saleRecord._deductionReversed || 0);
+        const remainingToReverse = Math.max(0, originalDeduction - alreadyReversed);
+        const reverseAmt = typeof window.money === 'function'
+            ? window.money(Math.min(remainingToReverse, originalDeduction * safeRatio))
+            : Math.min(remainingToReverse, originalDeduction * safeRatio);
+        if (reverseAmt <= 0.001) return 0;
+
+        const appLiabilities = (typeof window.getLiabilities === 'function') ? window.getLiabilities() : [];
+        let targetLiab = null;
+        if (saleRecord.deductionLiabilityId) {
+            targetLiab = appLiabilities.find(l => l.id === saleRecord.deductionLiabilityId);
+        }
+        if (!targetLiab && saleRecord.id) {
+            targetLiab = appLiabilities.find(l => Array.isArray(l.history) && l.history.some(h => h.saleId === saleRecord.id && !h.isReversal));
+        }
+        if (!targetLiab && saleRecord.deductionLiabilityName) {
+            const norm = String(saleRecord.deductionLiabilityName).trim().toLowerCase();
+            targetLiab = appLiabilities.find(l => {
+                if ((l.name || l.description || '').trim().toLowerCase() !== norm) return false;
+                // إذا كان الالتزام يحتفظ بسجل history و saleRecord له id، نتحقق من أن هذه الفاتورة ساهمت فيه فعلاً
+                if (saleRecord.id && Array.isArray(l.history) && l.history.length > 0) {
+                    return l.history.some(h => h.saleId === saleRecord.id && !h.isReversal);
+                }
+                return true;
+            });
+        }
+
+        if (!targetLiab) return 0;
+
+        const currentAmt = Number(targetLiab.amount) || 0;
+        const actualDeducted = typeof window.money === 'function'
+            ? window.money(Math.min(currentAmt, reverseAmt))
+            : Math.min(currentAmt, reverseAmt);
+
+        if (actualDeducted > 0) {
+            targetLiab.amount = typeof window.money === 'function'
+                ? window.money(Math.max(0, currentAmt - actualDeducted))
+                : Math.max(0, currentAmt - actualDeducted);
+            targetLiab.lastUpdated = new Date().toISOString();
+            if (!Array.isArray(targetLiab.history)) targetLiab.history = [];
+            targetLiab.history.push({
+                date: new Date().toISOString(),
+                addedAmount: -actualDeducted,
+                saleId: saleRecord.id || 'N/A',
+                isReversal: true,
+                note: `عكس استقطاع بسبب حذف/مرتجع فاتورة ${saleRecord.invoiceNumber || saleRecord.id || ''}`
+            });
+            if (targetLiab.amount <= 0.001) {
+                targetLiab.amount = 0;
+                targetLiab.status = 'paid';
+            }
+            saleRecord._deductionReversed = typeof window.money === 'function'
+                ? window.money(alreadyReversed + actualDeducted)
+                : (alreadyReversed + actualDeducted);
+
+            if (typeof logOperation === 'function') {
+                logOperation('عكس استقطاع مخفي', `تم عكس استقطاع بقيمة ${actualDeducted} ج.م من التزام "${targetLiab.name}" بسبب حذف/مرتجع فاتورة ${saleRecord.invoiceNumber || saleRecord.id || ''}.`);
+            }
+            populateLiabilityDatalist();
+        }
+        return actualDeducted;
     };
 
     // ========================================================

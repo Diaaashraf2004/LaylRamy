@@ -33,9 +33,9 @@ function updateLiquidityLogDisplay() {
 
         return `
             <li class="p-3 mb-2 bg-white rounded-lg border border-gray-100 shadow-sm hover:border-blue-200 transition-colors">
-                <div class="flex justify-between items-start gap-3">
-                    <div class="flex-grow">
-                        <div class="flex items-center gap-2 mb-1">
+                <div class="flex flex-wrap justify-between items-start gap-2 sm:gap-3">
+                    <div class="flex-grow min-w-0">
+                        <div class="flex flex-wrap items-center gap-2 mb-1">
                             <span class="text-xs px-2 py-0.5 rounded border font-semibold ${badgeColor}">${typeLabel}</span>
                             <span class="font-mono text-base ${amountClass}">${amountSign}${formatCurrency(Math.abs(Number(log.amount) || 0))}</span>
                         </div>
@@ -74,8 +74,8 @@ function renderDebtorPaymentList() {
     container.innerHTML = sortedDebts.map(debt => `
         <label>
             <input type="checkbox" class="debt-payment-checkbox" data-debt-id="${debt.id}" data-amount="${debt.amount}">
-            <span class="flex-grow">${debt.name} - ${debt.reason || 'دين عام'}</span>
-            <strong class="font-mono">${formatCurrency(debt.amount)}</strong>
+            <span class="flex-grow min-w-0">${window.escapeHTML(debt.name)} - ${window.escapeHTML(debt.reason || 'دين عام')}</span>
+            <strong class="font-mono flex-shrink-0 whitespace-nowrap">${formatCurrency(debt.amount)}</strong>
         </label>
     `).join('');
 }
@@ -94,8 +94,8 @@ function renderLiabilityPaymentList() {
     container.innerHTML = sortedLiabilities.map(liability => `
         <label>
             <input type="checkbox" class="liability-payment-checkbox" data-liability-id="${liability.id}" data-amount="${liability.amount}">
-            <span class="flex-grow">${escapeHTML(liability.name)}</span>
-            <strong class="font-mono">${formatCurrency(liability.amount)}</strong>
+            <span class="flex-grow min-w-0">${escapeHTML(liability.name)}</span>
+            <strong class="font-mono flex-shrink-0 whitespace-nowrap">${formatCurrency(liability.amount)}</strong>
         </label>
     `).join('');
 }
@@ -130,15 +130,15 @@ function updateMonthlyLiabilitiesDisplay() {
 
     sortedLiabilities.forEach(liability => {
         const li = document.createElement('li');
-        li.className = 'flex justify-between items-center p-2 bg-gray-50 rounded-md border';
+        li.className = 'flex flex-wrap justify-between items-center gap-2 p-2 bg-gray-50 rounded-md border';
         li.innerHTML = `
-            <div>
+            <div class="min-w-0">
                 <span class="font-semibold text-gray-800">${escapeHTML(liability.name)}</span>
-                <span class="text-red-600 font-mono ml-4">${formatCurrency(liability.amount)}</span>
+                <span class="text-red-600 font-mono mr-3">${formatCurrency(liability.amount)}</span>
             </div>
-            <div class="actions">
+            <div class="actions flex flex-wrap gap-1.5">
                 <button data-id="${liability.id}" class="edit-monthly-liability-btn text-xs bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-semibold py-1 px-2 rounded">تعديل</button>
-                <button data-id="${liability.id}" class="delete-monthly-liability-btn text-xs bg-red-500 hover:bg-red-600 text-white font-semibold py-1 px-2 rounded mr-1">حذف</button>
+                <button data-id="${liability.id}" class="delete-monthly-liability-btn text-xs bg-red-500 hover:bg-red-600 text-white font-semibold py-1 px-2 rounded">حذف</button>
             </div>
         `;
         monthlyLiabilitiesList.appendChild(li);
@@ -212,16 +212,34 @@ function processMonthlyLiabilities() {
     let addedItemsLog = [];
 
     monthlyLiabilities.forEach(mLiability => {
+        // تخطي الديون المعالجة (المُقسَّطة محاسبياً للتوزيع الإداري) حتى لا تُخصم مرتين من رأس المال كالتزام حقيقي
+        if (mLiability.isAmortizedDebt) return;
+        const amt = typeof window.money === 'function' ? window.money(Number(mLiability.amount) || 0) : (Number(mLiability.amount) || 0);
+        if (amt <= 0) return;
         const liabilityName = `التزام شهري: ${mLiability.name}`;
+        // منع التكرار عبر الأجهزة المختلفة لنفس الشهر
+        if (Array.isArray(liabilities) && liabilities.some(l => (l.monthlySourceId && l.monthlySourceId === mLiability.id && l.forMonth === currentMonthStr) || (l.name === liabilityName && l.forMonth === currentMonthStr))) {
+            return;
+        }
         const newLiability = {
             id: generateId('liab'),
             name: liabilityName,
-            amount: mLiability.amount
+            amount: amt,
+            status: 'active',
+            paymentHistory: [],
+            monthlySourceId: mLiability.id,
+            forMonth: currentMonthStr,
+            createdAt: new Date().toISOString()
         };
         liabilities.push(newLiability);
-        totalAdded += mLiability.amount;
-        addedItemsLog.push(`"${mLiability.name}" بقيمة ${formatCurrency(mLiability.amount)}`);
+        totalAdded = typeof window.money === 'function' ? window.money(totalAdded + amt) : (totalAdded + amt);
+        addedItemsLog.push(`"${mLiability.name}" بقيمة ${formatCurrency(amt)}`);
     });
+
+    if (addedItemsLog.length === 0) {
+        saveData(lsLastProcessedMonthKey, currentMonthStr);
+        return;
+    }
 
     logOperation("معالجة التزامات شهرية", `تمت إضافة التزامات شهر ${currentMonthStr} تلقائياً: ${addedItemsLog.join(', ')}.`);
     saveData(lsLastProcessedMonthKey, currentMonthStr); // Mark this month as processed
@@ -269,29 +287,39 @@ function processMonthlyLiabilities() {
         return;
     }
 
-    const oldBalance = account.balance;
+    const oldBalance = Number(account.balance) || 0;
+    const cleanNewBalance = typeof window.money === 'function' ? window.money(newBalance) : Number(newBalance);
     
     // 3. تأكيد من المستخدم
-    if (confirm(`هل أنت متأكد من تغيير رصيد حساب "${account.name}" من ${formatCurrency(oldBalance)} إلى ${formatCurrency(newBalance)}؟`)) {
+    if (confirm(`هل أنت متأكد من تغيير رصيد حساب "${account.name}" من ${formatCurrency(oldBalance)} إلى ${formatCurrency(cleanNewBalance)}؟`)) {
         saveStateToHistory(); // حفظ الحالة قبل التغيير للسماح بالتراجع
+        const _adjLiqTx = typeof createStateTransaction === 'function' ? createStateTransaction('تعديل رصيد يدوي') : null;
+        try {
+            // 4. تنفيذ التعديل
+            account.balance = cleanNewBalance;
+            
+            const adjustment = typeof window.money === 'function' ? window.money(cleanNewBalance - oldBalance) : (cleanNewBalance - oldBalance); // حساب قيمة التغيير
+            const newTotalLiquidity = typeof window.money === 'function'
+                ? window.money(accounts.reduce((sum, acc) => sum + (Number(acc.balance) || 0), 0))
+                : accounts.reduce((sum, acc) => sum + (Number(acc.balance) || 0), 0);
 
-        // 4. تنفيذ التعديل
-        account.balance = newBalance;
-        
-        const adjustment = newBalance - oldBalance; // حساب قيمة التغيير
-        const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
-
-        // 5. تسجيل العملية في السجلات
-        logOperation("تعديل رصيد يدوي", `تم تعديل رصيد حساب "${account.name}" إلى ${formatCurrency(newBalance)}. السبب: ${reason}.`);
-        
-        liquidityLog.push({
-            id: generateId("liq-adj"),
-            timestamp: new Date().toISOString(),
-            type: "adjust",
-            amount: adjustment,
-            description: `تعديل يدوي لحساب "${account.name}" - ${reason}`,
-            currentBalance: newTotalLiquidity 
-        });
+            // 5. تسجيل العملية في السجلات
+            logOperation("تعديل رصيد يدوي", `تم تعديل رصيد حساب "${account.name}" إلى ${formatCurrency(cleanNewBalance)}. السبب: ${reason}.`);
+            
+            liquidityLog.push({
+                id: generateId("liq-adj"),
+                timestamp: new Date().toISOString(),
+                type: "adjust",
+                amount: adjustment,
+                description: `تعديل يدوي لحساب "${account.name}" - ${reason}`,
+                currentBalance: newTotalLiquidity,
+                accountId: account.id
+            });
+            if (_adjLiqTx) _adjLiqTx.commit();
+        } catch (e) {
+            if (_adjLiqTx) _adjLiqTx.rollback();
+            throw e;
+        }
 
         // ☁️ حفظ سحابي فوري
         if (typeof saveSystemToCloud === 'function') {
@@ -313,14 +341,47 @@ function processMonthlyLiabilities() {
 // 💸 سداد كامل بروفايل الدائن والسداد الجماعي للالتزامات
 // =================================================================
 
-function updateLinkedPurchasePayment(liability, paidForThis) {
-    const invId = liability.purchaseInvoiceId || (typeof pendingPurchases !== 'undefined' && (pendingPurchases.find(p => (p.extraCosts || []).some(c => c.isLiability && c.linkedLiabilityId === liability.id)) || {}).id);
+function updateLinkedPurchasePayment(liability, paidForThis, accountId) {
+    if (!liability) return;
+    const paidNum = Number(paidForThis) || 0;
+    if (paidNum <= 0) return;
+    const invId = liability.purchaseInvoiceId;
     if (!invId) return;
     const pnd = (typeof pendingPurchases !== 'undefined' && Array.isArray(pendingPurchases)) ? pendingPurchases.find(p => p.id === invId) : null;
-    if (pnd) { pnd.paidAmount = window.money((pnd.paidAmount || 0) + paidForThis); pnd.remainingBalance = window.money(Math.max(0, (pnd.remainingBalance || 0) - paidForThis)); }
+
+    // التزامات المصاريف الإضافية للشراء لا تخفض رصيد المورد أو المتبقي من البضاعة،
+    // ولكننا نسجل الدفعة النقدية في pnd.payments حتى تُسترد تلقائياً إذا أُلغيت فاتورة الشراء المعلقة لاحقاً
+    if (liability.source === 'purchase_extra_cost') {
+        if (pnd) {
+            if (accountId) {
+                if (!Array.isArray(pnd.payments)) pnd.payments = [];
+                pnd.payments.push({ accountId: accountId, amount: window.money(paidNum), date: new Date().toISOString(), source: 'extra_cost_liability_payment' });
+            } else {
+                pnd.hasNonCashOffset = true;
+                pnd.offsetAmount = window.money((Number(pnd.offsetAmount) || 0) + paidNum);
+            }
+        }
+        return;
+    }
+
+    if (pnd) {
+        pnd.paidAmount = window.money((Number(pnd.paidAmount) || 0) + paidNum);
+        pnd.remainingBalance = window.money(Math.max(0, (Number(pnd.remainingBalance) || 0) - paidNum));
+        if (accountId) {
+            if (!Array.isArray(pnd.payments)) pnd.payments = [];
+            pnd.payments.push({ accountId: accountId, amount: window.money(paidNum), date: new Date().toISOString(), source: 'liability_payment' });
+        } else {
+            pnd.hasNonCashOffset = true;
+            pnd.offsetAmount = window.money((Number(pnd.offsetAmount) || 0) + paidNum);
+        }
+    }
     const pinv = (typeof purchaseInvoices !== 'undefined' && Array.isArray(purchaseInvoices)) ? purchaseInvoices.find(p => p.id === invId) : null;
-    if (pinv) { pinv.paidAmount = window.money((pinv.paidAmount || 0) + paidForThis); pinv.remainingBalance = window.money(Math.max(0, (pinv.remainingBalance || 0) - paidForThis)); }
+    if (pinv) {
+        pinv.paidAmount = window.money((Number(pinv.paidAmount) || 0) + paidNum);
+        pinv.remainingBalance = window.money(Math.max(0, (Number(pinv.remainingBalance) || 0) - paidNum));
+    }
 }
+window.updateLinkedPurchasePayment = updateLinkedPurchasePayment;
 
 window.openPayFullCreditorProfileModal = function(creditorName) {
     const activeLiabs = liabilities.filter(l => normalizeArabicText(l.name) === normalizeArabicText(creditorName) && Number(l.amount) > 0.001);
@@ -363,11 +424,21 @@ window.confirmPayFullCreditorProfile = async function() {
     if (typeof saveStateToHistory === 'function') saveStateToHistory();
     const _tx = (typeof window.createStateTransaction === 'function') ? window.createStateTransaction() : null;
     try {
-        account.balance = (typeof window.money === 'function' ? window.money : Number)(account.balance - totalAmount);
+        account.balance = (typeof window.money === 'function' ? window.money : Number)((Number(account.balance) || 0) - totalAmount);
         activeLiabs.forEach(l => {
             const paidForThis = Number(l.amount) || 0;
+            if (!Array.isArray(l.paymentHistory)) l.paymentHistory = [];
+            l.paymentHistory.push({
+                id: generateId('pay'),
+                amount: paidForThis,
+                date: new Date().toISOString(),
+                accountId: account.id,
+                accountName: account.name,
+                note: note || 'سداد كامل البروفايل'
+            });
             l.amount = 0;
-            updateLinkedPurchasePayment(l, paidForThis);
+            l.status = 'paid';
+            updateLinkedPurchasePayment(l, paidForThis, account.id);
         });
         let desc = `سداد كامل التزامات الدائن "${creditorName}" (${activeLiabs.length} بنود) من حساب "${account.name}"` + (note ? ` - ملاحظات: ${note}` : '');
 
@@ -381,11 +452,16 @@ window.confirmPayFullCreditorProfile = async function() {
                 description: desc,
                 currentBalance: newTotalLiquidity,
                 accountId: account.id,
-                isExpense: isExpense
+                isExpense: isExpense,
+                isLiabilityPayment: true
             });
         }
 
         logOperation("سداد كامل التزامات دائن", `تم سداد كامل التزامات "${creditorName}" بقيمة ${formatCurrency(totalAmount)} من "${account.name}".`);
+        if (isExpense) {
+            expenses = (typeof window.money === 'function' ? window.money : Number)((Number(expenses) || 0) + totalAmount);
+            logOperation("تسجيل مصروف", `سداد كامل التزامات "${creditorName}" بقيمة ${formatCurrency(totalAmount)} من حساب "${account.name}".`);
+        }
 
         if (_tx) _tx.commit();
         const m = document.getElementById('payFullCreditorProfileModal');
@@ -451,9 +527,9 @@ window.renderBulkLiabilityList = function() {
         div.style.cssText = 'border:1px solid #e5e7eb; border-radius:8px; margin-bottom:12px; overflow:hidden;';
 
         const header = document.createElement('div');
-        header.style.cssText = 'background:#fdf2f8; padding:10px 14px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #fbcfe8;';
+        header.style.cssText = 'background:#fdf2f8; padding:10px 14px; display:flex; flex-wrap:wrap; gap:8px; justify-content:space-between; align-items:center; border-bottom:1px solid #fbcfe8;';
         header.innerHTML = `
-            <label style="cursor:pointer; display:flex; align-items:center; gap:8px; font-weight:bold; color:#831843;">
+            <label style="cursor:pointer; display:flex; flex-wrap:wrap; align-items:center; gap:8px; font-weight:bold; color:#831843;">
                 <input type="checkbox" class="bulk-creditor-select-all" data-creditor-name="${escapeHTML(c.name)}" onchange="toggleBulkLiabilitySelectAll(this.dataset.creditorName)" style="accent-color:#be185d;">
                 <span>${escapeHTML(c.name)}</span>
                 <span style="font-size:12px; color:#9d174d; background:#fce7f3; padding:2px 8px; border-radius:10px;">${formatCurrency(c.total)}</span>
@@ -465,10 +541,10 @@ window.renderBulkLiabilityList = function() {
 
         c.liabilities.forEach(l => {
             const itemRow = document.createElement('div');
-            itemRow.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid #fdf2f8; font-size:13px;';
+            itemRow.style.cssText = 'display:flex; flex-wrap:wrap; gap:8px; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid #fdf2f8; font-size:13px;';
             const orig = l.originalCreditorName ? `<span style="font-size:10px; color:#7c3aed; background:#ede9fe; padding:1px 5px; border-radius:4px; margin-right:4px;">منقول من ${escapeHTML(l.originalCreditorName)}</span>` : '';
             itemRow.innerHTML = `
-                <label style="cursor:pointer; display:flex; align-items:center; gap:8px; color:#4b5563; flex:1;">
+                <label style="cursor:pointer; display:flex; flex-wrap:wrap; align-items:center; gap:8px; color:#4b5563; flex:1 1 160px; min-width:0;">
                     <input type="checkbox" class="bulk-liability-item-cb" data-creditor-name="${escapeHTML(c.name)}" data-liability-id="${escapeHTML(l.id)}" data-amount="${l.amount}" onchange="updateBulkLiabilitySelectionTotal()" style="accent-color:#be185d;">
                     <span>${orig}${escapeHTML(l.category || 'التزام عام')}</span>
                 </label>
@@ -521,11 +597,20 @@ window.confirmBulkLiabilityPayment = async function() {
     const paidIds = [];
     const involvedCreditors = new Set();
 
+    // حساب الإجمالي دائماً من المصفوفة الحية liabilities وليس من dataset القديمة
     checkboxes.forEach(cb => {
-        totalAmount += (parseFloat(cb.dataset.amount) || 0);
-        paidIds.push(cb.dataset.liabilityId);
-        involvedCreditors.add(cb.dataset.creditorName);
+        const lid = cb.dataset.liabilityId;
+        const liveLiab = liabilities.find(it => it.id === lid && (Number(it.amount) || 0) > 0.001);
+        if (liveLiab) {
+            totalAmount += (Number(liveLiab.amount) || 0);
+            paidIds.push(liveLiab.id);
+            involvedCreditors.add(liveLiab.name || cb.dataset.creditorName || '');
+        }
     });
+
+    if (paidIds.length === 0 || totalAmount <= 0.001) {
+        return alert('الالتزامات المحددة تم سدادها بالفعل أو لم تعد نشطة.');
+    }
 
     totalAmount = (typeof window.money === 'function' ? window.money : Number)(totalAmount);
     if (totalAmount > (Number(account.balance) || 0) + 0.001) {
@@ -544,14 +629,24 @@ window.confirmBulkLiabilityPayment = async function() {
     const _tx = (typeof window.createStateTransaction === 'function') ? window.createStateTransaction() : null;
 
     try {
-        account.balance = (typeof window.money === 'function' ? window.money : Number)(account.balance - totalAmount);
+        account.balance = (typeof window.money === 'function' ? window.money : Number)((Number(account.balance) || 0) - totalAmount);
 
         paidIds.forEach(id => {
             const l = liabilities.find(it => it.id === id);
-            if (l) {
+            if (l && (Number(l.amount) || 0) > 0.001) {
                 const paidForThis = Number(l.amount) || 0;
+                if (!Array.isArray(l.paymentHistory)) l.paymentHistory = [];
+                l.paymentHistory.push({
+                    id: generateId('pay'),
+                    amount: paidForThis,
+                    date: new Date().toISOString(),
+                    accountId: account.id,
+                    accountName: account.name,
+                    note: note || 'سداد جماعي'
+                });
                 l.amount = 0;
-                updateLinkedPurchasePayment(l, paidForThis);
+                l.status = 'paid';
+                updateLinkedPurchasePayment(l, paidForThis, account.id);
             }
         });
 
@@ -568,11 +663,16 @@ window.confirmBulkLiabilityPayment = async function() {
                 description: desc,
                 currentBalance: newTotalLiquidity,
                 accountId: account.id,
-                isExpense: isExpense
+                isExpense: isExpense,
+                isLiabilityPayment: true
             });
         }
 
         logOperation("سداد جماعي للالتزامات", `تم سداد ${paidIds.length} بند التزام بقيمة ${formatCurrency(totalAmount)} من حساب "${account.name}".`);
+        if (isExpense) {
+            expenses = (typeof window.money === 'function' ? window.money : Number)((Number(expenses) || 0) + totalAmount);
+            logOperation("تسجيل مصروف", `سداد جماعي للالتزامات (${creditorsStr}) بقيمة ${formatCurrency(totalAmount)} من حساب "${account.name}".`);
+        }
 
         if (_tx) _tx.commit();
         closeBulkLiabilityModal();

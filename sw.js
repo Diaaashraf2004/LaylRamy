@@ -1,4 +1,4 @@
-const CACHE_NAME = 'finance-erp-v101'; // upgraded from CACHE_NAME = 'finance-erp-v16' and v100 for department logs smart dates highlights and empty message
+const CACHE_NAME = 'finance-erp-v130'; // 10-agent audit hardening across integrity guard, repeat alarm, expenses, purchases, returns & exchanges
 const ASSETS_TO_CACHE = [
   './finance.html',
   './css/finance.css',
@@ -8,6 +8,9 @@ const ASSETS_TO_CACHE = [
   './js/core/core-firebase.js',
   './js/core/core-session-guard.js',
   './js/core/core-save-guard.js',
+  './js/integrity/integrity-engine.js',
+  './js/integrity/integrity-checks.js',
+  './js/integrity/integrity-ui.js',
   './js/core/core-shared.js',
   './js/core/core-sync.js',
   './js/core/core-state.js',
@@ -27,6 +30,7 @@ const ASSETS_TO_CACHE = [
   './js/inventory/inventory-products.js',
   './js/inventory/inventory-purchase.js',
   './js/inventory/inventory-ui.js',
+  './js/sales/sales-repeat-alarm.js',
   './js/sales/sales-pending.js',
   './js/sales/sales-invoice-stock.js',
   './js/sales/sales-invoice-view.js',
@@ -92,9 +96,20 @@ self.addEventListener('fetch', (event) => {
         return;
     }
     
+    // Stale-While-Revalidate: serve from cache instantly, refresh the cache in the background
+    // so the next load always gets the newest files (no more manual Ctrl+Shift+R after updates).
+    if (event.request.method !== 'GET') { return; }
     event.respondWith(
-        caches.match(event.request, { ignoreSearch: true }).then((response) => {
-            return response || fetch(event.request);
-        })
+        caches.open(CACHE_NAME).then((cache) =>
+            cache.match(event.request, { ignoreSearch: true }).then((cached) => {
+                const network = fetch(event.request).then((resp) => {
+                    if (resp && resp.ok && new URL(event.request.url).origin === self.location.origin) {
+                        cache.put(event.request, resp.clone());
+                    }
+                    return resp;
+                }).catch(() => cached);
+                return cached || network;
+            })
+        )
     );
 });

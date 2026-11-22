@@ -79,19 +79,21 @@ function displaySalesReport(salesToDisplay) {
                     <td class="text-center" style="font-family:monospace; font-weight:bold; font-size:1rem;">${formatCurrency(saleAmount)}</td>
                     <td class="text-center" style="font-family:monospace; color:#64748b;">${formatCurrency(costAmount)}</td>
                     <td class="text-center" style="font-family:monospace; font-weight:bold; color:${profitColor};">${formatCurrency(profitAmount)}</td>
-                    <td class="text-center" style="display:flex; justify-content:center; align-items:center; gap:8px; height:100%; border:none;">
-                        <button data-sale-id="${escapeHTML(sale.id)}" onclick="removeSaleFromReportOnly(this.dataset.saleId)" title="حذف من العرض فقط (بدون التأثير على المخزون أو الحسابات)" style="background:none; border:none; color:#eab308; cursor:pointer; padding:4px; border-radius:4px; transition: background 0.2s;" onmouseover="this.style.background='#fef08a'" onmouseout="this.style.background='none'">
-                            <svg width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
-                              <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
-                              <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
-                            </svg>
-                        </button>
-                        <button data-sale-id="${escapeHTML(sale.id)}" onclick="deleteSaleRecord(this.dataset.saleId)" title="حذف الفاتورة نهائياً وإرجاع البضاعة" style="background:none; border:none; color:#dc2626; cursor:pointer; padding:4px; border-radius:4px; transition: background 0.2s;" onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='none'">
-                            <svg width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
-                              <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
-                              <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
-                            </svg>
-                        </button>
+                    <td class="text-center">
+                        <div class="flex items-center justify-center gap-2 flex-wrap">
+                            <button data-sale-id="${escapeHTML(sale.id)}" onclick="removeSaleFromReportOnly(this.dataset.saleId)" title="حذف من العرض فقط (بدون التأثير على المخزون أو الحسابات)" style="background:none; border:none; color:#eab308; cursor:pointer; padding:4px; border-radius:4px; transition: background 0.2s;" onmouseover="this.style.background='#fef08a'" onmouseout="this.style.background='none'">
+                                <svg width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+                                  <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
+                                  <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+                                </svg>
+                            </button>
+                            <button data-sale-id="${escapeHTML(sale.id)}" onclick="deleteSaleRecord(this.dataset.saleId)" title="حذف الفاتورة نهائياً وإرجاع البضاعة" style="background:none; border:none; color:#dc2626; cursor:pointer; padding:4px; border-radius:4px; transition: background 0.2s;" onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='none'">
+                                <svg width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+                                  <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+                                  <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+                                </svg>
+                            </button>
+                        </div>
                     </td>
                 </tr>
             `;

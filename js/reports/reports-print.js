@@ -121,10 +121,13 @@ window.printCustomerStatement = printCustomerStatement;
 
         // 5. المشتريات (شاملة التكاليف الإضافية)
         purchaseInvoices: purchaseInvoices || [], // يشمل حقل extraCosts والديون المرتبطة
+        purchaseReturns: (typeof purchaseReturns !== 'undefined' ? purchaseReturns : []) || [],
         pendingPurchases: pendingPurchases || [],
 
         // 6. الديون والالتزامات
         debtors: debtors || [],
+        debtorProfiles: (typeof debtorProfiles !== 'undefined' ? debtorProfiles : []) || [],
+        debtCollectionNotes: (typeof debtCollectionNotes !== 'undefined' ? debtCollectionNotes : []) || [],
         liabilities: liabilities || [],
         monthlyLiabilities: monthlyLiabilities || [],
 
@@ -135,8 +138,10 @@ window.printCustomerStatement = printCustomerStatement;
         log: operationLog || [],
         liquidityLog: liquidityLog || [], // سجل الخزينة التفصيلي
         serialNumbersLog: serialNumbersLog || [],
+        standaloneSerials: typeof window.getStandaloneSerials === 'function' ? window.getStandaloneSerials() : [],
         inboxTasks: inboxTasks || [],
-        pendingOrders: window.pendingOrders || []
+        pendingOrders: window.pendingOrders || [],
+        savedForDate: dateToExport
     };
 
     // تحويل البيانات لنص JSON وتنزيل الملف
@@ -169,13 +174,16 @@ window.printCustomerStatement = printCustomerStatement;
     if (!file) return;
     
     const reader = new FileReader();
-    reader.onload = function(e) {
+    reader.onload = async function(e) {
         try {
             const importedData = JSON.parse(e.target.result);
             
-            // التحقق الأساسي من صحة الملف
+            // التحقق الأساسي من صحة الملف ومنع استيراد ملف فارغ يمسح بيانات السحابة
             if (typeof importedData !== 'object' || importedData === null) {
                 throw new Error("صيغة الملف غير صالحة.");
+            }
+            if (typeof isStateMeaningful === 'function' && !isStateMeaningful(importedData)) {
+                throw new Error("الملف المستورد فارغ أو لا يحتوي على بيانات نظام صالحة. تم إيقاف الاستيراد حمايةً لبياناتك.");
             }
 
             // ��️ الإصلاح: إذا لم يكن التاريخ موجوداً في الملف، نستخدم التاريخ المختار في الواجهة
@@ -202,9 +210,15 @@ window.printCustomerStatement = printCustomerStatement;
             const confirmationMsg = `سيتم استيراد البيانات وتطبيقها على تاريخ (${finalDate}).\n\nتحذير: سيتم استبدال البيانات الحالية لهذا اليوم. هل أنت متأكد؟`;
 
             if (confirm(confirmationMsg)) {
+                window._loadFailed = false;
+                window._serialsLoadFailed = false;
                 loadState(importedData, finalDate);
-                saveCurrentStateByDate(finalDate, true); // حفظ فوري
                 updateUI();
+
+                if (window.SaveGuard && typeof window.SaveGuard.allowShrinkOnce === 'function') {
+                    window.SaveGuard.allowShrinkOnce();
+                }
+                const savedOk = await saveCurrentStateByDate(finalDate, true); // حفظ فوري شاملاً السيريالات
                 
                 // تحديث الواجهة
                 if (targetDateInput) targetDateInput.value = finalDate;
@@ -212,7 +226,11 @@ window.printCustomerStatement = printCustomerStatement;
                     updateLoadDateDayName(finalDate, document.getElementById("load-date-day-name-alt"));
                 }
                 
-                showMessage(importMsgElement, "تم استيراد البيانات بنجاح.", false);
+                if (savedOk) {
+                    showMessage(importMsgElement, "تم استيراد البيانات وحفظها في السحابة بنجاح.", false);
+                } else {
+                    showMessage(importMsgElement, "تم تحميل البيانات محلياً ولكن تعذر تثبيتها في السحابة. يرجى التحقق من الاتصال.", true);
+                }
             } else {
                 showMessage(importMsgElement, "تم إلغاء الاستيراد.", false, true);
             }

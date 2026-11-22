@@ -49,11 +49,12 @@ function renderAccounts() {
   
 
     accounts.forEach(acc => {
-        totalBalance += acc.balance;
+        const accBal = Number(acc.balance) || 0;
+        totalBalance = typeof window.money === 'function' ? window.money(totalBalance + accBal) : (totalBalance + accBal);
 
         const safeCard = document.createElement('div');
         safeCard.className = 'safe-card';
-        safeCard.innerHTML = `<h4><i class="fas fa-cash-register"></i> ${escapeHTML(acc.name)}</h4><div class="safe-card-balance">${formatCurrency(acc.balance)}</div>`;
+        safeCard.innerHTML = `<h4><i class="fas fa-cash-register"></i> ${escapeHTML(acc.name)}</h4><div class="safe-card-balance">${formatCurrency(accBal)}</div>`;
         safesGrid.appendChild(safeCard);
 
         const listItem = document.createElement('li');
@@ -182,19 +183,27 @@ function handleIncomeAddition() {
     }
     
     saveStateToHistory();
-    account.balance = window.money(account.balance + amount);
-    logOperation("إضافة إيراد", `إضافة ${formatCurrency(amount)} إلى حساب "${account.name}" تحت فئة "${category}"${descDetails}.`);
-    
-    const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
-    liquidityLog.push({
-        id: 'liq-' + Date.now(),
-        timestamp: new Date().toISOString(),
-        type: "add",
-        amount: amount,
-        description: `إضافة إيراد (${category})${descDetails} لحساب "${account.name}"`,
-        currentBalance: newTotalLiquidity,
-        accountId: accountId
-    });
+    const _incTx = typeof createStateTransaction === 'function' ? createStateTransaction('إضافة إيراد') : null;
+    try {
+        const cleanAmount = window.money(Number(amount) || 0);
+        account.balance = window.money((Number(account.balance) || 0) + cleanAmount);
+        logOperation("إضافة إيراد", `إضافة ${formatCurrency(cleanAmount)} إلى حساب "${account.name}" تحت فئة "${category}"${descDetails}.`);
+        
+        const newTotalLiquidity = window.money(accounts.reduce((sum, acc) => sum + (Number(acc.balance) || 0), 0));
+        liquidityLog.push({
+            id: 'liq-' + Date.now(),
+            timestamp: new Date().toISOString(),
+            type: "add",
+            amount: cleanAmount,
+            description: `إضافة إيراد (${category})${descDetails} لحساب "${account.name}"`,
+            currentBalance: newTotalLiquidity,
+            accountId: accountId
+        });
+        if (_incTx) _incTx.commit();
+    } catch (e) {
+        if (_incTx) _incTx.rollback();
+        throw e;
+    }
     
     if (d('income-details-input')) d('income-details-input').value = '';
     if (typeof saveSystemToCloud === 'function') {
@@ -224,37 +233,44 @@ function handleExpenseAddition() {
     }
 
     // 2. التحقق من الرصيد
-    if (amount > account.balance) {
-        alert(`لا يوجد رصيد كافٍ في حساب "${account.name}". الرصيد المتاح: ${formatCurrency(account.balance)}.`);
+    const cleanAmount = window.money(Number(amount) || 0);
+    const currentAccBal = Number(account.balance) || 0;
+    if (cleanAmount > currentAccBal + 0.001) {
+        alert(`لا يوجد رصيد كافٍ في حساب "${account.name}". الرصيد المتاح: ${formatCurrency(currentAccBal)}.`);
         return false;
     }
     
     saveStateToHistory();
-    
-    // 3. التنفيذ
-    
-    // أ) خصم من الخزنة
-    account.balance = window.money(account.balance - amount);
+    const _expTx = typeof createStateTransaction === 'function' ? createStateTransaction('تسجيل مصروف') : null;
+    try {
+        // 3. التنفيذ
+        // أ) خصم من الخزنة
+        account.balance = window.money(currentAccBal - cleanAmount);
 
-    // ب) زيادة إجمالي المصروفات العام
-    expenses = window.money(expenses + amount);
+        // ب) زيادة إجمالي المصروفات العام
+        expenses = window.money((Number(expenses) || 0) + cleanAmount);
 
-    // ج) تسجيل الحركة في سجل السيولة (يظهر في حركة الخزينة)
-    const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
-    liquidityLog.push({
-        id: generateId("liq"),
-        timestamp: new Date().toISOString(),
-        type: "remove", // نوع remove عشان يظهر باللون الأحمر كسحب
-        amount: amount,
-        description: `صرف مصروف (${category})${descDetails} من حساب "${account.name}"`,
-        currentBalance: newTotalLiquidity,
-        accountId: accountId,
-        isExpense: true
-    });
+        // ج) تسجيل الحركة في سجل السيولة (يظهر في حركة الخزينة)
+        const newTotalLiquidity = window.money(accounts.reduce((sum, acc) => sum + (Number(acc.balance) || 0), 0));
+        liquidityLog.push({
+            id: generateId("liq"),
+            timestamp: new Date().toISOString(),
+            type: "remove", // نوع remove عشان يظهر باللون الأحمر كسحب
+            amount: cleanAmount,
+            description: `صرف مصروف (${category})${descDetails} من حساب "${account.name}"`,
+            currentBalance: newTotalLiquidity,
+            accountId: accountId,
+            isExpense: true
+        });
 
-    // د) [تعديل هام] توحيد صيغة السجل لتظهر في تقرير المصروفات
-    // تم تغيير النوع إلى "تسجيل مصروف" وإضافة كلمة "بقيمة" ليتمكن التقرير من قراءتها
-    logOperation("تسجيل مصروف", `بقيمة ${formatCurrency(amount)} - صرف من حساب "${account.name}" (فئة: ${category})${descDetails}.`);
+        // د) [تعديل هام] توحيد صيغة السجل لتظهر في تقرير المصروفات
+        // تم تغيير النوع إلى "تسجيل مصروف" وإضافة كلمة "بقيمة" ليتمكن التقرير من قراءتها
+        logOperation("تسجيل مصروف", `بقيمة ${formatCurrency(amount)} - صرف من حساب "${account.name}" (فئة: ${category})${descDetails}.`);
+        if (_expTx) _expTx.commit();
+    } catch (e) {
+        if (_expTx) _expTx.rollback();
+        throw e;
+    }
     
     if (d('expense-details-input')) d('expense-details-input').value = '';
     if (typeof saveSystemToCloud === 'function') {
@@ -293,44 +309,57 @@ function handleTransfer() {
         return false;
     }
 
-    if (amount > fromAccount.balance) {
+    const cleanAmount = window.money(Number(amount) || 0);
+    const fromBal = Number(fromAccount.balance) || 0;
+    const toBal = Number(toAccount.balance) || 0;
+    if (cleanAmount > fromBal + 0.001) {
         alert(`لا يوجد رصيد كافٍ في حساب "${fromAccount.name}" لإتمام التحويل.`);
         return false;
     }
     
     saveStateToHistory();
-    fromAccount.balance = window.money(fromAccount.balance - amount);
-    toAccount.balance = window.money(toAccount.balance + amount);
-    logOperation("تحويل بين الحسابات", `تم تحويل ${formatCurrency(amount)} من "${fromAccount.name}" إلى "${toAccount.name}"${descDetails}.`);
-    
-    liquidityLog.push({
-        id: 'liq-out-' + Date.now(),
-        date: new Date().toISOString(),
-        timestamp: new Date().toISOString(),
-        type: "remove",
-        amount: amount,
-        description: `تحويل صادر من "${fromAccount.name}" إلى "${toAccount.name}"${descDetails}`,
-        reason: `تحويل صادر إلى "${toAccount.name}"${descDetails}`,
-        currentBalance: fromAccount.balance,
-        accountId: fromAccount.id,
-        accountName: fromAccount.name,
-        account: fromAccount.name
-    });
-    liquidityLog.push({
-        id: 'liq-in-' + (Date.now() + 1),
-        date: new Date().toISOString(),
-        timestamp: new Date().toISOString(),
-        type: "add",
-        amount: amount,
-        description: `تحويل وارد إلى "${toAccount.name}" من "${fromAccount.name}"${descDetails}`,
-        reason: `تحويل وارد من "${fromAccount.name}"${descDetails}`,
-        currentBalance: toAccount.balance,
-        accountId: toAccount.id,
-        accountName: toAccount.name,
-        account: toAccount.name
-    });
+    const _trTx = typeof createStateTransaction === 'function' ? createStateTransaction('تحويل بين الحسابات') : null;
+    try {
+        fromAccount.balance = window.money(fromBal - cleanAmount);
+        toAccount.balance = window.money(toBal + cleanAmount);
+        const totalLiquidityAfterTransfer = window.money(accounts.reduce((sum, acc) => sum + (Number(acc.balance) || 0), 0));
+        logOperation("تحويل بين الحسابات", `تم تحويل ${formatCurrency(cleanAmount)} من "${fromAccount.name}" إلى "${toAccount.name}"${descDetails}.`);
+        
+        liquidityLog.push({
+            id: 'liq-out-' + Date.now(),
+            date: new Date().toISOString(),
+            timestamp: new Date().toISOString(),
+            type: "remove",
+            amount: cleanAmount,
+            description: `تحويل صادر من "${fromAccount.name}" إلى "${toAccount.name}"${descDetails}`,
+            reason: `تحويل صادر إلى "${toAccount.name}"${descDetails}`,
+            currentBalance: totalLiquidityAfterTransfer,
+            accountBalance: fromAccount.balance,
+            accountId: fromAccount.id,
+            accountName: fromAccount.name,
+            account: fromAccount.name
+        });
+        liquidityLog.push({
+            id: 'liq-in-' + (Date.now() + 1),
+            date: new Date().toISOString(),
+            timestamp: new Date().toISOString(),
+            type: "add",
+            amount: cleanAmount,
+            description: `تحويل وارد إلى "${toAccount.name}" من "${fromAccount.name}"${descDetails}`,
+            reason: `تحويل وارد من "${fromAccount.name}"${descDetails}`,
+            currentBalance: totalLiquidityAfterTransfer,
+            accountBalance: toAccount.balance,
+            accountId: toAccount.id,
+            accountName: toAccount.name,
+            account: toAccount.name
+        });
+        if (_trTx) _trTx.commit();
+    } catch (e) {
+        if (_trTx) _trTx.rollback();
+        throw e;
+    }
     if (d('transfer-details-input')) d('transfer-details-input').value = '';
-    if (typeof saveSystemToCloud === 'function') saveSystemToCloud();
+    if (typeof saveSystemToCloud === 'function') saveSystemToCloud().catch(e => console.error("Cloud save failed after transfer:", e));
     return true;
 }
 
@@ -354,22 +383,34 @@ function handleBalanceAdjustment() {
         return false;
     }
 
-    if (confirm(`هل أنت متأكد من تغيير رصيد حساب "${account.name}" إلى ${formatCurrency(newBalance)}؟`)) {
+    const cleanNewBalance = window.money(Number(newBalance) || 0);
+    if (confirm(`هل أنت متأكد من تغيير رصيد حساب "${account.name}" إلى ${formatCurrency(cleanNewBalance)}؟`)) {
         saveStateToHistory();
-        const difference = newBalance - account.balance;
-        account.balance = newBalance;
-        logOperation("تعديل رصيد يدوي", `تم تعديل رصيد حساب "${account.name}" إلى ${formatCurrency(newBalance)}. السبب: ${reason}.`);
-        
-        const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
-        liquidityLog.push({
-            id: 'liq-adj-' + Date.now(),
-            timestamp: new Date().toISOString(),
-            type: difference >= 0 ? "add" : "remove",
-            amount: Math.abs(difference),
-            description: `تعديل رصيد (السبب: ${reason}) لحساب "${account.name}"`,
-            currentBalance: newTotalLiquidity,
-            accountId: account.id
-        });
+        const _adjTx = typeof createStateTransaction === 'function' ? createStateTransaction('تعديل رصيد يدوي') : null;
+        try {
+            const oldBal = Number(account.balance) || 0;
+            const difference = window.money(cleanNewBalance - oldBal);
+            account.balance = cleanNewBalance;
+            logOperation("تعديل رصيد يدوي", `تم تعديل رصيد حساب "${account.name}" إلى ${formatCurrency(cleanNewBalance)}. السبب: ${reason}.`);
+            
+            const newTotalLiquidity = window.money(accounts.reduce((sum, acc) => sum + (Number(acc.balance) || 0), 0));
+            liquidityLog.push({
+                id: 'liq-adj-' + Date.now(),
+                timestamp: new Date().toISOString(),
+                type: difference >= 0 ? "add" : "remove",
+                amount: Math.abs(difference),
+                description: `تعديل رصيد (السبب: ${reason}) لحساب "${account.name}"`,
+                currentBalance: newTotalLiquidity,
+                accountId: account.id
+            });
+            if (_adjTx) _adjTx.commit();
+        } catch (e) {
+            if (_adjTx) _adjTx.rollback();
+            throw e;
+        }
+        if (typeof saveSystemToCloud === 'function') {
+            saveSystemToCloud().catch(e => console.error("Cloud save failed after balance adjustment:", e));
+        }
         return true;
     }
     return false;
@@ -396,10 +437,10 @@ window.openDepositModal = function(pendingId) {
             modal.id = 'depositModal';
             modal.className = 'modal'; 
             // ستايل احتياطي لضمان الظهور حتى لو CSS فيه مشكلة
-            modal.style.cssText = "display:none; position:fixed; z-index:9999; left:0; top:0; width:100%; height:100%; background-color:rgba(0,0,0,0.5);";
+            modal.style.cssText = "display:none; position:fixed; z-index:9999; left:0; top:0; width:100%; height:100%; padding:12px; overflow-y:auto; background-color:rgba(0,0,0,0.5); box-sizing:border-box;";
             
             modal.innerHTML = `
-                <div class="modal-content" style="background-color:#fff; margin:15% auto; padding:20px; border-radius:8px; width:90%; max-width:400px; position:relative; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                <div class="modal-content" style="background-color:#fff; margin:5vh auto; padding:20px; border-radius:8px; width:94%; max-width:400px; max-height:calc(100dvh - 24px); overflow-y:auto; box-sizing:border-box; position:relative; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
                     <span onclick="document.getElementById('depositModal').style.display='none'" style="position:absolute; left:15px; top:10px; cursor:pointer; font-size:24px; font-weight:bold; color:#666;">&times;</span>
                     
                     <h3 style="margin-top:0; color:#1f2937; border-bottom:1px solid #eee; padding-bottom:10px; font-family:sans-serif;">استلام دفعة / عربون</h3>
@@ -480,19 +521,21 @@ window.confirmDeposit = function() {
     if (saleIndex === -1 || !account) return;
 
     const targetSale = pendingSales[saleIndex];
+    const cleanAmount = window.money(Number(amount) || 0);
+    if (cleanAmount <= 0) { alert("أدخل مبلغاً صحيحاً أكبر من صفر."); return; }
     const saleTotal = Number(targetSale.totalSellPrice || targetSale.grandTotal || 0);
-    const currentPaid = Number(targetSale.depositPaid || 0);
-    const maxAllowed = Math.max(0, saleTotal - currentPaid);
-    if (amount > maxAllowed) {
+    const currentPaid = Number(targetSale.depositPaid || targetSale.paidAmount || targetSale.depositAmount || 0);
+    const maxAllowed = window.money(Math.max(0, saleTotal - currentPaid));
+    if (cleanAmount > maxAllowed + 0.001) {
         const fmt = typeof formatCurrency === 'function' ? formatCurrency : (val => val + ' ج.م');
-        alert(`المبلغ المدخل (${fmt(amount)}) يتجاوز المتبقي من قيمة البيعة (${fmt(maxAllowed)})!`);
+        alert(`المبلغ المدخل (${fmt(cleanAmount)}) يتجاوز المتبقي من قيمة البيعة (${fmt(maxAllowed)})!`);
         return;
     }
 
     saveStateToHistory(); // حفظ نقطة استعادة قبل التغيير
 
     // 1. زيادة رصيد الخزنة المحددة
-    account.balance = (Number(account.balance) || 0) + amount;
+    account.balance = window.money((Number(account.balance) || 0) + cleanAmount);
 
     // 2. تطوير: تسجيل سجل العربون داخل البيعة (لكي نعرف من أين نسحب عند الإلغاء)
     if (!pendingSales[saleIndex].depositHistory) {
@@ -501,19 +544,19 @@ window.confirmDeposit = function() {
     pendingSales[saleIndex].depositHistory.push({
         accountId: account.id,
         accountName: account.name,
-        amount: amount
+        amount: cleanAmount
     });
 
-    const oldPaid = Number(pendingSales[saleIndex].depositPaid) || 0;
-    pendingSales[saleIndex].depositPaid = oldPaid + amount;
+    const oldPaid = currentPaid;
+    pendingSales[saleIndex].depositPaid = window.money(oldPaid + cleanAmount);
 
     // 3. تسجيل في السجل المالي
-    const totalLiquidity = accounts.reduce((sum, a) => sum + (Number(a.balance) || 0), 0);
+    const totalLiquidity = window.money(accounts.reduce((sum, a) => sum + (Number(a.balance) || 0), 0));
     liquidityLog.push({
         id: generateId("liq-dep"),
         timestamp: new Date().toISOString(),
         type: "add",
-        amount: amount,
+        amount: cleanAmount,
         description: `عربون من: ${pendingSales[saleIndex].customerName} إلى "${account.name}"`,
         currentBalance: totalLiquidity,
         accountId: account.id
@@ -522,12 +565,15 @@ window.confirmDeposit = function() {
     // 4. تسجيل في سجل العمليات وسجل المبيعات
     if (typeof logOperation === 'function') {
         const custName = pendingSales[saleIndex].customerName || 'عميل نقدي';
-        logOperation("عربون مبيعات", `استلام عربون بقيمة ${formatCurrency(amount)} للعميل "${custName}" في حساب "${account.name}".`);
+        logOperation("عربون مبيعات", `استلام عربون بقيمة ${formatCurrency(cleanAmount)} للعميل "${custName}" في حساب "${account.name}".`);
     }
 
     // إغلاق وتحديث
     document.getElementById('depositModal').style.display = 'none';
     updateUI(); 
+    if (typeof saveSystemToCloud === 'function') {
+        saveSystemToCloud().catch(e => console.error("Cloud save failed after deposit:", e));
+    }
     
     // إشعار النجاح
     const msgBox = document.getElementById('global-message');

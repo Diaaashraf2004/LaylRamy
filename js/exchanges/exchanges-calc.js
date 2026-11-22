@@ -39,7 +39,8 @@ function runCalc() {
 
     if(vOld) vOld.innerText = (rPrice - rCost).toFixed(2);
     if(vNew) vNew.innerText = (nPrice > 0) ? (nPrice - nCost).toFixed(2) : "0.00";
-    if(vDiff) vDiff.innerText = diff > 0 ? "تحصيل " + diff : (diff < 0 ? "صرف " + Math.abs(diff) : "0.00");
+    const absDiff = Math.abs(diff).toFixed(2);
+    if(vDiff) vDiff.innerText = diff > 0 ? "تحصيل " + absDiff : (diff < 0 ? "صرف " + absDiff : "0.00");
 }
 
 function triggerUndoSave() {
@@ -107,11 +108,16 @@ async function executeTransaction() {
 
     const diff = totalNPrice - totalRPrice;
 
-    // فحص كفاية رصيد الخزينة عند رد فرق نقدي للعميل لمنع تحول الرصيد لسالب
-    if ((!isPending || pendingPayType === 'pay_now_safe') && diff < 0) {
+    // فحص وجود الحساب وكفاية رصيد الخزينة عند التسوية النقدية لمنع تضخم/نقصان وهمي أو سحب على المكشوف
+    if ((!isPending || pendingPayType === 'pay_now_safe') && Math.abs(diff) > 0.001) {
         const liveAccs = getAccounts();
         const targetAcc = liveAccs.find(a => a.id === accId);
-        if (targetAcc && (Number(targetAcc.balance) || 0) + diff < 0) {
+        if (!targetAcc) {
+            const btn = document.getElementById('exec_btn');
+            if(btn) { btn.disabled = false; btn.innerHTML = "تنفيذ وحفظ الاستبدال"; }
+            return alert("يرجى اختيار حساب خزينة صالح لتسوية فرق الاستبدال.");
+        }
+        if (diff < 0 && (Number(targetAcc.balance) || 0) + diff < -0.001) {
             const btn = document.getElementById('exec_btn');
             if(btn) { btn.disabled = false; btn.innerHTML = "تنفيذ وحفظ الاستبدال"; }
             return alert(`رصيد الخزينة [${targetAcc.name || targetAcc.id}] غير كافٍ لصرف الفرق للعميل!\nالرصيد المتوفر: ${targetAcc.balance} ج.م | المبلغ المطلوب صرفه: ${Math.abs(diff)} ج.م`);
@@ -121,49 +127,80 @@ async function executeTransaction() {
     const btn = document.getElementById('exec_btn');
     if(btn) { btn.disabled = true; btn.innerHTML = "⏳ جاري التحديث..."; }
 
+    const _tx = (typeof window.createStateTransaction === 'function') ? window.createStateTransaction(isPending ? 'إنشاء استبدال مؤجل' : 'تنفيذ استبدال فوري') : null;
     try {
         triggerUndoSave();
         const liveProducts = getProducts();
 
-     const processReturn = (name, cost, price, cat) => {
+     const m = (typeof window.money === 'function') ? window.money : (v => Math.round((Number(v) || 0) * 100) / 100);
+        let actualNMainCost = nMainCost;
+
+        // التحقق المسبق من توفر مخزون الأصناف الخارجة عند التسليم الفوري (بما في ذلك رفض الأصناف غير الموجودة بالمخزن لمنع رأس المال الوهمي)
+        if (!isPending) {
+            const neededMap = new Map();
+            const addNeed = (nm) => {
+                if (!nm) return;
+                const k = String(nm).trim().toLowerCase();
+                neededMap.set(k, { name: String(nm).trim(), count: (neededMap.get(k)?.count || 0) + 1 });
+            };
+            addNeed(nMainName);
+            nAccs.forEach(a => addNeed(a.name));
+            for (const [k, info] of neededMap.entries()) {
+                const p = liveProducts.find(x => x && x.name && String(x.name).trim().toLowerCase() === k && (Number(x.quantity) || 0) >= info.count)
+                    || liveProducts.find(x => x && x.name && String(x.name).trim().toLowerCase() === k);
+                if (!p || (Number(p.quantity) || 0) < info.count) {
+                    if (_tx) await _tx.rollback();
+                    if (btn) { btn.disabled = false; updateUIState(); }
+                    return alert(`المخزون المتاح للصنف "${info.name}" (${p ? (p.quantity || 0) : 0}) لا يكفي لإتمام الاستبدال (المطلوب: ${info.count}).`);
+                }
+            }
+        }
+
+        const processReturn = (name, cost, price, cat) => {
             if(!name) return;
-            // 1. تحويل للنص وتجاهل المسافات وحالة الأحرف
             const cleanName = String(name).trim().toLowerCase(); 
-            // 2. تأمين البحث ضد قيم null أو undefined في مصفوفة المنتجات
             let p = liveProducts.find(x => x && x.name && String(x.name).trim().toLowerCase() === cleanName);
-            
+            const retCost = Number(cost) || 0;
             if(!p) {
-                // الحفاظ على الاسم الأصلي بدون تغيير حالة الأحرف (للعرض)، وتأمين الأرقام
-                const newP = { id: "R-"+Date.now(), name: String(name).trim(), category: cat, quantity: 1, costPrice: Number(cost) || 0, price: Number(price) || 0 };
+                const newP = { id: "R-"+Date.now()+"-"+Math.floor(Math.random()*1000), name: String(name).trim(), category: cat || "عام", quantity: 1, costPrice: Math.round(retCost * 1e6) / 1e6, price: Number(price) || 0 };
                 if (typeof window.injectProductToMain === 'function') window.injectProductToMain(newP); 
                 else liveProducts.push(newP);
             } else {
-                // 3. التحديث الآمن للكمية والتكلفة كأرقام فعلية
-                p.quantity = (Number(p.quantity) || 0) + 1;
-                p.costPrice = Number(cost) || 0; 
+                // حساب متوسط التكلفة المرجح بدلاً من استبدال تكلفة المخزون كله!
+                const oldQty = Number(p.quantity) || 0;
+                const oldCost = Number(p.costPrice) || 0;
+                const newQty = oldQty + 1;
+                p.costPrice = Math.round((((oldQty * oldCost) + retCost) / newQty) * 1e6) / 1e6;
+                p.quantity = newQty;
             }
         };
 
-        const processOut = (name, cost, price) => {
+        const processOut = (name, cost, price, onDeductedCost) => {
             if(!name) return;
             const cleanName = String(name).trim().toLowerCase();
-            let p = liveProducts.find(x => x && x.name && String(x.name).trim().toLowerCase() === cleanName);
-            
+            let p = liveProducts.find(x => x && x.name && String(x.name).trim().toLowerCase() === cleanName && (Number(x.quantity) || 0) > 0)
+                || liveProducts.find(x => x && x.name && String(x.name).trim().toLowerCase() === cleanName);
             if(p) {
                 p.quantity = Math.max(0, (Number(p.quantity) || 0) - 1);
+                if (typeof onDeductedCost === 'function' && Number.isFinite(Number(p.costPrice))) {
+                    onDeductedCost(Number(p.costPrice));
+                }
             } else {
-                const newP = { id: "N-"+Date.now(), name: String(name).trim(), category: "عام", quantity: 0, costPrice: Number(cost) || 0, price: Number(price) || 0 };
+                const newP = { id: "N-"+Date.now()+"-"+Math.floor(Math.random()*1000), name: String(name).trim(), category: "عام", quantity: 0, costPrice: Math.round((Number(cost) || 0) * 1e6) / 1e6, price: Number(price) || 0 };
                 if (typeof window.injectProductToMain === 'function') window.injectProductToMain(newP); 
                 else liveProducts.push(newP);
             }
         };
+
         if (!isPending) {
             processReturn(rMainName, rMainCost, rMainPrice, rMainCat); 
             rAccs.forEach(a => processReturn(a.name, a.cost, a.price, a.cat));
 
-            processOut(nMainName, nMainCost, nMainPrice); 
-            nAccs.forEach(a => processOut(a.name, a.cost, a.price));
+            processOut(nMainName, nMainCost, nMainPrice, (c) => { actualNMainCost = c; }); 
+            nAccs.forEach(a => processOut(a.name, a.cost, a.price, (c) => { a.cost = c; }));
+            totalNCost = actualNMainCost + nAccs.reduce((s, a) => s + (Number(a.cost) || 0), 0);
         }
+        const netExchangeProfit = m((totalNPrice - totalNCost) - (totalRPrice - totalRCost));
 
         const itemsToSell = [];
         if (nMainName) itemsToSell.push({ 
@@ -185,7 +222,8 @@ async function executeTransaction() {
         const taggedCustomerName = custNameInput + ` (عميل استبدال 🔄)`;
 
         let createdSaleObj = null;
-        if (itemsToSell.length > 0) {
+        // لا نسجل فاتورة مكتملة ولا نضيف أرباحاً إلا عند التسليم الفوري (أما الآجل فيسجل عند إتمام المراحل الثلاث)
+        if (!isPending && itemsToSell.length > 0) {
             const saleObj = {
                 id: "EX-SALE-" + Date.now(),
                 type: 'exchange',
@@ -201,14 +239,15 @@ async function executeTransaction() {
                 price: totalNPrice,
                 totalSellPrice: totalNPrice,
                 grandTotal: totalNPrice,
+                paidAmount: diff,
                 total: totalNPrice,
                 totalPrice: totalNPrice,
                 cost: totalNCost,
                 costPrice: totalNCost,
                 totalCost: totalNCost,
                 totalCostPrice: totalNCost,
-                profit: totalNPrice - totalNCost,
-                totalProfit: totalNPrice - totalNCost,
+                profit: netExchangeProfit,
+                totalProfit: netExchangeProfit,
                 customerName: taggedCustomerName,
                 clientName: taggedCustomerName,
                 buyerName: taggedCustomerName,
@@ -216,12 +255,16 @@ async function executeTransaction() {
                 invoiceNumber: invoiceNum,
                 invoiceId: invoiceNum,
                 items: itemsToSell,
-                notes: isPending ? "استبدال وتسليم آجل 🔄" : "استبدال وتسليم فوري 🔄"
+                notes: "استبدال وتسليم فوري 🔄"
             };
             createdSaleObj = saleObj;
 
             if (typeof window.injectSaleToMain === 'function') window.injectSaleToMain(saleObj);
-            
+            if (typeof totalProfit !== 'undefined') {
+                totalProfit = m((Number(totalProfit) || 0) + netExchangeProfit);
+            } else if (typeof window.totalProfit !== 'undefined') {
+                window.totalProfit = m((Number(window.totalProfit) || 0) + netExchangeProfit);
+            }
             if (typeof window.saveInvoiceToFirestore === 'function') {
                 try { 
                     await window.saveInvoiceToFirestore(saleObj); 
@@ -235,7 +278,25 @@ async function executeTransaction() {
             }
         }
 
-        if (isPending && itemsToSell.length > 0) {
+        const recordExchangeLiquidity = (acc, deltaAmt, desc) => {
+            if (!acc || Math.abs(deltaAmt) <= 0.001) return;
+            acc.balance = m((Number(acc.balance) || 0) + deltaAmt);
+            const liveAccounts = getAccounts();
+            const totalLiq = m(liveAccounts.reduce((s, a) => s + (Number(a.balance) || 0), 0));
+            if (typeof liquidityLog !== 'undefined' && Array.isArray(liquidityLog)) {
+                liquidityLog.push({
+                    id: (typeof generateId === 'function') ? generateId('liq-ex') : ('liq-ex-' + Date.now()),
+                    timestamp: new Date().toISOString(),
+                    type: deltaAmt >= 0 ? 'add' : 'remove',
+                    amount: Math.abs(deltaAmt),
+                    description: desc,
+                    currentBalance: totalLiq,
+                    accountId: acc.id
+                });
+            }
+        };
+
+        if (isPending) {
             const stages = {
                 newItemShipped: false,
                 newItemShippedDate: null,
@@ -245,47 +306,66 @@ async function executeTransaction() {
                 oldItemReceived: false,
                 oldItemReceivedDate: null
             };
-            window.pendingOrders.push({
+            const orderObj = {
                 id: (typeof window.generateGlobalID === 'function' ? window.generateGlobalID('ORD') : ("ORD_" + Date.now().toString(36))),
                 customerName: taggedCustomerName,
                 customerPhone: custPhone,
                 itemsDesc: itemsDescStr,
-                diffAmount: diff, accId: accId,
+                diffAmount: m(diff), accId: accId,
                 nMainName, nMainCost, nMainPrice,
-                rMainName, rMainCost, rMainPrice,
+                rMainName, rMainCost, rMainPrice, rMainCat,
                 nAccs: nAccs, rAccs: rAccs,
                 stages: stages,
                 shippingCompany: shippingCompany,
                 trackingNumber: trackingNumber,
                 createdAt: new Date().toISOString(),
-                sourceInvoiceId: createdSaleObj ? createdSaleObj.id : null,
-                sourceInvoiceNum: invoiceNum
-            });
+                sourceInvoiceId: null,
+                sourceInvoiceNum: invoiceNum,
+                profitRecorded: false
+            };
+            window.pendingOrders.push(orderObj);
 
             if (pendingPayType === 'pay_now_safe') {
                 const liveAccounts = getAccounts();
                 const acc = liveAccounts.find(a => a.id === accId);
-                if(acc) acc.balance = (Number(acc.balance)||0) + diff;
+                recordExchangeLiquidity(acc, m(diff), `فرق استبدال مؤجل للعميل [${custNameInput}]`);
                 addLogSafe({ timestamp: new Date().toISOString(), type: "دفع آجل لخزنة", details: `تسجيل فرق الاستبدال للعميل [${custNameInput}] في الخزنة`, amount: diff });
             } else if (pendingPayType === 'pay_now_debt') {
-                window.debtors = window.debtors || [];
-                let debtor = window.debtors.find(d => d.name === custNameInput || d.customerName === custNameInput);
-                if (!debtor) {
-                    debtor = { id: "DEBT-"+Date.now(), name: custNameInput, customerName: custNameInput, phone: custPhone, amount: 0, reason: "دين استبدال مؤجل", createdAt: new Date().toISOString() };
-                    window.debtors.push(debtor);
+                if (diff < 0) {
+                    // إذا كان الفرق سالباً (المحل مدين للعميل) يُسجَّل كالتزام وليس ديناً سالباً
+                    if (typeof liabilities !== 'undefined' && Array.isArray(liabilities)) {
+                        const liabId = "LIAB-EX-" + Date.now();
+                        liabilities.push({ id: liabId, name: custNameInput, amount: m(Math.abs(diff)), status: 'active', source: 'exchange_credit', orderId: orderObj.id, createdAt: new Date().toISOString() });
+                        orderObj.linkedLiabilityId = liabId;
+                    }
+                    addLogSafe({ timestamp: new Date().toISOString(), type: "التزام استبدال", details: `تسجيل فرق الاستبدال المستحق للعميل [${custNameInput}] كالتزام`, amount: diff });
+                } else if (diff > 0) {
+                    window.debtors = window.debtors || [];
+                    let profileId = undefined;
+                    if (typeof debtorProfiles !== 'undefined' && Array.isArray(debtorProfiles)) {
+                        let prof = debtorProfiles.find(p => typeof normalizeArabicText === 'function' ? normalizeArabicText(p.name) === normalizeArabicText(custNameInput) : p.name === custNameInput);
+                        if (!prof) {
+                            prof = { id: (typeof generateId === 'function' ? generateId('dp') : 'dp-' + Date.now()), name: custNameInput, phone: custPhone || '', address: '', notes: '' };
+                            debtorProfiles.push(prof);
+                        }
+                        profileId = prof.id;
+                    }
+                    const debtId = "DEBT-EX-" + Date.now();
+                    window.debtors.push({ id: debtId, customerId: profileId, name: custNameInput, customerName: custNameInput, phone: custPhone, amount: m(diff), reason: "دين استبدال مؤجل", origin: 'exchange_debt', orderId: orderObj.id, createdAt: new Date().toISOString() });
+                    orderObj.linkedDebtId = debtId;
+                    addLogSafe({ timestamp: new Date().toISOString(), type: "دين استبدال", details: `تسجيل فرق الاستبدال كدين على [${custNameInput}]`, amount: diff });
                 }
-                debtor.amount = (Number(debtor.amount)||0) + diff;
-                addLogSafe({ timestamp: new Date().toISOString(), type: "دين استبدال", details: `تسجيل فرق الاستبدال كدين على [${custNameInput}]`, amount: diff });
             } else {
                 addLogSafe({ timestamp: new Date().toISOString(), type: "استلام وشحن جديد", details: `استبدال للعميل [${custNameInput}] - الفلوس معلقة`, amount: 0 });
             }
         } else {
             const liveAccounts = getAccounts();
             const acc = liveAccounts.find(a => a.id === accId);
-            if(acc) acc.balance = (Number(acc.balance)||0) + diff;
+            recordExchangeLiquidity(acc, m(diff), `فرق استبدال فوري للعميل [${custNameInput}]`);
             addLogSafe({ timestamp: new Date().toISOString(), type: "استبدال فوري", details: `استبدال وتحصيل فوري للعميل [${custNameInput}]`, amount: diff });
         }
 
+        if (_tx) _tx.commit();
         await finalizeSave();
 
         // تنظيف الحقول
@@ -309,6 +389,7 @@ async function executeTransaction() {
         if(btn) btn.disabled = false;
 
     } catch (e) {
+        if (_tx) await _tx.rollback();
         alert("خطأ: " + e.message);
         if(btn) { btn.disabled = false; updateUIState(); }
     }

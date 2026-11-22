@@ -1,14 +1,6 @@
-async function saveCurrentStateByDate(dateString, immediate = false) {
-    if (window._loadFailed) { console.warn('الحفظ متوقف: فشل تحميل البيانات'); return; }
-    if (typeof window.syncDualWriteToDB === "function") await window.syncDualWriteToDB();
-    const canWrite = await window.SessionGuard.assertCanWrite();
-    if (!canWrite) {
-        if (typeof autoSaveTimer !== 'undefined' && autoSaveTimer) {
-            clearInterval(autoSaveTimer);
-        }
-        return;
-    }
-    
+async function saveCurrentStateByDate(dateString, immediate = false, options = {}) {
+    if (window._loadFailed || window._serialsLoadFailed) { console.warn('الحفظ متوقف: فشل تحميل البيانات'); return false; }
+
     // Local backup preparation moved UP
     const safePendingReturnsValue = (typeof pendingReturnsValue !== 'undefined') ? pendingReturnsValue : 0;
     const safeBackupIndex = (typeof backupSlotIndex !== 'undefined') ? backupSlotIndex : 0;
@@ -47,12 +39,25 @@ async function saveCurrentStateByDate(dateString, immediate = false) {
     // 🛡️ حارس حماية الحفظ السحابي من انكماش أو تفريغ البيانات الحرجة
     if (typeof window.SaveGuard !== 'undefined' && typeof window.SaveGuard.canSaveState === 'function') {
         if (!window.SaveGuard.canSaveState(stateToSave)) {
-            console.error('[saveCurrentStateByDate] تم إيقاف الحفظ لمنع تفريغ أو انكماش البيانات الحرجة.');
-            return false;
+            const hasValidAccounts = Array.isArray(stateToSave.accounts) && stateToSave.accounts.length > 0;
+            if (options && options.isManualUserSave && hasValidAccounts && typeof window.SaveGuard.allowShrinkOnce === 'function') {
+                const approveShrink = confirm(
+                    "⚠️ تنبيه حماية البيانات (SaveGuard):\n\n" +
+                    "لاحظ النظام نقصاً كبيراً (أكثر من 50%) في عدد عناصر إحدى القوائم مقارنة ببداية الجلسة.\n" +
+                    "إذا كنت قد قمت بهذا الحذف أو التصفية عن قصد، اضغط (موافق) لاعتماد الحفظ السحابي، أو (إلغاء) لإيقاف الحفظ."
+                );
+                if (approveShrink) {
+                    window.SaveGuard.allowShrinkOnce();
+                } else {
+                    console.error('[saveCurrentStateByDate] تم إلغاء الحفظ اليدوي بواسطة المستخدم بعد تنبيه SaveGuard.');
+                    return false;
+                }
+            } else {
+                console.error('[saveCurrentStateByDate] تم إيقاف الحفظ لمنع تفريغ أو انكماش البيانات الحرجة.');
+                return false;
+            }
         }
     }
-
-    const sanitizedState = sanitizeDataForFirebase(stateToSave);
 
     try {
         const fullLocalBackup = { ...stateToSave }; 
@@ -74,112 +79,39 @@ async function saveCurrentStateByDate(dateString, immediate = false) {
         }
     } catch (e) {
         console.warn("Local backup warning (silent):", e);
-        if (e.name === 'QuotaExceededError' || e.message.includes('quota')) {
-            alert("خطأ حرج: الذاكرة المحلية للمتصفح ممتلئة تماماً ولم يتم الحفظ! يرجى إفراغ مساحة أو التأكد من اتصال الإنترنت لتجنب ضياع البيانات.");
-            window.isSavingDataLock = false;
+        if (e && (e.name === 'QuotaExceededError' || String(e.message || '').toLowerCase().includes('quota'))) {
+            alert("خطأ حرج: الذاكرة المحلية للمتصفح ممتلئة تماماً ولم يتم الحفظ المحلي! يرجى إفراغ مساحة أو التأكد من اتصال الإنترنت لتجنب ضياع البيانات.");
         }
     }
 
     // 1. التحقق من تسجيل الدخول
     if (!window.currentUser) {
         showGlobalMessage("تنبيه: أنت غير مسجل دخول. يتم الحفظ على الجهاز فقط.", false, true);
-        return;
+        return false;
     }
     
-    const userId = window.currentUser.uid;
-
-    // 2. الحفظ السحابي (Smart Debounce Sync)
-    if (window._saveTimeout) clearTimeout(window._saveTimeout);
-    window._pendingSaveDate = dateString;
-
-    
-    // �� تحديث الملخص
-        const latestBalancesSummary = {
-            products: products || [],
-            suppliers: suppliers || [],
-            accounts: accounts || [],
-            debtors: debtors || [],
-            liabilities: liabilities || [],
-            monthlyLiabilities: monthlyLiabilities || [],
-            pendingSales: pendingSales || [],
-            serialNumbersLog: serialNumbersLog || [],
-            inboxTasks: inboxTasks || [],
-            pendingPurchases: pendingPurchases || [],
-            pendingReturns: pendingReturns || [],
-            pendingReturnsValue: safePendingReturnsValue,
-            pendingOrders: window.pendingOrders || [], 
-            summaryForDate: dateString,
-            lastUpdated: new Date().toISOString()
-        };
-        
-        const sanitizedSummary = sanitizeDataForFirebase(latestBalancesSummary);
-
-    window._pendingSaveFunction = async () => {
-        try {
-            window._saveTimeout = null;
-            console.log(`[Smart Sync] Executing debounced cloud save for ${window._pendingSaveDate}...`);
-            const docRef = window.doc(window.db, "users", userId, "days", window._pendingSaveDate);
-            await window.setDoc(docRef, sanitizedState, { merge: true });
-
-        
-        const summaryDocRef = window.doc(window.db, "users", userId, "summaries", "latestBalances");
-
-        const todayStr = typeof getTodayDateString === 'function' ? getTodayDateString() : (typeof getCairoDateString === 'function' ? getCairoDateString() : new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' }));
-        if (dateString === todayStr) {
-            if (isStateMeaningful(latestBalancesSummary)) {
-                window.setDoc(summaryDocRef, sanitizedSummary, { merge: true }).catch(e => console.log("Summary update delayed (silent)"));
-            } else {
-                console.log("تم تجاهل تحديث latestBalances لأن الحالة فارغة أو مصفرة.");
-            }
-        } else {
-            console.log("تم منع التحديث الكامل، سيتم حساب وتطبيق الفروقات لتاريخ:", dateString); 
-            await processSmartDeltaRollover(sanitizedState || sanitizedSummary, dateString);
-        }
-        
-        console.log("Cloud save success.");
-        if (typeof window.SaveGuard !== 'undefined' && typeof window.SaveGuard.recordLoadedState === 'function') {
-            window.SaveGuard.recordLoadedState(sanitizedState);
-        }
+    // 2. توحيد مسار الحفظ السحابي عبر البوابة الموحدة saveSystemToCloud (تمنع تصادم المؤقتات وتفرّغ السيريالات وتلتزم بالحراس)
+    if (dateString) {
         currentLoadedDate = dateString;
         window.currentLoadedDate = dateString;
-        
-        // إظهار رسالة نجاح صغيرة وسريعة
-        const msgBox = document.getElementById('global-message');
-        if (msgBox) {
-            msgBox.textContent = "تم الحفظ ✓";
-            msgBox.className = "section-message success visible";
-            setTimeout(() => { msgBox.classList.remove('visible'); }, 2000);
-        }
-
-    } catch (error) {
-        console.error("Cloud save warning:", error);
-        
-        currentLoadedDate = dateString;
-
-        // رسالة ذكية حسب نوع الخطأ
-        let userMessage = "تم الحفظ على الجهاز (جاري المزامنة...)";
-        let isError = false; 
-        let isInfo = true;
-
-        if (error.code === 'unavailable' || error.message.includes('offline')) {
-            userMessage = "لا يوجد إنترنت. تم الحفظ محلياً وسيتم الرفع تلقائياً.";
-        } else if (error.code === 'permission-denied') {
-            userMessage = "خطأ في الصلاحيات. يرجى إعادة تسجيل الدخول.";
-            isError = true;
-            isInfo = false;
-        }
-
-        showGlobalMessage(userMessage, isError, isInfo);
     }
-};
-    
-    if (immediate) {
-        if (window._saveTimeout) clearTimeout(window._saveTimeout);
+    if (window._saveTimeout) {
+        clearTimeout(window._saveTimeout);
         window._saveTimeout = null;
-        await window._pendingSaveFunction();
-    } else {
-        window._saveTimeout = setTimeout(window._pendingSaveFunction, 3000);
     }
+    window._pendingSaveFunction = null;
+
+    if (typeof window.saveSystemToCloud === 'function') {
+        try {
+            await window.saveSystemToCloud({ immediate: Boolean(immediate) });
+            window._autoSaveDirty = false;
+            return true;
+        } catch (err) {
+            console.error('[saveCurrentStateByDate] Unified cloud save failed:', err);
+            return false;
+        }
+    }
+    return false;
 }
 
 function openBackupHistoryModal() {
@@ -240,7 +172,7 @@ function openBackupHistoryModal() {
             </div>`;
     } else {
         listContainer.innerHTML = backups.map(backup => `
-            <div class="flex justify-between items-center p-3 mb-2 bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-50 transition">
+            <div class="flex flex-wrap justify-between items-center gap-2 p-3 mb-2 bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-50 transition">
                 <div>
                     <div class="font-bold text-gray-800" style="font-size: 1rem;">
                         ⏰ ${backup.time.toLocaleTimeString('ar-EG')}
@@ -288,16 +220,24 @@ document.addEventListener('click', async function(e) {
                     console.log("Restoring on Chrome logic:", key);
                     
                     // تحميل البيانات
+                    window._loadFailed = false;
+                    window._serialsLoadFailed = false;
                     loadState(data, dateStr);
                     updateUI();
                     
                     // إغلاق النافذة
                     document.getElementById('backupHistoryModal').style.display = 'none';
                     
-                    // حفظ لتثبيت الحالة
-                    await saveCurrentStateByDate(dateStr);
-                    
-                    alert("تمت الاستعادة بنجاح!");
+                    // التصريح بالانكماش لمرة واحدة ثم الحفظ الفوري بالسحابة (شاملاً السيريالات)
+                    if (window.SaveGuard && typeof window.SaveGuard.allowShrinkOnce === 'function') {
+                        window.SaveGuard.allowShrinkOnce();
+                    }
+                    const savedOk = await saveCurrentStateByDate(dateStr, true);
+                    if (savedOk) {
+                        alert("تمت الاستعادة والحفظ في السحابة بنجاح!");
+                    } else {
+                        alert("تم تحميل النسخة محلياً ولكن تعذر تثبيتها في السحابة. يرجى التحقق من الاتصال.");
+                    }
                 }
             } catch (err) {
                 alert("حدث خطأ: " + err.message);

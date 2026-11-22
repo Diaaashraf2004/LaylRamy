@@ -136,7 +136,7 @@ let currentViewingInvoice = null;
         let html = `
         <div class="max-w-3xl mx-auto bg-white rounded-xl border border-slate-200/90 shadow-sm overflow-hidden text-slate-800">
             <!-- Header Banner -->
-            <div class="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div class="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-4 sm:p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
                     <div class="flex items-center gap-2 mb-1">
                         <span class="p-2 bg-indigo-500/20 text-indigo-300 rounded-lg"><i class="fas fa-file-invoice text-xl"></i></span>
@@ -151,34 +151,34 @@ let currentViewingInvoice = null;
             </div>
 
             <!-- Meta & Customer Details Grid -->
-            <div class="p-6 bg-slate-50/70 border-b border-slate-200/80 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                <div class="bg-white p-4 rounded-xl border border-slate-200/60 shadow-xs space-y-2">
+            <div class="p-3 sm:p-6 bg-slate-50/70 border-b border-slate-200/80 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div class="bg-white p-3 sm:p-4 rounded-xl border border-slate-200/60 shadow-xs space-y-2">
                     <div class="font-bold text-slate-900 border-b pb-1.5 flex items-center gap-1.5 text-xs text-indigo-700">
                         <i class="fas fa-user-circle"></i> بيانات العميل
                     </div>
-                    <div class="flex justify-between items-center"><span class="text-slate-500">الاسم:</span> <strong class="text-slate-900">${_esc(customerName)}</strong></div>
-                    ${phones.length > 0 ? `<div class="flex justify-between items-center"><span class="text-slate-500">الهاتف:</span> <span class="font-mono font-bold text-indigo-600">${phones.map(_esc).join(' / ')}</span></div>` : ''}
-                    ${customerAddress ? `<div class="flex justify-between items-center"><span class="text-slate-500">العنوان:</span> <span>${_esc(customerAddress)}</span></div>` : ''}
+                    <div class="flex flex-wrap justify-between items-center gap-1"><span class="text-slate-500">الاسم:</span> <strong class="text-slate-900">${_esc(customerName)}</strong></div>
+                    ${phones.length > 0 ? `<div class="flex flex-wrap justify-between items-center gap-1"><span class="text-slate-500">الهاتف:</span> <span class="font-mono font-bold text-indigo-600">${phones.map(_esc).join(' / ')}</span></div>` : ''}
+                    ${customerAddress ? `<div class="flex flex-wrap justify-between items-center gap-1"><span class="text-slate-500">العنوان:</span> <span>${_esc(customerAddress)}</span></div>` : ''}
                 </div>
-                <div class="bg-white p-4 rounded-xl border border-slate-200/60 shadow-xs space-y-2">
+                <div class="bg-white p-3 sm:p-4 rounded-xl border border-slate-200/60 shadow-xs space-y-2">
                     <div class="font-bold text-slate-900 border-b pb-1.5 flex items-center gap-1.5 text-xs text-indigo-700">
                         <i class="fas fa-info-circle"></i> بيانات الإصدار
                     </div>
-                    <div class="flex justify-between items-center"><span class="text-slate-500">تاريخ الإصدار:</span> <span class="text-xs font-semibold">${dateStr}</span></div>
-                    <div class="flex justify-between items-center">
+                    <div class="flex flex-wrap justify-between items-center gap-1"><span class="text-slate-500">تاريخ الإصدار:</span> <span class="text-xs font-semibold">${dateStr}</span></div>
+                    <div class="flex flex-wrap justify-between items-center gap-1">
                         <span class="text-slate-500">حالة الفاتورة:</span> 
                         <span class="px-2.5 py-0.5 rounded-full text-xs font-bold ${isPending ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-emerald-100 text-emerald-800 border border-emerald-300'}">
                             ${isPending ? '⏳ بيع مؤقت (معلقة)' : '✅ مؤكدة ومسددة'}
                         </span>
                     </div>
-                    ${invoice.warranty ? `<div class="flex justify-between items-center"><span class="text-slate-500">مدة الضمان:</span> <span class="font-bold text-slate-800">${_esc(invoice.warranty)}</span></div>` : ''}
+                    ${invoice.warranty ? `<div class="flex flex-wrap justify-between items-center gap-1"><span class="text-slate-500">مدة الضمان:</span> <span class="font-bold text-slate-800">${_esc(invoice.warranty)}</span></div>` : ''}
                 </div>
             </div>
 
             <!-- Items Table -->
-            <div class="p-6">
-                <div class="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
-                    <table class="w-full text-right border-collapse text-sm">
+            <div class="p-3 sm:p-6">
+                <div class="border border-slate-200 rounded-xl overflow-x-auto shadow-xs">
+                    <table class="w-full text-right border-collapse text-sm min-w-[500px]">
                         <thead class="bg-slate-800 text-white text-xs">
                             <tr>
                                 <th class="p-3 w-10 text-center">#</th>
@@ -327,7 +327,7 @@ let currentViewingInvoice = null;
                         <tr class="border-b hover:bg-slate-50 transition-colors">
                             <td class="p-3">
                                 <strong class="text-slate-800 block">${_esc(item.name || 'صنف')}</strong>
-                                ${serial ? `<span class="inline-block mt-0.5 font-mono text-[11px] bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded border">S/N: ${_esc(serial)}</span>` : ''}
+                                ${serial ? `<span class="inline-block mt-0.5 font-mono text-[11px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded border">S/N: ${_esc(serial)}</span>` : ''}
                             </td>
                             <td class="p-3 text-center font-bold text-slate-700">${qty}</td>
                             <td class="p-3 text-center font-mono font-bold text-rose-600 bg-rose-50/40">${_curr(unitCost)}</td>
@@ -356,7 +356,7 @@ let currentViewingInvoice = null;
         }
 
         let dedHTML = `
-            <h4 class="font-bold text-slate-800 text-sm mb-3 flex items-center justify-between border-b pb-2">
+            <h4 class="font-bold text-slate-800 text-sm mb-3 flex flex-wrap items-center justify-between gap-2 border-b pb-2">
                 <span><i class="fas fa-tags text-amber-500 mr-1.5"></i> التكاليف الإضافية والاستقطاعات المخصومة من أرباح الفاتورة</span>
                 <span class="text-xs bg-amber-100 text-amber-800 px-2.5 py-1 rounded-full font-bold border border-amber-200">
                     إجمالي التكاليف الإضافية: ${_curr(totalDeductionsCost)}
@@ -373,7 +373,7 @@ let currentViewingInvoice = null;
             if (deductedItems.length > 0) {
                 dedHTML += `
                     <div class="overflow-x-auto border border-amber-200 rounded-lg">
-                        <table class="w-full text-right text-xs">
+                        <table class="w-full min-w-[420px] text-right text-xs">
                             <thead class="bg-amber-50 text-amber-900">
                                 <tr>
                                     <th class="p-2.5">ملحق / صنف مستقطع</th>
@@ -408,7 +408,7 @@ let currentViewingInvoice = null;
             // بند الاستقطاع المالي
             if (deductionAmount > 0) {
                 dedHTML += `
-                    <div class="flex justify-between items-center p-3 bg-amber-50/70 border border-amber-200 rounded-lg text-xs">
+                    <div class="flex flex-wrap justify-between items-center gap-2 p-3 bg-amber-50/70 border border-amber-200 rounded-lg text-xs">
                         <div>
                             <strong class="text-amber-900 block font-semibold"><i class="fas fa-minus-circle text-rose-500 mr-1"></i> استقطاع نقدي لحساب التزام:</strong>
                             <span class="text-amber-700">${_esc(deductionLiabilityName || 'التزام غير محدد')}</span>

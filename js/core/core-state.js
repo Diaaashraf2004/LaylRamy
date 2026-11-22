@@ -69,6 +69,7 @@ var currentSupplierSerials = []; // **** لتخزين السيريالات ال�
         // --- Purchase Invoice (PI) Elements ---
 var piSupplierSelect, piInvoiceNumberInput, piDateInput, piItemsBody,
     piNoItemsMsg, piItemNameInput, piItemQuantityInput, piItemCostInput,
+    piItemTotalCostInput,
     piItemSerialsContainer, piItemSerialsTextarea, piAddItemBtn, piItemAddMessage,
     piGrandTotalSpan, piPaidAmountInput, piPaidAmountDisplaySpan, piRemainingBalanceSpan,
     piConfirmBtn, piSaveDraftBtn, piClearFormBtn, piFormMessage,

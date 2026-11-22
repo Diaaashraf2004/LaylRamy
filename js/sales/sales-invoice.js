@@ -298,27 +298,45 @@ async function handleSaveInvoice(skipConfirmation = true) {
         };
     }) : [];
     const shippingCost = parseInputNumber(inv_shippingCostInput) || 0;
+    if (shippingCost < 0 || invoiceItems.some(it => !Number.isFinite(it.quantity) || it.quantity <= 0 || !Number.isFinite(it.unitPrice) || it.unitPrice < 0)) {
+        restoreSaveBtn();
+        showMessage(d('inv_validationError') || globalMessage, "بيانات البنود أو الشحن غير صالحة (لا يُسمح بكمية ≤ 0 أو سعر/شحن سالب).", true);
+        return;
+    }
+
+    let repeatCheckResult = { proceed: true, isRepeat: false, orderNumber: 1 };
+    if (!isInvoiceFromPending && !isEditingPendingInvoice && typeof window.confirmRepeatOrderIfDuplicate === 'function') {
+        repeatCheckResult = window.confirmRepeatOrderIfDuplicate(customerName);
+        if (!repeatCheckResult.proceed) {
+            restoreSaveBtn();
+            return;
+        }
+    }
     const warranty = inv_warrantyInput ? inv_warrantyInput.value.trim() : '';
     const notes = inv_notesTextarea ? inv_notesTextarea.value.trim() : '';
     
-    const totalGoods = invoiceItems.reduce((sum, item) => sum + item.subtotal, 0);
-    const grandTotal = totalGoods + shippingCost; 
+    const totalGoods = window.money(invoiceItems.reduce((sum, item) => sum + item.subtotal, 0));
+    const grandTotal = window.money(totalGoods + shippingCost); 
 
     let depositAlreadyPaid = 0;
-    if ((isInvoiceFromPending || isEditingPendingInvoice) && pendingSaleOriginData && pendingSaleOriginData.depositPaid) {
-        depositAlreadyPaid = Number(pendingSaleOriginData.depositPaid) || 0;
+    if ((isInvoiceFromPending || isEditingPendingInvoice) && pendingSaleOriginData && (pendingSaleOriginData.depositPaid || pendingSaleOriginData.paidAmount || pendingSaleOriginData.depositAmount)) {
+        depositAlreadyPaid = Number(pendingSaleOriginData.depositPaid || pendingSaleOriginData.paidAmount || pendingSaleOriginData.depositAmount) || 0;
     }
     
-    let amountToCollectNow = grandTotal - depositAlreadyPaid;
-    if (amountToCollectNow < 0) amountToCollectNow = 0; 
+    let amountToCollectNow = window.money(grandTotal - depositAlreadyPaid);
+    let excessDepositToRefund = 0;
+    if (amountToCollectNow < 0) {
+        excessDepositToRefund = window.money(Math.abs(amountToCollectNow));
+        amountToCollectNow = 0;
+    }
 
     let totalInvoiceCost = 0;
     let deductedItemsData = [];
-    let quantitiesToDeduct = {}; 
+    let itemsToDeductList = [];
 
     invoiceItems.forEach(item => {
         totalInvoiceCost += (item.costPrice * item.quantity);
-        quantitiesToDeduct[item.id || item.name] = (quantitiesToDeduct[item.id || item.name] || 0) + item.quantity;
+        itemsToDeductList.push({ id: item.id || null, name: item.name, quantity: item.quantity });
     });
 
     let hasDOMDeductions = false;
@@ -332,27 +350,27 @@ async function handleSaveInvoice(skipConfirmation = true) {
                 const quantityInput = parentLabel ? parentLabel.querySelector('.inv-deducted-item-quantity') : null;
                 const qtyToDeduct = parseInt(quantityInput?.value || '0');
                 if (qtyToDeduct > 0) {
-                    const itemId = checkbox.dataset.id || name, displayName = checkbox.dataset.name || name;
-                    deductedItemsData.push({ id: itemId, name: displayName, quantity: qtyToDeduct, costPrice: cost });
+                    const itemId = checkbox.dataset.id || null, displayName = checkbox.dataset.name || name;
+                    deductedItemsData.push({ id: itemId || displayName, name: displayName, quantity: qtyToDeduct, costPrice: cost });
                     totalInvoiceCost += (cost * qtyToDeduct);
-                    quantitiesToDeduct[itemId] = (quantitiesToDeduct[itemId] || 0) + qtyToDeduct;
+                    itemsToDeductList.push({ id: itemId, name: displayName, quantity: qtyToDeduct });
                 }
             });
         }
     }
-    if (!hasDOMDeductions && isInvoiceFromPending && pendingSaleOriginData) {
+    if (!hasDOMDeductions && (isInvoiceFromPending || isEditingPendingInvoice) && pendingSaleOriginData) {
         const prevDeducted = (pendingSaleOriginData.invoiceData && pendingSaleOriginData.invoiceData.deductedItems) 
                              ? pendingSaleOriginData.invoiceData.deductedItems 
-                             : (pendingSaleOriginData.deductedItems || (!pendingSaleOriginData.mainProduct && pendingSaleOriginData.additionalItems) || []);
+                             : (pendingSaleOriginData.deductedItems || pendingSaleOriginData.additionalItems || []);
         prevDeducted.forEach(item => {
             const cost = Number(item.costPrice || item.cost || 0), qty = Number(item.quantity || 1);
             totalInvoiceCost += (cost * qty);
             deductedItemsData.push(item);
-            quantitiesToDeduct[item.id || item.name] = (quantitiesToDeduct[item.id || item.name] || 0) + qty;
+            itemsToDeductList.push({ id: item.id || null, name: item.name, quantity: qty });
         });
     }
 
-    const finalInvoiceProfit = totalGoods - totalInvoiceCost;
+    const finalInvoiceProfit = window.money(grandTotal - totalInvoiceCost);
     
     let invoiceDeductionData = null;
     let netInvoiceProfit = finalInvoiceProfit;
@@ -363,7 +381,7 @@ async function handleSaveInvoice(skipConfirmation = true) {
             return;
         }
         if (invoiceDeductionData && invoiceDeductionData.amount > 0) {
-            netInvoiceProfit -= invoiceDeductionData.amount;
+            netInvoiceProfit = window.money(netInvoiceProfit - invoiceDeductionData.amount);
         }
     }
 
@@ -379,8 +397,7 @@ async function handleSaveInvoice(skipConfirmation = true) {
     saveStateToHistory(); 
 
     // تخطيط وتنفيذ حركات المخزون عبر sales-invoice-stock.js
-    const itemsToDeductList = Object.entries(quantitiesToDeduct).map(([key, q]) => ({ id: key, name: key, quantity: q }));
-    const stockOrigin = (isInvoiceFromPending || isEditingPendingInvoice) ? pendingSaleOriginData : null; // حماية إرجاع المخزون: (!pendingSaleOriginData.deductedItems || pendingSaleOriginData.deductedItems !== pendingSaleOriginData.additionalItems)
+    const stockOrigin = (isInvoiceFromPending || isEditingPendingInvoice) ? pendingSaleOriginData : null;
     const stockPlan = (typeof planInvoiceStockChanges === 'function') 
         ? planInvoiceStockChanges(products, itemsToDeductList, stockOrigin)
         : { valid: true, changes: [] };
@@ -415,10 +432,12 @@ async function handleSaveInvoice(skipConfirmation = true) {
             phones,
             items: invoiceItems,
             shippingCost,
+            totalGoodsPrice: totalGoods,
             warranty,
             notes,
             deductedItems: deductedItemsData,
             totalSellPrice: grandTotal,
+            grandTotal: grandTotal,
             totalCost: totalInvoiceCost,
             potentialProfit: netInvoiceProfit,
             depositPaid: depositAlreadyPaid,
@@ -427,6 +446,8 @@ async function handleSaveInvoice(skipConfirmation = true) {
             status: 'pending',
             deductionAmount: invoiceDeductionData ? invoiceDeductionData.amount : 0,
             deductionLiabilityName: invoiceDeductionData ? invoiceDeductionData.liabilityName : '',
+            isRepeatCustomerOrder: !!(repeatCheckResult.isRepeat || pendingSaleOriginData?.isRepeatCustomerOrder),
+            repeatOrderNumber: repeatCheckResult.isRepeat ? repeatCheckResult.orderNumber : (pendingSaleOriginData?.repeatOrderNumber || 1),
             invoiceData: {
                 customerAddress,
                 phones,
@@ -447,8 +468,8 @@ async function handleSaveInvoice(skipConfirmation = true) {
         showMessage(globalMessage, "تم حفظ الفاتورة في قائمة المبيعات المؤقتة بنجاح.", false);
     } else {
         if (amountToCollectNow > 0) {
-            account.balance = window.money(account.balance + amountToCollectNow);
-            const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
+            account.balance = window.money((Number(account.balance) || 0) + amountToCollectNow);
+            const newTotalLiquidity = window.money(accounts.reduce((sum, acc) => sum + (Number(acc.balance) || 0), 0));
             
             let logDesc = `فاتورة مبيعات ${customerName}`;
             if (depositAlreadyPaid > 0) {
@@ -464,6 +485,18 @@ async function handleSaveInvoice(skipConfirmation = true) {
                 currentBalance: newTotalLiquidity,
                 accountId: selectedAccountId
             });
+        } else if (excessDepositToRefund > 0.001 && typeof liabilities !== 'undefined' && Array.isArray(liabilities)) {
+            // إذا تجاوز العربون المدفوع إجمالي الفاتورة المعدلة، يُسجَّل الفائض كالتزام مستحق للعميل لحماية رأس المال من التضخم الوهمي
+            liabilities.push({
+                id: generateId('liab-overdep'),
+                name: `فائض عربون مستحق للعميل: ${customerName}`,
+                amount: excessDepositToRefund,
+                status: 'active',
+                source: 'deposit_overpayment',
+                createdAt: new Date().toISOString(),
+                note: `فائض عربون (${formatCurrency(depositAlreadyPaid)}) مقابل إجمالي فاتورة (${formatCurrency(grandTotal)})`
+            });
+            logOperation("فائض عربون عميل", `تم تسجيل التزام مستحق للعميل "${customerName}" بقيمة ${formatCurrency(excessDepositToRefund)} (عربون مدفوع ${formatCurrency(depositAlreadyPaid)} > إجمالي فاتورة ${formatCurrency(grandTotal)}).`);
         }
 
         invoiceItems.forEach(item => {
@@ -522,6 +555,8 @@ async function handleSaveInvoice(skipConfirmation = true) {
             profit: netInvoiceProfit,
             deductionAmount: invoiceDeductionData?.amount || 0,
             deductionLiabilityName: invoiceDeductionData?.liabilityName || '',
+            isRepeatCustomerOrder: !!(repeatCheckResult.isRepeat || pendingSaleOriginData?.isRepeatCustomerOrder),
+            repeatOrderNumber: repeatCheckResult.isRepeat ? repeatCheckResult.orderNumber : (pendingSaleOriginData?.repeatOrderNumber || 1),
             accountId: selectedAccountId
         };
         if (invoiceDeductionData && invoiceDeductionData.amount > 0 && typeof applyDeduction === 'function') {
@@ -563,6 +598,7 @@ async function handleSaveInvoice(skipConfirmation = true) {
     inv_closeModal();
     if (isPendingSave && typeof window.switchSalesTab === 'function') window.switchSalesTab('pending');
     if (typeof saveCurrentStateByDate === 'function') { await saveCurrentStateByDate(currentLoadedDate || (typeof getTodayDateString === 'function' ? getTodayDateString() : (typeof getCairoDateString === 'function' ? getCairoDateString() : new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' })))); }
+    if (_tx) _tx.commit();
     if (!isPendingSave) window.showPostSaleModal('invoice', wasPending);
     restoreSaveBtn();
     } catch (invErr) {

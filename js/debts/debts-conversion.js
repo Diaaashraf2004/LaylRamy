@@ -6,15 +6,16 @@ window.convertPendingSaleToDebt = async function(pendingSaleId, debtMode, target
         return;
     }
     const saleData = pendingSales[pendingIndex];
-    // Force clear the lock just in case it was stuck from a previous error
-    saleData.isProcessingDebt = false;
+    if (saleData.isProcessingDebt) return;
     saleData.isProcessingDebt = true;
+    const confirmDebtBtn = document.getElementById('cpd_confirm_btn');
+    if (confirmDebtBtn) confirmDebtBtn.disabled = true;
     const _tx = (typeof window.createStateTransaction === 'function') ? window.createStateTransaction() : null;
     try {
 
     // 2. تأكيد المبالغ
     const totalAmount = Number(saleData.grandTotal || saleData.finalTotal || saleData.totalSellPrice || 0);
-    const paidAmount = Number(saleData.depositPaid || saleData.paidAmount || 0);
+    const paidAmount = Number(saleData.depositPaid || saleData.paidAmount || saleData.depositAmount || 0);
     const remainingAmount = Math.max(0, (typeof window.money === 'function' ? window.money(totalAmount - paidAmount) : totalAmount - paidAmount));
 
     if (remainingAmount <= 0) {
@@ -68,17 +69,17 @@ window.convertPendingSaleToDebt = async function(pendingSaleId, debtMode, target
     if (confirmSale) {
         const resolvedAccountId = accountId || saleData.depositAccountId || saleData.accountId || (accounts && accounts[0] && accounts[0].id) || 'safe_main';
 
-        const finalProfit = Number(saleData.potentialProfit || saleData.profit || 0);
+        const finalProfit = Number(saleData.potentialProfit !== undefined ? saleData.potentialProfit : (saleData.profit || 0));
         let normalizedItems = [];
         
         if (saleData.items && saleData.items.length > 0) {
             normalizedItems = [...saleData.items];
         } 
         else if (saleData.mainProduct) {
-            normalizedItems.push({ name: saleData.mainProduct.name, quantity: saleData.mainProduct.quantity, costPrice: saleData.mainProduct.costPrice, unitPrice: (saleData.totalSellPrice || totalAmount) / (saleData.mainProduct.quantity || 1), subtotal: saleData.totalSellPrice || totalAmount });
+            normalizedItems.push({ id: saleData.mainProduct.id || null, name: saleData.mainProduct.name, quantity: saleData.mainProduct.quantity, costPrice: saleData.mainProduct.costPrice, unitPrice: (saleData.totalSellPrice || totalAmount) / (saleData.mainProduct.quantity || 1), subtotal: saleData.totalSellPrice || totalAmount, serial: saleData.mainProduct.serial || null });
             if (saleData.additionalItems && saleData.additionalItems.length > 0) {
                 saleData.additionalItems.forEach(att => {
-                    normalizedItems.push({ name: att.name, quantity: att.quantity, costPrice: att.costPrice, unitPrice: 0, subtotal: 0 });
+                    normalizedItems.push({ id: att.id || null, name: att.name, quantity: att.quantity, costPrice: att.costPrice, unitPrice: 0, subtotal: 0, serial: att.serial || null });
                 });
             }
         }
@@ -143,12 +144,33 @@ window.convertPendingSaleToDebt = async function(pendingSaleId, debtMode, target
        
         
         if (typeof totalProfit !== 'undefined') {
-            totalProfit = window.money(totalProfit + finalProfit);
+            totalProfit = window.money((Number(totalProfit) || 0) + finalProfit);
+        }
+    } else {
+        // حتى عند التحويل لدين بدون إصدار فاتورة: البضاعة خرجت والدين أُنشئ فتتحقق العملية محاسبياً (استقطاع مخفي + ربح)
+        const finalProfit = Number(saleData.potentialProfit !== undefined ? saleData.potentialProfit : (saleData.profit || 0));
+        if (typeof applyPendingDeduction === 'function' && Number(saleData.deductionAmount) > 0) {
+            applyPendingDeduction({ ...saleData, status: 'completed' });
+        }
+        if (typeof totalProfit !== 'undefined') {
+            totalProfit = window.money((Number(totalProfit) || 0) + finalProfit);
         }
     }
 
-    // 4. الفصل الفيزيائي للديون (منع التداخل)
-    const newEntryNote = "بيعة باسم " + (saleData.customerName || "عميل غير محدد");
+    // 4. الفصل الفيزيائي للديون (منع التداخل) + تمييز الطلبات المتكررة بنفس الاسم داخل الديون فقط
+    const repeatDebtCheck = (typeof window.findRepeatOrdersByCustomerName === 'function')
+        ? window.findRepeatOrdersByCustomerName(saleData.customerName, {
+            excludePendingId: pendingSaleId,
+            excludeSaleId: safeInvoiceId,
+            sources: ['active_debt', 'paid_debt']
+        })
+        : { matches: [], totalCount: 0 };
+    const isRepeatDebtOrder = repeatDebtCheck.matches.length > 0;
+    const repeatOrderNum = isRepeatDebtOrder ? (repeatDebtCheck.matches.length + 1) : 1;
+    const baseCustomerLabel = saleData.customerName || "عميل غير محدد";
+    const newEntryNote = isRepeatDebtOrder
+        ? `بيعة باسم ${baseCustomerLabel} (طلب متكرر #${repeatOrderNum})`
+        : `بيعة باسم ${baseCustomerLabel}`;
     let done = false;
 
     const finalInvoiceRef = (confirmSale) ? invoiceCode : "بدون فاتورة";
@@ -168,7 +190,11 @@ window.convertPendingSaleToDebt = async function(pendingSaleId, debtMode, target
                 reason: newEntryNote, 
                 createdAt: new Date().toISOString(),
                 timestamp: new Date().toISOString(),
-                linkedInvoice: finalInvoiceRef
+                linkedInvoice: finalInvoiceRef,
+                saleId: confirmSale ? safeInvoiceId : saleData.id,
+                origin: 'credit_sale',
+                isRepeatOrder: isRepeatDebtOrder,
+                repeatOrderNumber: repeatOrderNum
             };
 
             debtors.push(JSON.parse(JSON.stringify(newDebtRecord)));
@@ -196,7 +222,11 @@ window.convertPendingSaleToDebt = async function(pendingSaleId, debtMode, target
             reason: newEntryNote,
             createdAt: new Date().toISOString(),
             timestamp: new Date().toISOString(),
-            linkedInvoice: finalInvoiceRef
+            linkedInvoice: finalInvoiceRef,
+            saleId: confirmSale ? safeInvoiceId : saleData.id,
+            origin: 'credit_sale',
+            isRepeatOrder: isRepeatDebtOrder,
+            repeatOrderNumber: repeatOrderNum
         };
         debtors.push(JSON.parse(JSON.stringify(newCustomerDebt)));
         showGlobalMessage(`تم تسجيل دين لعميل جديد: ${saleData.customerName}`);
@@ -235,7 +265,18 @@ window.convertPendingSaleToDebt = async function(pendingSaleId, debtMode, target
     }
     
     const m = document.getElementById('convertPendingToDebtModal');
-    if (typeof saveCurrentStateByDate === 'function') { await saveCurrentStateByDate(currentLoadedDate || (typeof getTodayDateString === 'function' ? getTodayDateString() : (typeof getCairoDateString === 'function' ? getCairoDateString() : new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' })))); }
+    if (typeof saveCurrentStateByDate === 'function') {
+        await saveCurrentStateByDate(currentLoadedDate || (typeof getTodayDateString === 'function' ? getTodayDateString() : (typeof getCairoDateString === 'function' ? getCairoDateString() : new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' }))), true);
+    } else if (typeof saveSystemToCloud === 'function') {
+        await saveSystemToCloud({ immediate: true });
+    }
+    if (_tx) _tx.commit();
+    try {
+        localStorage.setItem("goodsMgmt_data_salesToday", JSON.stringify(typeof salesToday !== 'undefined' ? salesToday : []));
+        localStorage.setItem("goodsMgmt_data_pendingSales", JSON.stringify(typeof pendingSales !== 'undefined' ? pendingSales : []));
+    } catch(e) {
+        console.warn("فشل حفظ نسخة الطوارئ في localStorage داخل convertPendingToDebt:", e);
+    }
     if (m) m.style.display = 'none';
 
     updateUI();
@@ -244,21 +285,10 @@ window.convertPendingSaleToDebt = async function(pendingSaleId, debtMode, target
         if (_tx) await _tx.rollback();
         console.error("❌ فشل تحويل البيعة إلى دين (تم التراجع عن التعديلات):", err);
         showGlobalMessage("حدث خطأ أثناء تحويل البيع لدين؛ تم التراجع التلقائي عن التعديلات بالكامل.", true);
+        return;
     } finally {
         if (saleData) saleData.isProcessingDebt = false;
-    }
-
-    // مزامنة كافة التغييرات الأخرى (الديون والسيولة والمخزون) مع السحابة
-    // �� حماية من التبخر السريع لو تم تحديث الصفحة ��
-    try {
-        localStorage.setItem("goodsMgmt_data_salesToday", JSON.stringify(typeof salesToday !== 'undefined' ? salesToday : []));
-        localStorage.setItem("goodsMgmt_data_pendingSales", JSON.stringify(typeof pendingSales !== 'undefined' ? pendingSales : []));
-    } catch(e) {
-        console.warn("فشل حفظ نسخة الطوارئ في localStorage داخل convertPendingToDebt:", e);
-    }
-    
-    if (typeof saveSystemToCloud === 'function') {
-        saveSystemToCloud();
+        if (confirmDebtBtn) confirmDebtBtn.disabled = false;
     }
 };
 window.openConvertPendingSaleToDebtDialog = function(pendingSaleId) {
@@ -277,6 +307,22 @@ window.openConvertPendingSaleToDebtDialog = function(pendingSaleId) {
 
     document.getElementById('cpd_pending_id').value = pendingSaleId;
 
+    const repeatInfo = (typeof window.findRepeatOrdersByCustomerName === 'function')
+        ? window.findRepeatOrdersByCustomerName(sale.customerName, {
+            excludePendingId: pendingSaleId,
+            sources: ['active_debt', 'paid_debt']
+        })
+        : { matches: [] };
+    const repeatWarningHTML = (repeatInfo && repeatInfo.matches && repeatInfo.matches.length > 0)
+        ? `<div style="margin-top:10px; padding:10px 12px; border-radius:10px; background:#fffbeb; border:1px solid #f59e0b; color:#92400e; font-size:0.85rem; line-height:1.6;">
+               <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap;">
+                   <strong><i class="fas fa-bell" style="color:#d97706;"></i> تنبيه: يوجد (${repeatInfo.matches.length}) أوردر سابق بنفس الاسم "${escapeHTML(repeatInfo.displayName || sale.customerName)}"!</strong>
+                   <button type="button" data-repeat-name="${escapeHTML(repeatInfo.displayName || sale.customerName)}" onclick="window.showRepeatOrderAlertDetails(this.dataset.repeatName)" style="background:#fef3c7; border:1px solid #f59e0b; color:#78350f; padding:2px 10px; border-radius:999px; font-size:0.78rem; font-weight:700; cursor:pointer;">عرض الأوردرات السابقة</button>
+               </div>
+               <div style="font-size:0.78rem; margin-top:4px; color:#78350f;">سيتم تمييز هذا البند تلقائياً بعلامة <strong>(طلب متكرر #${repeatInfo.matches.length + 1})</strong> حتى لا يختلط عند مراجعة الديون.</div>
+           </div>`
+        : '';
+
     const summaryEl = document.getElementById('cpd_sale_summary');
     summaryEl.innerHTML = `
         <div><strong>العميل:</strong> ${escapeHTML(sale.customerName || '-')}</div>
@@ -284,6 +330,7 @@ window.openConvertPendingSaleToDebtDialog = function(pendingSaleId) {
         <div><strong>المدفوع / العربون:</strong> ${formatCurrency(paidAmount)}</div>
         <div><strong>المتبقي:</strong> ${formatCurrency(remainingAmount)}</div>
         <div><strong>عدد البنود:</strong> ${Array.isArray(sale.items) ? sale.items.length : 1}</div>
+        ${repeatWarningHTML}
     `;
 
     document.getElementById('cpd_remaining_amount').value = formatCurrency(remainingAmount);

@@ -166,6 +166,8 @@ function updatePendingSalesDisplay() {
         return;
     }
 
+    const repeatOrderIndex = (typeof window.buildRepeatOrderNameIndex === 'function') ? window.buildRepeatOrderNameIndex() : null;
+
     container.innerHTML = filteredSales.map(sale => {
         let itemsText = '', attachmentsHTML = '';
 
@@ -189,7 +191,15 @@ function updatePendingSalesDisplay() {
         let phoneStr = sale.customerPhone || sale.phone || (sale.invoiceData && (sale.invoiceData.customerPhone || sale.invoiceData.phone)) || '';
         if (Array.isArray(phoneStr)) phoneStr = phoneStr[0] || '';
 
-        let customerInfo = sale.customerName ? `<div class="text-xs sm:text-sm text-slate-700 font-semibold flex items-center gap-1.5"><span class="text-slate-400 font-normal">العميل:</span> <span class="text-blue-700 font-bold">${escapeHTML(sale.customerName)}</span>${phoneStr ? ` <a href="tel:${escapeHTML(phoneStr)}" class="text-xs text-slate-400 font-mono font-normal hover:text-indigo-600">(${escapeHTML(phoneStr)})</a>` : ''}</div>` : '';
+        let repeatOrderBadge = '';
+        if (sale.customerName && typeof window.findRepeatOrdersByCustomerName === 'function') {
+            const repInfo = window.findRepeatOrdersByCustomerName(sale.customerName, { index: repeatOrderIndex });
+            if (repInfo.totalCount >= 2) {
+                repeatOrderBadge = `<button type="button" data-repeat-name="${escapeHTML(repInfo.displayName || sale.customerName)}" onclick="event.stopPropagation(); window.showRepeatOrderAlertDetails(this.dataset.repeatName)" class="inline-flex items-center gap-1 text-[11px] bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 px-2 py-0.5 rounded-full font-bold transition shadow-2xs" title="اضغط لعرض كل الأوردرات المسجلة بنفس الاسم"><i class="fas fa-bell text-amber-600 text-[10px]"></i> نفس الاسم (×${repInfo.totalCount})</button>`;
+            }
+        }
+
+        let customerInfo = sale.customerName ? `<div class="text-xs sm:text-sm text-slate-700 font-semibold flex flex-wrap items-center gap-1.5"><span class="text-slate-400 font-normal">العميل:</span> <span class="text-blue-700 font-bold">${escapeHTML(sale.customerName)}</span>${phoneStr ? ` <a href="tel:${escapeHTML(phoneStr)}" class="text-xs text-slate-400 font-mono font-normal hover:text-indigo-600">(${escapeHTML(phoneStr)})</a>` : ''}${repeatOrderBadge}</div>` : '';
 
         const totalSell = Number(sale.totalSellPrice || sale.grandTotal || 0);
         const totalPaid = Number(sale.depositPaid) || 0;
@@ -211,11 +221,11 @@ function updatePendingSalesDisplay() {
         let deductionPill = "";
         if (dedAmt > 0) {
             const liabName = sale.deductionLiabilityName ? escapeHTML(sale.deductionLiabilityName) : 'التزام جانبي';
-            deductionPill = `<span class="inline-flex items-center gap-1 text-[11px] bg-rose-50 text-rose-700 border border-rose-200/90 px-2 py-0.5 rounded-md font-bold mr-1.5 shadow-2xs">
+            deductionPill = `<span class="inline-flex items-center gap-1 text-[11px] bg-rose-50 text-rose-700 border border-rose-200/90 px-2 py-0.5 rounded-md font-bold mr-1.5 shadow-sm">
                 <i class="ri-scissors-cut-line text-xs"></i> استقطاع خفي
             </span>`;
             deductionBadge = `
-            <div class="inline-flex items-center gap-2 bg-rose-50/90 text-rose-900 text-xs px-3 py-1.5 rounded-xl font-medium border border-rose-200 shadow-2xs mt-2 flex-wrap" title="استقطاع مخفي سيُرحل تلقائياً إلى التزام عند التأكيد">
+            <div class="inline-flex items-center gap-2 bg-rose-50/90 text-rose-900 text-xs px-3 py-1.5 rounded-xl font-medium border border-rose-200 shadow-sm mt-2 flex-wrap" title="استقطاع مخفي سيُرحل تلقائياً إلى التزام عند التأكيد">
                 <span class="flex items-center gap-1 font-bold text-rose-700">
                     <span class="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
                     <i class="ri-scissors-cut-line text-sm"></i>
@@ -284,24 +294,24 @@ function updatePendingSalesDisplay() {
                     ${deductionBadge ? `<div>${deductionBadge}</div>` : ''}
                 </div>
 
-                <div class="actions flex-shrink-0 flex flex-wrap items-center gap-1.5 pt-2 lg:pt-0 lg:border-r lg:pr-3 border-slate-200/70">
-                    <button type="button" data-pending-id="${escapeHTML(sale.id)}" onclick="window.openDepositModal(this.dataset.pendingId)" class="bg-amber-500 hover:bg-amber-600 text-white rounded-lg px-2.5 py-1.5 text-xs font-bold border border-amber-600 shadow-2xs transition flex items-center gap-1" title="استلام عربون">
+                <div class="actions flex flex-wrap items-center gap-1.5 min-w-0 lg:max-w-[46%] pt-2 lg:pt-0 lg:border-r lg:pr-3 border-slate-200/70">
+                    <button type="button" data-pending-id="${escapeHTML(sale.id)}" onclick="window.openDepositModal(this.dataset.pendingId)" class="bg-amber-500 hover:bg-amber-600 text-white rounded-lg px-2.5 py-1.5 text-xs font-bold border border-amber-600 shadow-sm transition flex items-center gap-1" title="استلام عربون">
                         <i class="ti ti-coin text-xs"></i> استلام عربون
                     </button>
-                    <button type="button" data-pending-id="${escapeHTML(sale.id)}" class="edit-pending bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-2.5 py-1.5 text-xs font-bold border border-blue-700 shadow-2xs transition flex items-center gap-1">
+                    <button type="button" data-pending-id="${escapeHTML(sale.id)}" class="edit-pending bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-2.5 py-1.5 text-xs font-bold border border-blue-700 shadow-sm transition flex items-center gap-1">
                         <i class="ri-edit-line text-xs"></i> تعديل
                     </button>
-                    <button type="button" data-pending-id="${escapeHTML(sale.id)}" class="confirm-pending bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-2.5 py-1.5 text-xs font-bold border border-emerald-700 shadow-2xs transition flex items-center gap-1">
+                    <button type="button" data-pending-id="${escapeHTML(sale.id)}" class="confirm-pending bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-2.5 py-1.5 text-xs font-bold border border-emerald-700 shadow-sm transition flex items-center gap-1">
                         <i class="ri-check-line text-xs"></i> تأكيد
                     </button>
-                    <button type="button" data-pending-id="${escapeHTML(sale.id)}" class="cancel-pending bg-rose-600 hover:bg-rose-700 text-white rounded-lg px-2.5 py-1.5 text-xs font-bold border border-rose-700 shadow-2xs transition flex items-center gap-1">
+                    <button type="button" data-pending-id="${escapeHTML(sale.id)}" class="cancel-pending bg-rose-600 hover:bg-rose-700 text-white rounded-lg px-2.5 py-1.5 text-xs font-bold border border-rose-700 shadow-sm transition flex items-center gap-1">
                         <i class="ri-close-line text-xs"></i> إلغاء
                     </button>
-                    ${(sale.editHistory && sale.editHistory.length > 0) ? `<button type="button" data-pending-id="${escapeHTML(sale.id)}" onclick="window.showPendingEditHistory(this.dataset.pendingId)" class="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg px-2 py-1.5 text-xs font-bold border border-indigo-700 shadow-2xs transition" title="عرض سجل التعديلات">📜 (${sale.editHistory.length})</button>` : ''}
-                    <button type="button" data-pending-id="${escapeHTML(sale.id)}" class="convert-pending-to-debt text-xs bg-purple-700 hover:bg-purple-800 text-white font-bold py-1.5 px-2.5 rounded-lg border border-purple-800 shadow-2xs transition flex items-center gap-1">
+                    ${(sale.editHistory && sale.editHistory.length > 0) ? `<button type="button" data-pending-id="${escapeHTML(sale.id)}" onclick="window.showPendingEditHistory(this.dataset.pendingId)" class="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg px-2 py-1.5 text-xs font-bold border border-indigo-700 shadow-sm transition" title="عرض سجل التعديلات">📜 (${sale.editHistory.length})</button>` : ''}
+                    <button type="button" data-pending-id="${escapeHTML(sale.id)}" class="convert-pending-to-debt text-xs bg-purple-700 hover:bg-purple-800 text-white font-bold py-1.5 px-2.5 rounded-lg border border-purple-800 shadow-sm transition flex items-center gap-1">
                         <i class="ri-exchange-dollar-line text-xs"></i> دين
                     </button>
-                    <button type="button" data-pending-id="${escapeHTML(sale.id)}" class="initiate-return-from-pending bg-orange-600 hover:bg-orange-700 text-white rounded-lg px-2.5 py-1.5 text-xs font-bold border border-orange-700 shadow-2xs transition flex items-center gap-1">
+                    <button type="button" data-pending-id="${escapeHTML(sale.id)}" class="initiate-return-from-pending bg-orange-600 hover:bg-orange-700 text-white rounded-lg px-2.5 py-1.5 text-xs font-bold border border-orange-700 shadow-sm transition flex items-center gap-1">
                         <i class="ri-arrow-go-back-line text-xs"></i> مرتجع
                     </button>
                 </div>
@@ -385,23 +395,9 @@ function initiateReturnFromPendingSale(pendingId) {
     }
     d('return-customer-name').value = returnSourceData.customerName || '';
     
-    const depositAmt = Number(returnSourceData.depositPaid || returnSourceData.paidAmount || 0);
-    let origCost = 0;
-    if (typeof window.extractPendingSaleReturnItems === 'function') {
-        const extracted = window.extractPendingSaleReturnItems(returnSourceData);
-        if (extracted.mainProduct && Number(extracted.mainProduct.costPrice) > 0) {
-            origCost = (Number(extracted.mainProduct.costPrice) || 0) * (Number(extracted.mainProduct.quantity) || 1);
-        } else {
-            origCost = extracted.totalCost;
-        }
-    } else if (returnSourceData.mainProduct && Number(returnSourceData.mainProduct.costPrice) > 0) {
-        origCost = (Number(returnSourceData.mainProduct.costPrice) || 0) * (Number(returnSourceData.mainProduct.quantity) || 1);
-    } else if (typeof calculateSinglePendingSaleCost === 'function') {
-        origCost = calculateSinglePendingSaleCost(returnSourceData);
-    } else {
-        origCost = Number(returnSourceData.totalCost || 0);
-    }
-    d('return-sale-price-input').value = (typeof window.money === 'function' ? window.money(origCost) : Math.round((Number(origCost) || 0) * 100) / 100);
+    const depositAmt = Number(returnSourceData.depositPaid || returnSourceData.paidAmount || returnSourceData.depositAmount || 0);
+    // عند إرجاع بيعة مؤقتة: المبلغ المالي القابل للاسترداد هو العربون المدفوع فقط (وليس تكلفة البضاعة التي لم يدفعها العميل!)
+    d('return-sale-price-input').value = (typeof window.money === 'function' ? window.money(depositAmt) : Math.round(depositAmt * 100) / 100);
 
     // تعبئة السيريال تلقائياً إن وجد
     const returnSerialInp = d('return-serial-input');

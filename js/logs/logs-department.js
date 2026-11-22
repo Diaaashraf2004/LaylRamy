@@ -385,7 +385,7 @@ window.renderDeptLogTimeline = async function() {
     let html = '';
     if (isPastDate) {
         const safeDate = typeof escapeHTML === 'function' ? escapeHTML(dateFilter) : dateFilter;
-        html += `<div class="mb-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between text-xs text-amber-800">
+        html += `<div class="mb-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl flex flex-wrap gap-2 items-center justify-between text-xs text-amber-800">
             <span class="font-bold flex items-center gap-1.5"><i class="fas fa-history text-amber-600"></i> عرض سجلات مؤرشفة ليوم: ${safeDate}</span>
             <button onclick="selectDeptLogDate('')" class="text-amber-700 hover:text-amber-900 underline font-semibold">العودة لليوم الحالي</button>
         </div>`;
@@ -396,11 +396,29 @@ window.renderDeptLogTimeline = async function() {
         const timeOnly = timeParts.length > 1 ? timeParts[1] : (log.timestamp ? new Date(log.timestamp).toLocaleTimeString('ar-EG') : '');
         const dateOnly = (typeof window.getCairoDateString === 'function' && log.timestamp ? window.getCairoDateString(log.timestamp) : null) || timeParts[0] || (log.timestamp ? new Date(log.timestamp).toLocaleDateString('en-CA') : '');
 
-        let highlightedDetails = typeof escapeHTML === 'function' ? escapeHTML(log.details || '') : (log.details || '');
-        if (textFilter) {
-            const safe = textFilter.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            highlightedDetails = highlightedDetails.replace(new RegExp(safe, 'gi'), match => `<mark class="bg-yellow-200 text-yellow-900 font-bold px-1 rounded">${match}</mark>`);
-        }
+        const formatSafeLogText = (rawStr) => {
+            const escaped = typeof escapeHTML === 'function' ? escapeHTML(rawStr || '') : String(rawStr || '')
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+            // 1. إبراز النصوص بين علامات التنصيص المهربة (&quot;) فقط حتى لا تلمس وسوم HTML أبداً
+            let formatted = escaped.replace(/&quot;([^&]+?)&quot;/g,
+                '<strong class="text-indigo-900 font-extrabold bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">"$1"</strong>');
+
+            // 2. إبراز المبالغ المالية بأمان تام
+            formatted = formatted.replace(/(\d[\d,]*(?:\.\d+)?)\s*(ج\.م|جنيه)/g,
+                '<span class="font-mono font-black text-xs sm:text-sm bg-slate-100 text-slate-900 px-2 py-0.5 rounded border border-slate-200 inline-block mx-0.5">$1 $2</span>');
+
+            // 3. تظليل كلمة البحث خارج وسوم HTML فقط لمنع كسر أي وسم عند البحث بحروف إنجليزية
+            if (textFilter) {
+                const safe = textFilter.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const re = new RegExp(safe, 'gi');
+                formatted = formatted.replace(/(<[^>]+>)|([^<]+)/g, (m, tag, text) => {
+                    if (tag) return tag;
+                    return text.replace(re, match => `<mark class="bg-yellow-200 text-yellow-900 font-bold px-1 rounded">${match}</mark>`);
+                });
+            }
+            return formatted;
+        };
 
         const lType = (log.type || '');
         let cardBorder = 'border-slate-200', badgeBg = 'bg-slate-100 text-slate-700 border-slate-200', actionIcon = 'fa-info-circle';
@@ -439,22 +457,41 @@ window.renderDeptLogTimeline = async function() {
             cardBorder = 'border-cyan-200 hover:border-cyan-300'; badgeBg = 'bg-cyan-50 text-cyan-800 border-cyan-200'; actionIcon = 'fa-receipt';
         }
 
-        // إبراز المبالغ المالية وأسماء العملاء لتكون واضحة وفائقة الوضوح
-        let formattedDetails = highlightedDetails
-            .replace(/(\d+(?:\.\d+)?)\s*(ج\.م|جنيه)/g, '<span class="font-mono font-black text-xs sm:text-sm bg-slate-100 text-slate-900 px-2 py-0.5 rounded border border-slate-200 inline-block mx-0.5">$1 $2</span>')
-            .replace(/(?:&quot;|")([^"&]+)(?:&quot;|")/g, '<strong class="text-indigo-900 font-extrabold bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">"$1"</strong>');
+        // تنسيق أنيق لقائمة البنود المسددة [البنود المسددة: ...] إن وُجدت بدلاً من نص متلاصق طويل
+        const rawDetails = String(log.details || '');
+        const itemsBlockMatch = rawDetails.match(/^(.*?)\s*\[البنود المسددة:\s*([^\]]+)\]\s*$/);
+        let formattedDetails = '';
+        if (itemsBlockMatch) {
+            const headPart = formatSafeLogText(itemsBlockMatch[1].trim());
+            const itemsList = itemsBlockMatch[2].split('،').map(s => s.trim()).filter(Boolean);
+            const chipsHtml = itemsList.map((it, i) => `
+                <span class="inline-flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-700">
+                    <span class="text-[10px] font-mono text-slate-400">${i + 1}.</span>
+                    <span>${formatSafeLogText(it)}</span>
+                </span>
+            `).join('');
+            formattedDetails = `
+                <div class="mb-2">${headPart}</div>
+                <div class="pt-2 border-t border-slate-100">
+                    <div class="text-[11px] font-bold text-slate-500 mb-1.5">البنود المسددة (${itemsList.length}):</div>
+                    <div class="flex flex-wrap gap-1.5">${chipsHtml}</div>
+                </div>
+            `;
+        } else {
+            formattedDetails = formatSafeLogText(rawDetails);
+        }
 
         html += `
             <div class="bg-white p-4 rounded-2xl shadow-sm border ${cardBorder} transition hover:shadow-md">
                 <div class="flex items-center justify-between flex-wrap gap-2 mb-2 pb-2 border-b border-slate-100">
-                    <div class="flex items-center gap-2">
+                    <div class="flex flex-wrap items-center gap-2">
                         <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold border ${badgeBg}">
                             <i class="fas ${actionIcon}"></i>
                             ${typeof escapeHTML === 'function' ? escapeHTML(lType) : lType}
                         </span>
                         <span class="text-xs font-mono text-slate-400 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">#${log.id || (index + 1)}</span>
                     </div>
-                    <div class="flex items-center gap-2 text-xs text-slate-400 font-mono">
+                    <div class="flex flex-wrap items-center gap-2 text-xs text-slate-400 font-mono">
                         <span class="bg-slate-50 px-2 py-1 rounded border border-slate-100 flex items-center gap-1"><i class="far fa-clock text-slate-400"></i> ${timeOnly || '-'}</span>
                         <span class="bg-slate-50 px-2 py-1 rounded border border-slate-100 flex items-center gap-1"><i class="far fa-calendar-alt text-slate-400"></i> ${dateOnly || '-'}</span>
                     </div>
@@ -570,18 +607,20 @@ setInterval(() => {
             btn.onclick = () => window.openDeptLogModal(cfg.id, cfg.title, cfg.sub, cfg.icon);
             
             const parentDiv = header.parentElement;
-            if (parentDiv && parentDiv.style.display === 'flex') {
+            if (cfg.id === 'sales' && parentDiv) {
+                btn.classList.remove('mr-auto'); btn.classList.add('mx-auto', 'mt-2');
                 parentDiv.appendChild(btn);
-            } else if (header.style.display === 'flex' || header.classList.contains('flex')) {
-                header.appendChild(btn);
+            } else if ((cfg.id === 'products' || cfg.id === 'supplier_returns') && parentDiv?.parentElement && window.getComputedStyle(parentDiv.parentElement).display === 'flex') {
+                const g = parentDiv.parentElement; btn.classList.remove('mr-auto');
+                g.style.flexWrap = 'wrap'; g.style.gap = g.style.gap || '0.5rem'; g.appendChild(btn);
+            } else if (parentDiv && window.getComputedStyle(parentDiv).display === 'flex' && !parentDiv.classList.contains('widget-card')) {
+                parentDiv.style.flexWrap = 'wrap'; parentDiv.style.gap = parentDiv.style.gap || '0.5rem'; parentDiv.appendChild(btn);
             } else {
                 const wrapper = document.createElement('div');
-                wrapper.className = 'flex justify-between items-center w-full mb-4 border-b pb-2';
+                wrapper.className = 'flex flex-wrap justify-between items-center gap-2 w-full mb-4 border-b pb-2';
                 parentDiv.insertBefore(wrapper, header);
-                header.style.marginBottom = '0';
-                wrapper.appendChild(header);
-                btn.classList.remove('mr-auto');
-                wrapper.appendChild(btn);
+                header.style.marginBottom = '0'; header.style.borderBottom = 'none'; header.style.paddingBottom = '0';
+                wrapper.appendChild(header); btn.classList.remove('mr-auto'); wrapper.appendChild(btn);
             }
         }
     });

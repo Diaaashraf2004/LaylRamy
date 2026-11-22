@@ -559,7 +559,7 @@
             const isPending = (log.saleStatus === 'pending');
             const saleBadgeClass = isSold ? 'bg-slate-100 text-slate-600 border-slate-200' : (isPending ? 'bg-amber-100 text-amber-700 border-amber-200' : 'bg-emerald-50 text-emerald-600 border-emerald-100');
             const saleBadgeIcon = isSold ? 'fa-box-archive' : (isPending ? 'fa-clock' : 'fa-check');
-            const saleBadgeText = isSold ? 'مباع ��' : (isPending ? 'معلق' : 'متاح');
+            const saleBadgeText = isSold ? 'مباع' : (isPending ? 'معلق' : 'متاح');
 
             // Highlighting
             let rowClass = "hover:bg-slate-50 transition-colors ";
@@ -629,9 +629,8 @@
                             </button>
                         </div>
                     </td>
-                    <td class="px-4 py-3 text-center relative">
-                        ${followUpIndicator}
-                        <input type="date" value="${escapeHTML(log.followUpDate || '')}" class="rounded-lg text-xs px-2 py-1.5 outline-none transition-colors w-[115px] ${followUpStyle}" onchange="window.updateStandaloneFollowupByIndex(${serialIndex}, this.value)">
+                    <td class="px-4 py-3 text-center">
+                        <div class="relative inline-block">${followUpIndicator}<input type="date" value="${escapeHTML(log.followUpDate || '')}" class="rounded-lg text-xs px-2 py-1.5 outline-none transition-colors w-[115px] ${followUpStyle}" onchange="window.updateStandaloneFollowupByIndex(${serialIndex}, this.value)"></div>
                     </td>
                     <td class="px-4 py-3 text-center">
                         <button onclick="window.editStandaloneNotesByIndex(${serialIndex})" title="${noteTitle}" class="p-1.5 rounded-lg hover:bg-slate-100 transition-all">
@@ -640,9 +639,9 @@
                     </td>
                     <td class="px-4 py-3 text-center">
                         <!-- Actions Dropdown or Buttons -->
-                        <div class="flex items-center justify-center gap-1.5 opacity-60 group-hover:opacity-100 transition-opacity">
+                        <div class="flex items-center justify-center gap-1.5 opacity-100 sm:opacity-75 sm:group-hover:opacity-100 transition-opacity">
                             ${isSold ? `
-                                <button onclick="window.restoreSoldSerialByIndex(${serialIndex})" class="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 hover:text-indigo-700 flex items-center justify-center transition-colors" title="إرجاع للمتاح ��">
+                                <button onclick="window.restoreSoldSerialByIndex(${serialIndex})" class="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 hover:text-indigo-700 flex items-center justify-center transition-colors" title="إرجاع للمتاح">
                                     <i class="fas fa-undo"></i>
                                 </button>
                                 <button onclick="window.deleteStandaloneSerialByIndex(${serialIndex})" class="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 flex items-center justify-center transition-colors" title="حذف نهائي">
@@ -652,7 +651,7 @@
                                 <button onclick="window.toggleSaleStatusByIndex(${serialIndex})" class="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 hover:bg-amber-100 hover:text-amber-700 flex items-center justify-center transition-colors" title="تعليق البيع / إتاحة">
                                     <i class="fas fa-hand-holding-usd"></i>
                                 </button>
-                                <button onclick="window.markSoldFinallyByIndex(${serialIndex})" class="w-7 h-7 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-800 flex items-center justify-center transition-colors" title="أرشفة كمباع ��">
+                                <button onclick="window.markSoldFinallyByIndex(${serialIndex})" class="w-7 h-7 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-800 flex items-center justify-center transition-colors" title="أرشفة كمباع">
                                     <i class="fas fa-box-archive"></i>
                                 </button>
                                 <button onclick="window.editStandaloneRecordByIndex(${serialIndex})" class="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-700 flex items-center justify-center transition-colors" title="تعديل">

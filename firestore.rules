@@ -1,6 +1,6 @@
 rules_version = '2';
 // =====================================================================
-// Firestore Security Rules — Finance App (Secure Edition)
+// Firestore Security Rules - Finance App (Secure Edition)
 // =====================================================================
 
 service cloud.firestore {
@@ -24,8 +24,7 @@ service cloud.firestore {
       allow read: if isOwner(userId);
       allow write: if isOwner(userId) && isReasonableSize();
     }
-    
-    match /users/{userId}/purchase_archives/{docId} { allow read, write: if isOwner(userId); }
+        match /users/{userId}/purchase_archives/{docId} { allow read, write: if isOwner(userId); }
     match /users/{userId}/summaries/{docId} { allow read, write: if isOwner(userId); }
     match /users/{userId}/invoices/{docId} { allow read, write: if isOwner(userId); }
     match /users/{userId}/settings/{docId} { allow read, write: if isOwner(userId); }

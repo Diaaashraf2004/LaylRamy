@@ -71,10 +71,9 @@ window.renderPOSQuickGrid = function() {
 
     if (filtered.length === 0) {
         grid.innerHTML = '<div class="col-span-full text-center text-gray-500 py-4">لا توجد منتجات مطابقة</div>';
-        grid.className = "block";
         return;
     } else {
-        grid.className = "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-h-60 overflow-y-auto pr-2";
+        grid.className = "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 max-h-60 overflow-y-auto pr-1 sm:pr-2";
     }
 
     grid.innerHTML = filtered.map(p => {
@@ -83,12 +82,12 @@ window.renderPOSQuickGrid = function() {
         cost = Number.isInteger(cost) ? cost : parseFloat(cost.toFixed(2));
 
         return `
-            <div data-prod-id="${escapeHTML(p.id || p.name)}" onclick="window.selectPOSProductByIdQuick(this.dataset.prodId)" class="bg-white border rounded-xl p-2.5 flex flex-col justify-between cursor-pointer transition shadow-sm ${isSelected ? 'border-slate-900 ring-2 ring-slate-400' : 'border-slate-200 hover:border-slate-400 hover:shadow'}">
-                <div class="mb-2">
+            <div data-prod-id="${escapeHTML(p.id || p.name)}" onclick="window.selectPOSProductByIdQuick(this.dataset.prodId)" class="bg-white border rounded-xl p-2.5 flex flex-col justify-between cursor-pointer transition shadow-sm min-w-0 ${isSelected ? 'border-slate-900 ring-2 ring-slate-400' : 'border-slate-200 hover:border-slate-400 hover:shadow'}">
+                <div class="mb-2 min-w-0">
                     <span class="text-[10px] font-bold px-2 py-0.5 bg-slate-100 text-slate-600 rounded mb-1.5 inline-block">${escapeHTML(p.category || 'عام')}</span>
-                    <h4 class="font-bold text-slate-800 text-xs leading-snug">${escapeHTML(p.name)}</h4>
+                    <h4 class="font-bold text-slate-800 text-xs leading-snug break-words">${escapeHTML(p.name)}</h4>
                 </div>
-                <div class="mt-auto border-t border-slate-100 pt-1.5 flex justify-between items-center bg-slate-50 -mx-2.5 -mb-2.5 p-1.5 rounded-b-lg">
+                <div class="mt-auto border-t border-slate-100 pt-1.5 flex flex-wrap justify-between items-center gap-1 bg-slate-50 -mx-2.5 -mb-2.5 p-1.5 rounded-b-lg">
                     <div><p class="text-[9px] text-slate-500 font-bold">التكلفة</p><p class="font-bold text-slate-700 text-xs font-mono">${cost}</p></div>
                     <div class="text-left"><p class="text-[9px] text-slate-500 font-bold">المتاح</p><p class="font-bold text-emerald-700 text-xs px-1.5 py-0.5 bg-emerald-100/70 rounded font-mono">${p.quantity || 0}</p></div>
                 </div>
@@ -114,10 +113,10 @@ window.renderPOSInvGrid = function() {
 
     if (filtered.length === 0) {
         grid.innerHTML = '<div class="col-span-full text-center text-gray-500 py-4">لا توجد منتجات مطابقة</div>';
-        grid.className = "block";
+        grid.className = "inv-products-grid";
         return;
     } else {
-        grid.className = "grid grid-cols-2 md:grid-cols-3 gap-3 max-h-60 overflow-y-auto pr-2";
+        grid.className = "inv-products-grid";
     }
 
     grid.innerHTML = filtered.map(p => {
@@ -126,12 +125,12 @@ window.renderPOSInvGrid = function() {
         cost = Number.isInteger(cost) ? cost : parseFloat(cost.toFixed(2));
 
         return `
-            <div data-prod-id="${escapeHTML(p.id || p.name)}" onclick="window.selectPOSProductByIdInv(this.dataset.prodId)" class="bg-white border rounded-xl p-2.5 flex flex-col justify-between cursor-pointer transition shadow-sm ${isSelected ? 'border-slate-900 ring-2 ring-slate-400' : 'border-slate-200 hover:border-slate-400 hover:shadow'}">
-                <div class="mb-2">
+            <div data-prod-id="${escapeHTML(p.id || p.name)}" onclick="window.selectPOSProductByIdInv(this.dataset.prodId)" class="bg-white border rounded-xl p-2.5 flex flex-col justify-between cursor-pointer transition shadow-sm min-w-0 ${isSelected ? 'border-slate-900 ring-2 ring-slate-400' : 'border-slate-200 hover:border-slate-400 hover:shadow'}">
+                <div class="mb-2 min-w-0">
                     <span class="text-[10px] font-bold px-2 py-0.5 bg-slate-100 text-slate-600 rounded mb-1.5 inline-block">${escapeHTML(p.category || 'عام')}</span>
-                    <h4 class="font-bold text-slate-800 text-xs leading-snug">${escapeHTML(p.name)}</h4>
+                    <h4 class="font-bold text-slate-800 text-xs leading-snug break-words">${escapeHTML(p.name)}</h4>
                 </div>
-                <div class="mt-auto border-t border-slate-100 pt-1.5 flex justify-between items-center bg-slate-50 -mx-2.5 -mb-2.5 p-1.5 rounded-b-lg">
+                <div class="mt-auto border-t border-slate-100 pt-1.5 flex flex-wrap justify-between items-center gap-1 bg-slate-50 -mx-2.5 -mb-2.5 p-1.5 rounded-b-lg">
                     <div><p class="text-[9px] text-slate-500 font-bold">التكلفة</p><p class="font-bold text-slate-700 text-xs font-mono">${cost}</p></div>
                     <div class="text-left"><p class="text-[9px] text-slate-500 font-bold">المتاح</p><p class="font-bold text-emerald-700 text-xs px-1.5 py-0.5 bg-emerald-100/70 rounded font-mono">${p.quantity || 0}</p></div>
                 </div>
@@ -214,7 +213,8 @@ window.changePOSQtyQuick = function(delta) {
     input.dispatchEvent(new Event('input', { bubbles: true }));
     
     if (window.pos_selectedProductQuick && document.getElementById('sell-price')) {
-        document.getElementById('sell-price').value = (window.pos_selectedProductQuick.sellPrice * val) || 0;
+        const unitSellPrice = Number(window.pos_selectedProductQuick.sellPrice) || Math.round((Number(window.pos_selectedProductQuick.costPrice) || 0) * 1.25);
+        document.getElementById('sell-price').value = (unitSellPrice * val) || 0;
         document.getElementById('sell-price').dispatchEvent(new Event('input', { bubbles: true }));
     }
 };
@@ -552,7 +552,7 @@ function inv_uncheckDeductibleItem(checkboxId) {
     const cb = document.getElementById(checkboxId);
     if (cb) {
         cb.checked = false;
-        try { cb.dispatchEvent(new Event('change', { bubbles: true })); } catch (e) {}
+        try { cb.dispatchEvent(new Event('change', { bubbles: true })); } catch (e) { console.warn('[sales-pos.js] تم تجاهل خطأ:', e); }
     }
     if (typeof inv_calculateTotals === 'function') inv_calculateTotals();
     inv_updateDeductibleSelectedSummary();

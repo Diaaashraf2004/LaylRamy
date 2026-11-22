@@ -72,15 +72,46 @@ window.renderSupplierPurchasesReturnList = function() {
 
     listContainer.innerHTML = sorted.map(inv => {
         const supplier = (typeof suppliers !== 'undefined' && Array.isArray(suppliers)) ? suppliers.find(s => s.id === inv.supplierId) : null;
-        const totalItemsCount = (inv.items || []).reduce((sum, it) => sum + (Number(it.quantity) || 0), 0);
+        const items = Array.isArray(inv.items) ? inv.items : [];
+        const totalItemsCount = items.reduce((sum, it) => sum + (Number(it.quantity) || 0), 0);
+        const returnedItemsCount = items.reduce((sum, it) => sum + (Number(it.returnedQuantity) || 0), 0);
+        const isFullyReturned = totalItemsCount > 0 && returnedItemsCount >= totalItemsCount;
+        const isPartiallyReturned = returnedItemsCount > 0 && !isFullyReturned;
         const rem = Number(inv.remainingBalance) || 0;
+
+        let returnBtnHTML = '';
+        if (isFullyReturned) {
+            returnBtnHTML = `
+                <span class="bg-emerald-100 text-emerald-800 font-bold py-1.5 px-3 rounded-lg border border-emerald-300 flex items-center gap-1.5 text-xs shadow-2xs">
+                    <i class="fas fa-check-circle text-emerald-600"></i> مرتجع بالكامل
+                </span>
+            `;
+        } else if (isPartiallyReturned) {
+            returnBtnHTML = `
+                <div class="flex flex-wrap items-center gap-2">
+                    <span class="bg-amber-100 text-amber-800 font-bold py-1 px-2.5 rounded-lg border border-amber-300 text-xs">
+                        مرتجع جزئي (${returnedItemsCount}/${totalItemsCount})
+                    </span>
+                    <button type="button" data-invoice-id="${escapeHTML(inv.id)}" onclick="window.openPurchaseReturnModal(this.dataset.invoiceId)" class="bg-red-50 hover:bg-red-100 text-red-700 font-bold py-2 px-3.5 rounded-lg border border-red-200 transition-colors flex items-center gap-1.5 text-xs">
+                        <i class="fas fa-undo-alt"></i> متابعة المرتجع (${totalItemsCount - returnedItemsCount} متبقي)
+                    </button>
+                </div>
+            `;
+        } else {
+            returnBtnHTML = `
+                <button type="button" data-invoice-id="${escapeHTML(inv.id)}" onclick="window.openPurchaseReturnModal(this.dataset.invoiceId)" class="bg-red-50 hover:bg-red-100 text-red-700 font-bold py-2 px-4 rounded-lg border border-red-200 transition-colors flex items-center gap-1.5 text-xs">
+                    <i class="fas fa-undo-alt"></i> عمل مرتجع للمورد
+                </button>
+            `;
+        }
 
         return `
             <div class="p-4 border rounded-xl bg-white shadow-sm hover:shadow transition-shadow flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
                 <div>
-                    <div class="flex items-center gap-2">
+                    <div class="flex flex-wrap items-center gap-2">
                         <span class="font-bold text-gray-800 text-base">${escapeHTML(supplier ? supplier.name : 'غير محدد')}</span>
                         <span class="bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded font-mono font-bold">فاتورة #${escapeHTML(inv.invoiceNumber || inv.id)}</span>
+                        ${isFullyReturned ? '<span class="bg-emerald-50 text-emerald-700 text-[11px] px-2 py-0.5 rounded font-bold border border-emerald-200">مرتجع كامل</span>' : ''}
                     </div>
                     <div class="text-xs text-gray-500 mt-1 flex flex-wrap gap-x-3 gap-y-1">
                         <span><i class="fas fa-calendar-alt text-gray-400 ml-1"></i> ${formatDateForDisplay(inv.date || inv.timestamp)}</span>
@@ -91,9 +122,7 @@ window.renderSupplierPurchasesReturnList = function() {
                     </div>
                 </div>
                 <div class="flex items-center gap-2 w-full md:w-auto justify-end">
-                    <button type="button" data-invoice-id="${escapeHTML(inv.id)}" onclick="window.openPurchaseReturnModal(this.dataset.invoiceId)" class="bg-red-50 hover:bg-red-100 text-red-700 font-bold py-2 px-4 rounded-lg border border-red-200 transition-colors flex items-center gap-1.5 text-xs">
-                        <i class="fas fa-undo-alt"></i> عمل مرتجع للمورد
-                    </button>
+                    ${returnBtnHTML}
                 </div>
             </div>
         `;
@@ -114,7 +143,7 @@ window.renderCompletedPurchaseReturns = function() {
     container.innerHTML = sorted.map(pr => {
         const sup = (typeof suppliers !== 'undefined' && Array.isArray(suppliers)) ? suppliers.find(s => s.id === pr.supplierId) : null;
         return `
-            <div class="p-2.5 border-b border-gray-200 last:border-0 flex justify-between items-center text-xs">
+            <div class="p-2.5 border-b border-gray-200 last:border-0 flex flex-wrap justify-between items-center gap-2 text-xs">
                 <div>
                     <strong class="text-gray-800">${escapeHTML(sup ? sup.name : 'مورد')}</strong>
                     <span class="text-gray-500 mr-2 font-mono">${(pr.items || []).map(i => `${i.qty}x ${escapeHTML(i.name)}`).join('، ')}</span>
@@ -148,7 +177,7 @@ window.handleReturnProductSelection = function() {
     if (helperSpan) {
         helperSpan.classList.remove('hidden');
         helperSpan.innerHTML = `
-            <div class="flex items-center justify-between text-xs">
+            <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
                 <span class="text-blue-700 font-semibold">سعر البيع المسجل: <strong class="font-mono">${formatCurrency(sellPrice)}</strong></span>
                 <span class="text-gray-600">سعر التكلفة: <strong class="font-mono">${formatCurrency(cost)}</strong></span>
             </div>
@@ -413,7 +442,7 @@ window.renderPendingSaleReturnBreakdown = function() {
         serialInput.value = mainProduct?.serial || returnSourceData.serial;
     }
 
-    const deposit = Number(returnSourceData.depositPaid || returnSourceData.paidAmount || 0);
+    const deposit = Number(returnSourceData.depositPaid || returnSourceData.paidAmount || returnSourceData.depositAmount || 0);
     if (deposit > 0) {
         const cashRadio = document.getElementById('return-type-cash');
         if (cashRadio) cashRadio.checked = true;
@@ -424,7 +453,8 @@ window.renderPendingSaleReturnBreakdown = function() {
 
     const mainCost = mainProduct ? (typeof window.money === 'function' ? window.money((Number(mainProduct.costPrice) || 0) * (Number(mainProduct.quantity) || 1)) : Math.round((Number(mainProduct.costPrice) || 0) * (Number(mainProduct.quantity) || 1) * 100) / 100) : 0;
     const roundedTotalCost = typeof window.money === 'function' ? window.money(totalCost) : Math.round((Number(totalCost) || 0) * 100) / 100;
-    const defaultVal = (mainCost > 0) ? mainCost : roundedTotalCost;
+    // عند إرجاع بيعة مؤقتة: القيمة المالية القابلة للاسترداد هي العربون المدفوع فقط (وليس تكلفة البضاعة)
+    const defaultVal = typeof window.money === 'function' ? window.money(deposit) : Math.round(deposit * 100) / 100;
 
     const priceInput = document.getElementById('return-sale-price-input');
     if (priceInput) {
@@ -503,7 +533,7 @@ window.renderPendingSaleReturnBreakdown = function() {
                     <i class="fas fa-plus-circle text-amber-600"></i> التكاليف والملحقات الإضافية المسجلة بالبيعة:
                 </div>
                 ${additionalItems.map(item => `
-                    <div class="flex items-center justify-between text-xs bg-white/90 p-2 rounded-lg border border-amber-200/60 shadow-2xs">
+                    <div class="flex flex-wrap items-center justify-between gap-1.5 text-xs bg-white/90 p-2 rounded-lg border border-amber-200/60 shadow-2xs">
                         <span class="text-slate-800 font-medium flex items-center gap-1">
                             <i class="fas fa-tag text-teal-600 text-[10px]"></i>
                             ${item.quantity}x ${escapeHTML(item.name)}
@@ -524,7 +554,7 @@ window.renderPendingSaleReturnBreakdown = function() {
     }
 
     container.innerHTML = `
-        <div class="flex items-center justify-between pb-2 border-b border-amber-200/80">
+        <div class="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-amber-200/80">
             <span class="font-extrabold text-amber-950 text-xs flex items-center gap-1.5">
                 <i class="fas fa-history text-amber-600"></i>
                 بيانات البيع المؤقت والتكلفة الأصلية المستردة
@@ -537,7 +567,7 @@ window.renderPendingSaleReturnBreakdown = function() {
         ${mainProductHtml}
         ${extraItemsHtml}
 
-        <div class="flex items-center justify-between pt-2 border-t border-amber-200/80 text-xs">
+        <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-amber-200/80 text-xs">
             <span class="font-bold text-slate-700">إجمالي التكلفة الأصلية المستردة للمخزن:</span>
             <span class="font-mono font-black text-emerald-800 text-sm bg-emerald-100/80 px-2.5 py-1 rounded-lg border border-emerald-300">
                 ${formatCurrency(totalCost)}

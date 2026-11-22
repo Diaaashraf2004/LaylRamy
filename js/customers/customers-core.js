@@ -71,19 +71,20 @@ const selectedMap = new Map(
         const uniqueId = `addcost-${generateId(product.name)}`;
         const label = document.createElement('label');
         label.style.display = 'flex';
+        label.style.flexWrap = 'wrap';
         label.style.alignItems = 'center';
-        label.style.gap = '10px';
+        label.style.gap = '8px';
         label.style.marginBottom = '8px';
 
         label.innerHTML = `
             <input type="checkbox"
-                   value="${product.name}"
+                   value="${window.escapeHTML(product.name)}"
                    data-cost="${product.costPrice}"
                    id="${uniqueId}"
                    style="flex-shrink: 0;"
                    ${isPreviouslySelected ? 'checked' : ''}>
-            <span style="flex-grow: 1;">
-                ${product.name}
+            <span style="flex: 1 1 160px; min-width: 0;">
+                ${window.escapeHTML(product.name)}
                 (متوسط التكلفة: ${formatCurrency(product.costPrice)}, المتاح: ${product.quantity}${product.quantity <= 0 && isPreviouslySelected ? ' - مخصوم سابقًا في هذه البيعة' : ''})
             </span>
             <span style="flex-shrink: 0;">الكمية للخصم:</span>
@@ -279,6 +280,39 @@ function openCustomerStatement(customerId) {
     if (!data || !customerStatementContent || !customerStatementModal) return;
 
     const { customer, debts, totalRemainingDebt, payments, totalPaid, notes } = data;
+    const repeatOrderIndex = (typeof window.buildRepeatOrderNameIndex === 'function') ? window.buildRepeatOrderNameIndex() : null;
+
+    const renderDebtRowRepeatBadge = (d) => {
+        if (!repeatOrderIndex || typeof window.findRepeatOrdersByCustomerName !== 'function') return '';
+        const isOrderDebt = /^بيعة\s+باسم\s+/i.test(String(d.reason || '').trim()) || d.origin === 'credit_sale' || (d.linkedInvoice && d.linkedInvoice !== '-' && d.linkedInvoice !== 'بدون فاتورة') || !!d.saleId;
+        if (!isOrderDebt) return '';
+        const rawTarget = /^بيعة\s+باسم\s+/i.test(String(d.reason || '').trim()) ? d.reason : (d.customerName || d.name || d.reason || '');
+        const info = window.findRepeatOrdersByCustomerName(rawTarget, {
+            index: repeatOrderIndex,
+            sources: ['active_debt', 'paid_debt'],
+            profileId: customer.id
+        });
+        if (info.activeDebtCount >= 2) {
+            const displayTarget = info.displayName || d.reason || '';
+            return ` <button type="button" data-repeat-name="${escapeHTML(displayTarget)}" data-profile-id="${escapeHTML(customer.id)}" onclick="window.showRepeatOrderAlertDetails(this.dataset.repeatName, { sources: ['active_debt', 'paid_debt'], profileId: this.dataset.profileId })" class="inline-flex items-center gap-1 text-[10px] bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 px-2 py-0.5 rounded-full font-bold align-middle mr-1 transition" title="اضغط لمراجعة كل الأوردرات بنفس الاسم"><i class="fas fa-bell text-amber-600"></i> متكرر بالديون (×${info.activeDebtCount})</button>`;
+        } else if (info.activeDebtCount >= 1 && info.paidDebtCount >= 1) {
+            const displayTarget = info.displayName || d.reason || '';
+            return ` <button type="button" data-repeat-name="${escapeHTML(displayTarget)}" data-profile-id="${escapeHTML(customer.id)}" onclick="window.showRepeatOrderAlertDetails(this.dataset.repeatName, { sources: ['active_debt', 'paid_debt'], profileId: this.dataset.profileId })" class="inline-flex items-center gap-1 text-[10px] bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 px-2 py-0.5 rounded-full font-bold align-middle mr-1 transition" title="اضغط لمراجعة الطلب السابق المسدّد"><i class="fas fa-history text-sky-600"></i> له سابق مسدّد (×${info.totalCount})</button>`;
+        }
+        return '';
+    };
+
+    const renderPaymentRepeatBadges = (p) => {
+        if (!repeatOrderIndex || typeof window.detectDuplicateNamesInPaymentEntry !== 'function') return '';
+        const alerts = window.detectDuplicateNamesInPaymentEntry(p, repeatOrderIndex, customer.id);
+        if (!alerts.length) return '';
+        const pills = alerts.map(a => `
+            <button type="button" data-repeat-name="${escapeHTML(a.name)}" data-profile-id="${escapeHTML(customer.id)}" onclick="window.showRepeatOrderAlertDetails(this.dataset.repeatName, { sources: ['active_debt', 'paid_debt'], profileId: this.dataset.profileId })" class="inline-flex items-center gap-1 text-[10px] bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 px-2 py-0.5 rounded-full font-bold transition" title="اضغط لعرض تفاصيل كل أوردرات ${escapeHTML(a.name)}">
+                <i class="fas fa-bell text-amber-600"></i> ${escapeHTML(a.name)} (×${a.totalSystemCount})
+            </button>
+        `).join(' ');
+        return `<div class="mt-1.5 flex flex-wrap items-center gap-1 text-[11px] text-amber-800"><span class="font-bold">تنبيه أسماء متكررة (طلبات متعددة):</span> ${pills}</div>`;
+    };
 
     customerStatementContent.innerHTML = `
         <div class="space-y-5" id="print-customer-statement-area" style="font-family: inherit;">
@@ -310,8 +344,8 @@ function openCustomerStatement(customerId) {
             </div>
 
             <!-- 1. جدول الديون والالتزامات الحالية النشطة -->
-            <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs">
-                <div class="flex justify-between items-center mb-3 border-b pb-2">
+            <div class="bg-white border border-slate-200 rounded-xl p-3 sm:p-4 shadow-2xs">
+                <div class="flex flex-wrap justify-between items-center gap-2 mb-3 border-b pb-2">
                     <h4 class="text-sm font-extrabold text-slate-800 flex items-center gap-2">
                         <i class="fas fa-file-invoice text-purple-600"></i> الديون والالتزامات الحالية (غير المسددة بالكامل)
                     </h4>
@@ -320,7 +354,7 @@ function openCustomerStatement(customerId) {
                 ${
                     debts.length
                     ? `<div class="overflow-x-auto">
-                        <table class="w-full text-right border-collapse text-xs sm:text-sm">
+                        <table class="w-full min-w-[460px] text-right border-collapse text-xs sm:text-sm">
                             <thead>
                                 <tr class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
                                     <th class="p-2.5">البيان / سبب الدين</th>
@@ -332,7 +366,7 @@ function openCustomerStatement(customerId) {
                             <tbody class="divide-y divide-slate-100">
                                 ${debts.map(d => `
                                     <tr class="hover:bg-slate-50">
-                                        <td class="p-2.5 font-bold text-slate-800">${escapeHTML(d.reason || 'دين عام')}</td>
+                                        <td class="p-2.5 font-bold text-slate-800">${escapeHTML(d.reason || 'دين عام')}${renderDebtRowRepeatBadge(d)}</td>
                                         <td class="p-2.5 text-slate-500">${d.createdAt ? new Date(d.createdAt).toLocaleDateString('ar-EG') : '-'}</td>
                                         <td class="p-2.5 text-indigo-700 font-mono text-xs">${escapeHTML(d.linkedInvoice || '-')}</td>
                                         <td class="p-2.5 text-left font-mono font-black text-purple-700">${formatCurrency(Number(d.amount || 0))}</td>
@@ -348,8 +382,8 @@ function openCustomerStatement(customerId) {
             </div>
 
             <!-- 2. جدول سجل الدفعات والسدادات والتحصيلات السابقة -->
-            <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs">
-                <div class="flex justify-between items-center mb-3 border-b pb-2">
+            <div class="bg-white border border-slate-200 rounded-xl p-3 sm:p-4 shadow-2xs">
+                <div class="flex flex-wrap justify-between items-center gap-2 mb-3 border-b pb-2">
                     <h4 class="text-sm font-extrabold text-slate-800 flex items-center gap-2">
                         <i class="fas fa-history text-emerald-600"></i> سجل الدفعات والسدادات السابقة (تتبع السدادات)
                     </h4>
@@ -358,7 +392,7 @@ function openCustomerStatement(customerId) {
                 ${
                     payments.length
                     ? `<div class="overflow-x-auto">
-                        <table class="w-full text-right border-collapse text-xs sm:text-sm">
+                        <table class="w-full min-w-[460px] text-right border-collapse text-xs sm:text-sm">
                             <thead>
                                 <tr class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
                                     <th class="p-2.5">تاريخ ووقت السداد</th>
@@ -374,7 +408,7 @@ function openCustomerStatement(customerId) {
                                         <td class="p-2.5 text-slate-600 font-mono text-xs">${new Date(p.date).toLocaleString('ar-EG')}</td>
                                         <td class="p-2.5 font-mono font-black text-emerald-700">${formatCurrency(Number(p.amount || 0))}</td>
                                         <td class="p-2.5 text-slate-800 font-semibold"><span class="bg-slate-100 px-2 py-0.5 rounded text-xs">${escapeHTML(p.accountName || 'خزينة')}</span></td>
-                                        <td class="p-2.5 text-slate-700">${escapeHTML(p.debtReason || '-')}</td>
+                                        <td class="p-2.5 text-slate-700">${escapeHTML(p.debtReason || '-')}${renderPaymentRepeatBadges(p)}</td>
                                         <td class="p-2.5 text-slate-500 text-xs">${escapeHTML(p.note || '-')}</td>
                                     </tr>
                                 `).join('')}
@@ -396,7 +430,7 @@ function openCustomerStatement(customerId) {
                     </h4>
                     <div class="space-y-1.5 text-xs text-slate-700">
                         ${notes.map(n => `
-                            <div class="flex justify-between items-center p-2 bg-white rounded border border-amber-100">
+                            <div class="flex flex-wrap justify-between items-center gap-1 p-2 bg-white rounded border border-amber-100">
                                 <span>${escapeHTML(n.note)}</span>
                                 <span class="text-slate-400 font-mono text-[11px]">${new Date(n.createdAt).toLocaleDateString('ar-EG')} ${n.nextFollowUpDate ? `(متابعة: ${n.nextFollowUpDate})` : ''}</span>
                             </div>
@@ -416,6 +450,39 @@ function openCustomerProfile(customerId) {
     if (!data || !customerProfileContent || !customerProfileModal) return;
 
     const { customer, debts, totalRemainingDebt, payments, totalPaid, notes } = data;
+    const repeatOrderIndex = (typeof window.buildRepeatOrderNameIndex === 'function') ? window.buildRepeatOrderNameIndex() : null;
+
+    const renderDebtRowRepeatBadge = (d) => {
+        if (!repeatOrderIndex || typeof window.findRepeatOrdersByCustomerName !== 'function') return '';
+        const isOrderDebt = /^بيعة\s+باسم\s+/i.test(String(d.reason || '').trim()) || d.origin === 'credit_sale' || (d.linkedInvoice && d.linkedInvoice !== '-' && d.linkedInvoice !== 'بدون فاتورة') || !!d.saleId;
+        if (!isOrderDebt) return '';
+        const rawTarget = /^بيعة\s+باسم\s+/i.test(String(d.reason || '').trim()) ? d.reason : (d.customerName || d.name || d.reason || '');
+        const info = window.findRepeatOrdersByCustomerName(rawTarget, {
+            index: repeatOrderIndex,
+            sources: ['active_debt', 'paid_debt'],
+            profileId: customer.id
+        });
+        if (info.activeDebtCount >= 2) {
+            const displayTarget = info.displayName || d.reason || '';
+            return ` <button type="button" data-repeat-name="${escapeHTML(displayTarget)}" data-profile-id="${escapeHTML(customer.id)}" onclick="window.showRepeatOrderAlertDetails(this.dataset.repeatName, { sources: ['active_debt', 'paid_debt'], profileId: this.dataset.profileId })" class="inline-flex items-center gap-1 text-[10px] bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 px-2 py-0.5 rounded-full font-bold align-middle mr-1 transition" title="اضغط لمراجعة كل الأوردرات بنفس الاسم"><i class="fas fa-bell text-amber-600"></i> متكرر بالديون (×${info.activeDebtCount})</button>`;
+        } else if (info.activeDebtCount >= 1 && info.paidDebtCount >= 1) {
+            const displayTarget = info.displayName || d.reason || '';
+            return ` <button type="button" data-repeat-name="${escapeHTML(displayTarget)}" data-profile-id="${escapeHTML(customer.id)}" onclick="window.showRepeatOrderAlertDetails(this.dataset.repeatName, { sources: ['active_debt', 'paid_debt'], profileId: this.dataset.profileId })" class="inline-flex items-center gap-1 text-[10px] bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 px-2 py-0.5 rounded-full font-bold align-middle mr-1 transition" title="اضغط لمراجعة الطلب السابق المسدّد"><i class="fas fa-history text-sky-600"></i> له سابق مسدّد (×${info.totalCount})</button>`;
+        }
+        return '';
+    };
+
+    const renderPaymentRepeatBadges = (p) => {
+        if (!repeatOrderIndex || typeof window.detectDuplicateNamesInPaymentEntry !== 'function') return '';
+        const alerts = window.detectDuplicateNamesInPaymentEntry(p, repeatOrderIndex, customer.id);
+        if (!alerts.length) return '';
+        const pills = alerts.map(a => `
+            <button type="button" data-repeat-name="${escapeHTML(a.name)}" data-profile-id="${escapeHTML(customer.id)}" onclick="window.showRepeatOrderAlertDetails(this.dataset.repeatName, { sources: ['active_debt', 'paid_debt'], profileId: this.dataset.profileId })" class="inline-flex items-center gap-1 text-[10px] bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 px-2 py-0.5 rounded-full font-bold transition" title="اضغط لعرض تفاصيل كل أوردرات ${escapeHTML(a.name)}">
+                <i class="fas fa-bell text-amber-600"></i> ${escapeHTML(a.name)} (×${a.totalSystemCount})
+            </button>
+        `).join(' ');
+        return `<div class="mt-1.5 flex flex-wrap items-center gap-1 text-[11px] text-amber-800"><span class="font-bold">تنبيه أسماء متكررة (طلبات متعددة):</span> ${pills}</div>`;
+    };
 
     customerProfileContent.innerHTML = `
         <div class="space-y-5">
@@ -431,7 +498,7 @@ function openCustomerProfile(customerId) {
                             <span class="text-xs text-indigo-600 font-semibold">كود العميل: ${escapeHTML(customer.id)}</span>
                         </div>
                     </div>
-                    <div class="flex items-center gap-2">
+                    <div class="flex flex-wrap items-center gap-2">
                         <button type="button" onclick="openCustomerStatement('${escapeHTML(customer.id)}')" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-1.5 px-3 rounded-lg flex items-center gap-1 shadow-xs transition">
                             <i class="fas fa-file-invoice-dollar"></i> كشف حساب تفصيلي
                         </button>
@@ -484,9 +551,10 @@ function openCustomerProfile(customerId) {
                     payments.length
                     ? `<div class="space-y-2 max-h-48 overflow-y-auto pr-1">
                         ${payments.slice(0, 10).map(p => `
-                            <div class="flex justify-between items-center p-2.5 bg-slate-50 hover:bg-emerald-50/50 rounded-lg border border-slate-100 text-xs transition">
-                                <div>
+                            <div class="flex flex-wrap justify-between items-center gap-2 p-2.5 bg-slate-50 hover:bg-emerald-50/50 rounded-lg border border-slate-100 text-xs transition">
+                                <div class="min-w-0">
                                     <span class="font-bold text-slate-800">${escapeHTML(p.debtReason || 'سداد')}</span>
+                                    ${renderPaymentRepeatBadges(p)}
                                     <span class="text-slate-400 block text-[11px]">${new Date(p.date).toLocaleString('ar-EG')} - في (${escapeHTML(p.accountName || 'خزينة')})</span>
                                 </div>
                                 <span class="font-mono font-black text-emerald-700 text-sm">${formatCurrency(Number(p.amount || 0))}</span>
@@ -571,7 +639,7 @@ function openCreditorStatement(liabilityId) {
         <div class="space-y-4" id="print-creditor-statement-area">
             <div class="text-center mb-6 border-b pb-4">
                 <h3 class="text-xl font-bold text-gray-800">كشف حساب مورد/دائن</h3>
-                <p class="text-gray-600 mt-2"><strong>اسم المورد:</strong> ${creditorName}</p>
+                <p class="text-gray-600 mt-2"><strong>اسم المورد:</strong> ${window.escapeHTML(creditorName)}</p>
                 <p class="text-pink-700 font-bold mt-2 text-lg"><strong>الرصيد المتبقي المستحق:</strong> ${formatCurrency(totalActiveDebt)}</p>
             </div>
 
@@ -579,7 +647,7 @@ function openCreditorStatement(liabilityId) {
                 <h4 class="text-lg font-bold text-gray-700 mb-3 border-b pb-2"><i class="fas fa-list-ul ml-2 text-teal-600"></i> الالتزامات الحالية (غير المسددة بالكامل)</h4>
                 ${
                     creditorLiabilities.filter(l => l.status !== 'paid' && (Number(l.amount) || 0) > 0.001).length
-                    ? `<table class="w-full text-right border-collapse" style="font-size: 14px;">
+                    ? `<div class="overflow-x-auto"><table class="w-full text-right border-collapse min-w-[420px]" style="font-size: 14px;">
                         <thead>
                             <tr class="bg-gray-100 text-gray-700">
                                 <th class="border p-2">التصنيف</th>
@@ -596,7 +664,7 @@ function openCreditorStatement(liabilityId) {
                                 </tr>
                             `).join('')}
                         </tbody>
-                    </table>`
+                    </table></div>`
                     : `<p class="text-gray-500 italic">لا توجد التزامات نشطة حالياً.</p>`
                 }
             </div>
@@ -605,7 +673,7 @@ function openCreditorStatement(liabilityId) {
                 <h4 class="text-lg font-bold text-gray-700 mb-3 border-b pb-2"><i class="fas fa-history ml-2 text-blue-600"></i> سجل الدفعات السابقة</h4>
                 ${
                     allPayments.length
-                    ? `<table class="w-full text-right border-collapse" style="font-size: 14px;">
+                    ? `<div class="overflow-x-auto"><table class="w-full text-right border-collapse min-w-[480px]" style="font-size: 14px;">
                         <thead>
                             <tr class="bg-gray-100 text-gray-700">
                                 <th class="border p-2">تاريخ الدفعة</th>
@@ -624,7 +692,7 @@ function openCreditorStatement(liabilityId) {
                                 </tr>
                             `).join('')}
                         </tbody>
-                    </table>`
+                    </table></div>`
                     : `<p class="text-gray-500 italic">لا توجد دفعات سابقة مسجلة.</p>`
                 }
             </div>

@@ -118,7 +118,10 @@
         }
 
         const customerName = document.getElementById('inv_customerName');
-        if (customerName) customerName.value = '';
+        if (customerName) {
+            customerName.value = '';
+            if (typeof window.updateCustomerRepeatBanner === 'function') window.updateCustomerRepeatBanner(customerName);
+        }
         const customerAddress = document.getElementById('inv_customerAddress');
         if (customerAddress) customerAddress.value = '';
         const shippingCost = document.getElementById('inv_shippingCostInput') || document.getElementById('inv_shippingCost');

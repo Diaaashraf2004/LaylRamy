@@ -185,43 +185,22 @@ window.usm_applySelectionToOrigin = function() {
             updateAdditionalCostsCheckboxes(remainingAttachments);
         }
         
-        { // --- نقل قيم الاستقطاع المخفي بأمان ---
-        let targetPrefix = window.usm_currentOrigin === 'quick' ? 'sell' : 'inv';
+        // نقل قيم الاستقطاع المخفي بأمان (مرة واحدة بدون تكرار)
         if (document.getElementById('usm-deduction-toggle') && document.getElementById('usm-deduction-toggle').checked) {
-            const targetToggle = document.getElementById(targetPrefix + '-deduction-toggle');
+            const targetToggle = document.getElementById('sell-deduction-toggle');
             if (targetToggle) {
                 targetToggle.checked = true;
-                const targetAmt = document.getElementById(targetPrefix + '-deduction-amount');
+                const targetAmt = document.getElementById('sell-deduction-amount');
                 const usmAmt = document.getElementById('usm-deduction-amount');
                 if (targetAmt && usmAmt) targetAmt.value = usmAmt.value;
-                
-                const targetName = document.getElementById(targetPrefix + '-deduction-liability-name');
+                const targetName = document.getElementById('sell-deduction-liability-name');
                 const usmName = document.getElementById('usm-deduction-liability-name');
                 if (targetName && usmName) targetName.value = usmName.value;
             }
         }
-}
-        
-        { // --- نقل قيم الاستقطاع المخفي بأمان ---
-        let targetPrefix = window.usm_currentOrigin === 'quick' ? 'sell' : 'inv';
-        if (document.getElementById('usm-deduction-toggle') && document.getElementById('usm-deduction-toggle').checked) {
-            const targetToggle = document.getElementById(targetPrefix + '-deduction-toggle');
-            if (targetToggle) {
-                targetToggle.checked = true;
-                const targetAmt = document.getElementById(targetPrefix + '-deduction-amount');
-                const usmAmt = document.getElementById('usm-deduction-amount');
-                if (targetAmt && usmAmt) targetAmt.value = usmAmt.value;
-                
-                const targetName = document.getElementById(targetPrefix + '-deduction-liability-name');
-                const usmName = document.getElementById('usm-deduction-liability-name');
-                if (targetName && usmName) targetName.value = usmName.value;
-            }
-        }
-}
         
         window.closeUnifiedSellModal();
         
-        // �� إطلاق قذيفة التنفيذ الفوري والحفظ لقاعدة البيانات وسيرفر Firebase!
         if (typeof sellProduct === 'function') {
             sellProduct(); 
         } else {
@@ -229,7 +208,7 @@ window.usm_applySelectionToOrigin = function() {
             if (nativeBtn) nativeBtn.click();
         }
         
-    // �� [الوضع 2]: تحويل وتنفيذ فوري للفاتورة التفصيلية
+    // [الوضع 2]: تحويل وتنفيذ فوري للفاتورة التفصيلية
     } else if (window.usm_currentOrigin === 'invoice') {
         const itemsBody = document.getElementById('inv_invoiceItemsBody');
         if (itemsBody) {
@@ -248,26 +227,57 @@ window.usm_applySelectionToOrigin = function() {
                     <td class="item-name">${escapeHTML(item.name)}</td>
                     <td class="item-qty" style="text-align:center;">${item.quantity}</td>
                     <td class="item-price" style="text-align:center;">${item.unitPrice.toFixed(2)}</td>
-                    <td class="item-subtotal" style="text-align:center; font-weight:bold;">${item.unitPrice * item.quantity}</td>
+                    <td class="item-subtotal" style="text-align:center; font-weight:bold;">${(item.unitPrice * item.quantity).toFixed(2)}</td>
                     <td class="no-print" style="text-align:center;"><button type="button" class="remove-item-btn" style="color:red; font-weight:bold; border:none; background:none; cursor:pointer;" onclick="this.closest('tr').remove(); if(typeof inv_calculateTotals==='function') inv_calculateTotals();">×</button></td>
                 `;
                 itemsBody.appendChild(newRow);
             });
+
+            // فصل الخدمات/التكاليف الإضافية كبند خدمة مستقل عن مصاريف الشحن حتى لا يختلط الشحن مع الإيرادات
+            if (extraCharges > 0) {
+                const svcRow = document.createElement('tr');
+                svcRow.classList.add('invoice-item-row');
+                svcRow.dataset.itemName = 'خدمات وتكاليف إضافية';
+                svcRow.dataset.itemQty = 1;
+                svcRow.dataset.itemPrice = extraCharges.toFixed(2);
+                svcRow.dataset.itemSubtotal = extraCharges.toFixed(2);
+                svcRow.dataset.itemCost = '0.00';
+                svcRow.innerHTML = `
+                    <td class="item-name">خدمات وتكاليف إضافية</td>
+                    <td class="item-qty" style="text-align:center;">1</td>
+                    <td class="item-price" style="text-align:center;">${extraCharges.toFixed(2)}</td>
+                    <td class="item-subtotal" style="text-align:center; font-weight:bold;">${extraCharges.toFixed(2)}</td>
+                    <td class="no-print" style="text-align:center;"><button type="button" class="remove-item-btn" style="color:red; font-weight:bold; border:none; background:none; cursor:pointer;" onclick="this.closest('tr').remove(); if(typeof inv_calculateTotals==='function') inv_calculateTotals();">×</button></td>
+                `;
+                itemsBody.appendChild(svcRow);
+            }
             
-            // شحن حقول الفاتورة الخلفية صراحة لمنع الكراش
             document.getElementById('inv_customerName').value = customerName || 'عميل كاش';
-            if (document.getElementById('inv_shippingCost')) document.getElementById('inv_shippingCost').value = (shippingCost + extraCharges).toFixed(2);
+            if (document.getElementById('inv_shippingCost')) document.getElementById('inv_shippingCost').value = shippingCost.toFixed(2);
             if (document.getElementById('inv_payment_account')) document.getElementById('inv_payment_account').value = targetAccountId;
             if (document.getElementById('inv_markAsPending')) document.getElementById('inv_markAsPending').checked = isPending;
             if (document.getElementById('inv_notes') && extraCharges > 0) {
                 document.getElementById('inv_notes').value += `\n[خدمات وتكاليف إضافية مضافة: ${extraCharges.toFixed(2)} جنيه]`;
+            }
+
+            // نقل قيم الاستقطاع المخفي إلى نموذج الفاتورة
+            if (document.getElementById('usm-deduction-toggle') && document.getElementById('usm-deduction-toggle').checked) {
+                const invToggle = document.getElementById('inv-deduction-toggle');
+                if (invToggle) {
+                    invToggle.checked = true;
+                    const invAmt = document.getElementById('inv-deduction-amount');
+                    const usmAmt = document.getElementById('usm-deduction-amount');
+                    if (invAmt && usmAmt) invAmt.value = usmAmt.value;
+                    const invName = document.getElementById('inv-deduction-liability-name');
+                    const usmName = document.getElementById('usm-deduction-liability-name');
+                    if (invName && usmName) invName.value = usmName.value;
+                }
             }
             
             if (typeof inv_calculateTotals === 'function') inv_calculateTotals();
             
             window.closeUnifiedSellModal();
             
-            // �� إطلاق قذيفة الحفظ النهائي للفاتورة والمزامنة السحابية مع الأرشيف!
             if (typeof handleSaveInvoice === 'function') {
                 handleSaveInvoice();
             } else {

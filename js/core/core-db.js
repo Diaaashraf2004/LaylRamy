@@ -176,6 +176,19 @@ window.FinanceDB = {
         }
     },
 
+    async deleteDebt(debtId) {
+        if (!window.currentUser || !window.db || !window.deleteDoc || !debtId) return false;
+        try {
+            const docRef = window.doc(window.db, "users", window.currentUser.uid, "debts", debtId);
+            await window.deleteDoc(docRef);
+            console.log(`[DB] تم حذف الدين ${debtId} من السحابة.`);
+            return true;
+        } catch (e) {
+            console.error("❌ [DB] خطأ في حذف الدين:", e);
+            return false;
+        }
+    },
+
     async loadAllDebts() {
         if (!window.currentUser || !window.db || !window.getDocs || !window.collection) return [];
         try {
@@ -257,7 +270,7 @@ window.FinanceDB = {
                 const buf = await crypto.subtle.digest('SHA-256', enc);
                 const hexArr = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
                 contentHash = `${hexArr}_${enc.length}`;
-            } catch (hErr) {}
+            } catch (hErr) { console.warn('[core-db.js] تم تجاهل خطأ:', hErr); }
         }
         if (!contentHash) {
             let h1 = 5381, h2 = 2166136261;
@@ -410,11 +423,14 @@ window.FinanceDB = {
         return true;
     },
 
-    async loadSerialsData() {
-        if (!window.currentUser || !window.db || !window.getDoc) return null;
-        const uid = window.currentUser.uid;
+    async loadSerialsData(explicitUid) {
+        const uid = explicitUid || (window.currentUser && window.currentUser.uid);
+        if (!uid || !window.db || !window.getDoc) return null;
         const metaDocRef = window.doc(window.db, "users", uid, "serials_storage", "meta");
-        const metaSnap = await window.getDoc(metaDocRef);
+        const metaSnap = await window.getDoc(metaDocRef, { serverOnly: true });
+        if (metaSnap && metaSnap._unreachable) {
+            throw new Error("تعذر الاتصال بالخادم لقراءة بيانات السيريالات.");
+        }
         if (!metaSnap || !metaSnap.exists()) return null;
         const meta = metaSnap.data();
         if (!meta.chunked) {
@@ -431,7 +447,7 @@ window.FinanceDB = {
                         window._lastSavedSerialsHash = `${uid}_${hexArr}_${enc.length}`;
                     }).catch(() => {});
                 }
-            } catch(hErr) {}
+            } catch (hErr) { console.warn('[core-db.js] تم تجاهل خطأ:', hErr); }
             return res;
         }
         const expectedVersion = meta.version;
@@ -448,12 +464,18 @@ window.FinanceDB = {
                     ? window.doc(window.db, "users", uid, "serials_storage", `chunk_${expectedVersion}_${chunkIndex}`)
                     : window.doc(window.db, "users", uid, "serials_storage", `chunk_${chunkIndex}`);
 
-                let chunkSnap = await window.getDoc(chunkDocRef);
+                let chunkSnap = await window.getDoc(chunkDocRef, { serverOnly: true });
+                if (chunkSnap && chunkSnap._unreachable) {
+                    throw new Error(`تعذر الاتصال بالخادم لقراءة جزء السيريالات ${chunkIndex}.`);
+                }
 
                 // 🛡️ التوافق مع البيانات القديمة المخزنة بالصيغة السابقة chunk_<i>
                 if ((!chunkSnap || !chunkSnap.exists()) && expectedVersion) {
                     const fallbackDocRef = window.doc(window.db, "users", uid, "serials_storage", `chunk_${chunkIndex}`);
-                    const fallbackSnap = await window.getDoc(fallbackDocRef);
+                    const fallbackSnap = await window.getDoc(fallbackDocRef, { serverOnly: true });
+                    if (fallbackSnap && fallbackSnap._unreachable) {
+                        throw new Error(`تعذر الاتصال بالخادم لقراءة جزء السيريالات ${chunkIndex}.`);
+                    }
                     if (fallbackSnap && fallbackSnap.exists()) {
                         chunkSnap = fallbackSnap;
                     }
@@ -491,7 +513,7 @@ window.FinanceDB = {
                         window._lastSavedSerialsHash = `${uid}_${hexArr}_${enc.length}`;
                     }).catch(() => {});
                 }
-            } catch(hErr) {}
+            } catch (hErr) { console.warn('[core-db.js] تم تجاهل خطأ:', hErr); }
             return res;
         } catch(err) {
             throw new Error(`فشل تحليل بيانات السيريالات بعد تجميع الأجزاء: ${err.message}`);
@@ -641,57 +663,82 @@ window.lastSyncedProductsState = null;
 window.lastSyncedDebtorsState = null;
 
 window._isDualSyncing = false;
+window._dualSyncQueued = false;
 window.syncDualWriteToDB = async function() {
     if (!window.products || !window.debtors) return;
-    if (window._isDualSyncing) { console.warn('Sync already in progress, skipping...'); return; }
+    if (window._loadFailed || window._serialsLoadFailed) return;
+    if (window._isDualSyncing) {
+        window._dualSyncQueued = true;
+        return;
+    }
     window._isDualSyncing = true;
     try {
+        // --- 1. مزامنة المنتجات (Products Sync) ---
+        const currentProductsStr = JSON.stringify(window.products);
+        if (window.lastSyncedProductsState !== currentProductsStr) {
+            const oldProducts = JSON.parse(window.lastSyncedProductsState || '[]');
+            const currentProducts = window.products;
+            let productsAllOk = true;
+            
+            for (const prod of currentProducts) {
+                const oldProd = oldProducts.find(p => p.id === prod.id);
+                if (!oldProd || JSON.stringify(oldProd) !== JSON.stringify(prod)) {
+                    if (!prod.id) prod.id = window.generateUniqueId('PROD');
+                    const ok = await window.FinanceDB.saveProduct(prod);
+                    if (ok === false) productsAllOk = false;
+                }
+            }
+            
+            for (const oldProd of oldProducts) {
+                if (oldProd && oldProd.id && !currentProducts.find(p => p.id === oldProd.id)) {
+                    const ok = await window.FinanceDB.deleteProduct(oldProd.id);
+                    if (ok === false) productsAllOk = false;
+                }
+            }
+            
+            if (productsAllOk) {
+                window.lastSyncedProductsState = currentProductsStr;
+            }
+        }
 
-    // --- 1. مزامنة المنتجات (Products Sync) ---
-    const currentProductsStr = JSON.stringify(window.products);
-    if (window.lastSyncedProductsState !== currentProductsStr) {
-        const oldProducts = JSON.parse(window.lastSyncedProductsState || '[]');
-        const currentProducts = window.products;
-        
-        for (const prod of currentProducts) {
-            const oldProd = oldProducts.find(p => p.id === prod.id);
-            if (!oldProd || JSON.stringify(oldProd) !== JSON.stringify(prod)) {
-                if (!prod.id) prod.id = window.generateUniqueId('PROD');
-                await window.FinanceDB.saveProduct(prod);
+        // --- 2. مزامنة الديون (Debtors Sync) ---
+        const currentDebtorsStr = JSON.stringify(window.debtors);
+        if (window.lastSyncedDebtorsState !== currentDebtorsStr) {
+            const oldDebtors = JSON.parse(window.lastSyncedDebtorsState || '[]');
+            const currentDebtors = window.debtors;
+            let debtorsAllOk = true;
+            
+            for (const debt of currentDebtors) {
+                const oldDebt = oldDebtors.find(d => d.id === debt.id);
+                if (!oldDebt || JSON.stringify(oldDebt) !== JSON.stringify(debt)) {
+                    if (!debt.id) debt.id = window.generateUniqueId('DEBT');
+                    if (!debt.customerId) debt.customerId = 'CUST_' + btoa(unescape(encodeURIComponent(debt.name || 'مجهول'))).substring(0, 10);
+                    const ok = await window.FinanceDB.saveDebt(debt);
+                    if (ok === false) debtorsAllOk = false;
+                }
             }
-        }
-        
-        for (const oldProd of oldProducts) {
-            if (!currentProducts.find(p => p.id === oldProd.id)) {
-                await window.FinanceDB.deleteProduct(oldProd.id);
-            }
-        }
-        
-        window.lastSyncedProductsState = currentProductsStr;
-    }
 
-    // --- 2. مزامنة الديون (Debtors Sync) ---
-    // (سنقوم بتفعيلها لاحقاً في المرحلة الثانية، ولكن نجهز الكود لها)
-    const currentDebtorsStr = JSON.stringify(window.debtors);
-    if (window.lastSyncedDebtorsState !== currentDebtorsStr) {
-        const oldDebtors = JSON.parse(window.lastSyncedDebtorsState || '[]');
-        const currentDebtors = window.debtors;
-        
-        for (const debt of currentDebtors) {
-            const oldDebt = oldDebtors.find(d => d.id === debt.id);
-            if (!oldDebt || JSON.stringify(oldDebt) !== JSON.stringify(debt)) {
-                if (!debt.id) debt.id = window.generateUniqueId('DEBT');
-                if (!debt.customerId) debt.customerId = 'CUST_' + btoa(unescape(encodeURIComponent(debt.name || 'مجهول'))).substring(0, 10);
-                await window.FinanceDB.saveDebt(debt);
+            if (typeof window.FinanceDB.deleteDebt === 'function') {
+                for (const oldDebt of oldDebtors) {
+                    if (oldDebt.id && !currentDebtors.find(d => d.id === oldDebt.id)) {
+                        const ok = await window.FinanceDB.deleteDebt(oldDebt.id);
+                        if (ok === false) debtorsAllOk = false;
+                    }
+                }
+            }
+            
+            if (debtorsAllOk) {
+                window.lastSyncedDebtorsState = currentDebtorsStr;
             }
         }
-        
-        window.lastSyncedDebtorsState = currentDebtorsStr;
-    }
     } catch (e) {
         console.error("Error in syncDualWriteToDB:", e);
     } finally {
         window._isDualSyncing = false;
+        if (window._dualSyncQueued) {
+            window._dualSyncQueued = false;
+            window.syncDualWriteToDB().catch(err => console.error("Queued dual sync error:", err));
+        }
     }
 };
 

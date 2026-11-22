@@ -5,7 +5,10 @@ function resetSellForm() {
     editingPendingSaleId = null; // الخروج من وضع التعديل
     
     if (sellProductNameInput) sellProductNameInput.value = "";
-    if (sellCustomerNameInput) sellCustomerNameInput.value = "";
+    if (sellCustomerNameInput) {
+        sellCustomerNameInput.value = "";
+        if (typeof window.updateCustomerRepeatBanner === 'function') window.updateCustomerRepeatBanner(sellCustomerNameInput);
+    }
     if (sellQuantityInput) sellQuantityInput.value = "1";
     if (sellPriceInput) sellPriceInput.value = "0";
     if (sellPendingCheckbox) sellPendingCheckbox.checked = false;
@@ -60,7 +63,15 @@ function resetSellForm() {
     showMessage(sellMessage, ""); 
 }
 async function sellProduct(skipConfirmation = true) {
-
+    if (window._isQuickSellingInProgress) return;
+    window._isQuickSellingInProgress = true;
+    const _sellBtnEl = document.getElementById('sell-button');
+    if (_sellBtnEl) _sellBtnEl.disabled = true;
+    const _releaseQuickLock = () => {
+        window._isQuickSellingInProgress = false;
+        if (_sellBtnEl) _sellBtnEl.disabled = false;
+    };
+    try {
 
     const isPendingSale = sellPendingCheckbox.checked;
     const mainProductName = sellProductNameInput.value.trim();
@@ -82,6 +93,14 @@ async function sellProduct(skipConfirmation = true) {
         if (typeof showGlobalMessage === 'function') showGlobalMessage('الرجاء اختيار الخزنة أولاً.', true);
         showMessage(sellMessage, 'الرجاء اختيار الخزنة.', true);
         return;
+    }
+
+    let repeatCheckResult = { proceed: true, isRepeat: false, orderNumber: 1 };
+    if (typeof window.confirmRepeatOrderIfDuplicate === 'function') {
+        repeatCheckResult = window.confirmRepeatOrderIfDuplicate(customerName);
+        if (!repeatCheckResult.proceed) {
+            return;
+        }
     }
 
     let mainProductIndex = products.findIndex(p => (p.id === mainProductName || p.name.trim().toLowerCase() === mainProductName.trim().toLowerCase()) && Number(p.quantity) >= quantitySold);
@@ -122,6 +141,9 @@ async function sellProduct(skipConfirmation = true) {
     
     const additionalCheckboxes = additionalCostsContainer ? additionalCostsContainer.querySelectorAll('input[type="checkbox"]:checked') : [];
     let stockCheckFailed = false;
+    // تجميع إجمالي الكميات المطلوبة لكل منتج (الرئيسي + الملحقات) للتحقق الشامل قبل أي خصم
+    const totalReqByIndex = new Map();
+    totalReqByIndex.set(mainProductIndex, (totalReqByIndex.get(mainProductIndex) || 0) + quantitySold);
 
     additionalCheckboxes.forEach(checkbox => {
         if (stockCheckFailed) return;
@@ -134,10 +156,12 @@ async function sellProduct(skipConfirmation = true) {
 
         if (qtyToDeduct > 0 && additionalProductIndex !== -1) {
             const additionalProduct = products[additionalProductIndex];
-            if (additionalProduct.quantity < qtyToDeduct) {
-                showMessage(sellMessage, `الكمية المطلوبة (${qtyToDeduct}) للمرفق "${additionalProductName}" غير متوفرة.`, true);
+            const cumulativeReq = (totalReqByIndex.get(additionalProductIndex) || 0) + qtyToDeduct;
+            if ((Number(additionalProduct.quantity) || 0) < cumulativeReq) {
+                showMessage(sellMessage, `الكمية الإجمالية المطلوبة (${cumulativeReq}) من "${additionalProductName}" غير متوفرة (المتاح: ${additionalProduct.quantity}).`, true);
                 stockCheckFailed = true;
             } else {
+                totalReqByIndex.set(additionalProductIndex, cumulativeReq);
                 costOfGoodsSold += (Number(additionalProduct.costPrice) || 0) * qtyToDeduct;
                 additionalItemsDataForPending.push({ 
                     id: additionalProduct.id,
@@ -167,150 +191,166 @@ async function sellProduct(skipConfirmation = true) {
     } catch(e) { console.warn("تعذر حساب الاستقطاع في البيع السريع:", e); }
 
     if (!skipConfirmation) {
+        _releaseQuickLock();
         window.showConfirmSaleModal(netProfitForDisplay, () => {
             sellProduct(true);
         });
         return;
     }
-    if (typeof saveStateToHistory === 'function') saveStateToHistory(); // �� تفعيل نظام التراجع للبيع السريع
+    if (typeof saveStateToHistory === 'function') saveStateToHistory();
 
-    if (selectedSerial) {
-        if (serialIndex !== -1) {
-            serialNumbersLog[serialIndex].status = isPendingSale ? 'pending_sale' : 'sold';
-        } else {
-            serialNumbersLog.push({
-                id: generateId("SER"),
-                serial: selectedSerial,
-                productName: mainProductName,
-                supplierId: mainProduct.supplierId || "",
-                addedTimestamp: new Date().toISOString(),
-                status: isPendingSale ? 'pending_sale' : 'sold'
-            });
-        }
-    }
-
-    // بدء المعاملة الذرية لحماية المخزون والسيولة
+    // بدء المعاملة الذرية قبل تعديل السيريالات أو المخزون أو السيولة
     const _tx = (typeof window.createStateTransaction === 'function') ? window.createStateTransaction() : null;
     try {
+        if (selectedSerial) {
+            if (serialIndex !== -1) {
+                serialNumbersLog[serialIndex].status = isPendingSale ? 'pending_sale' : 'sold';
+            } else {
+                serialNumbersLog.push({
+                    id: generateId("SER"),
+                    serial: selectedSerial,
+                    productId: mainProduct.id,
+                    productName: mainProduct.name,
+                    supplierId: mainProduct.supplierId || "",
+                    addedTimestamp: new Date().toISOString(),
+                    status: isPendingSale ? 'pending_sale' : 'sold'
+                });
+            }
+        }
+
         // استخدام الدالة الآمنة لخصم المخزون بدل الخصم المباشر
         if (typeof window.adjustStock === 'function') {
-        if (!window.adjustStock(mainProductIndex, -quantitySold, "بيع مباشر / معلق")) {
-            showMessage(sellMessage, "المخزون الحالي لا يكفي لإتمام البيع!", true);
-            if (typeof rollback === 'function') rollback();
-            return;
-        }
-    } else {
-        products[mainProductIndex].quantity -= quantitySold;
-    }
-    
-    additionalItemsToUpdate.forEach(item => {
-        if (typeof window.adjustStock === 'function') {
-            window.adjustStock(item.index, -item.quantity, "إكسسوارات مباعة");
+            if (!window.adjustStock(mainProductIndex, -quantitySold, "بيع مباشر / معلق")) {
+                showMessage(sellMessage, "المخزون الحالي لا يكفي لإتمام البيع!", true);
+                if (_tx) await _tx.rollback();
+                return;
+            }
         } else {
-            products[item.index].quantity -= item.quantity;
+            products[mainProductIndex].quantity -= quantitySold;
         }
-    });
-
-    let productNameWithSerial = mainProduct.name;
-    if (selectedSerial) {
-        productNameWithSerial += ` (S/N: ${selectedSerial})`;
-    }
-
-    if (isPendingSale) {
-        goodsOnConsignmentValue += costOfGoodsSold;
-        const pendingSaleData = {
-            id: generateId("PSALE"),
-            createdAt: new Date().toISOString(),
-            timestamp: new Date().toISOString(),
-            saleDate: currentLoadedDate || (typeof getCairoDateString === 'function' ? getCairoDateString() : new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' })),
-            customerName,
-
-            mainProduct: {
-                id: mainProduct.id,
-                name: mainProduct.name,
-                quantity: Number(quantitySold) || 0,
-                costPrice: Number(mainProduct.costPrice) || 0,
-                category: mainProduct.category || "عام",
-                supplierId: mainProduct.supplierId || "",
-                serial: selectedSerial || null
-            },
-
-            additionalItems: (additionalItemsDataForPending || []).map(item => ({
-                ...item,
-                quantity: Number(item.quantity) || 0,
-                costPrice: Number(item.costPrice) || 0
-            })),
-
-            totalSellPrice: Number(totalSellPrice) || 0,
-            totalCost: Number(costOfGoodsSold) || 0,
-            potentialProfit: Number(profit) || 0,
-            depositPaid: 0,
-            paidAmount: 0,
-            status: 'pending'
-        };
-        // ✅ نظام الاستقطاع المخفي: حفظ بيانات الاستقطاع داخل البيع المؤقت
-        const _pendingDeduction = (typeof getDeductionData === 'function') ? getDeductionData('quick') : null;
-        if (_pendingDeduction && !_pendingDeduction.error) {
-            pendingSaleData.deductionAmount = _pendingDeduction.amount;
-            pendingSaleData.deductionLiabilityName = _pendingDeduction.liabilityName; pendingSaleData.potentialProfit = netProfitForDisplay; }
-        pendingSales.push(pendingSaleData);
-        logOperation("بيع مؤقت", `بيع مؤقت: ${productNameWithSerial}`);
-        showMessage(sellMessage, "تم تسجيل البيع المؤقت بنجاح.");
-    } else {
-        account.balance = window.money(account.balance + totalSellPrice); totalProfit = window.money(totalProfit + (typeof netProfitForDisplay !== "undefined" ? netProfitForDisplay : profit));
         
-        const newTotalLiquidity = (typeof window.money === 'function' ? window.money : Number)(accounts.reduce((sum, acc) => sum + (Number(acc.balance) || 0), 0));
-        liquidityLog.push({ id: generateId("liq"), timestamp: new Date().toISOString(), type: "add", amount: totalSellPrice, description: `بيع بضاعة: ${productNameWithSerial}`, currentBalance: newTotalLiquidity, accountId: account.id });
-
-        const allItems = [
-            { name: mainProduct.name, quantity: quantitySold, costPrice: mainProduct.costPrice, serial: selectedSerial },
-            ...additionalItemsDataForPending
-        ];
-
-        // توليد رقم فاتورة تلقائي للبيع السريع - يستخدم تاريخ اليوم المحمل بدل تاريخ اليوم الحقيقي
-        const quickRandNum = (typeof crypto !== 'undefined' && crypto.getRandomValues) ? (10000 + (crypto.getRandomValues(new Uint32Array(1))[0] % 90000)) : Math.floor(10000 + Math.random() * 90000);
-        const quickInvoiceNumber = `${quickDateStr}-${quickRandNum}`;
-
-        const saleRecord = { 
-            id: generateId('sale'), 
-            type: 'quick', 
-            timestamp: new Date().toISOString(),
-            createdAt: new Date().toISOString(),
-            saleDate: currentLoadedDate || getTodayDateString(),
-            invoiceNumber: quickInvoiceNumber,
-            customerName, 
-            items: allItems, 
-            totalSellPrice, totalCost: costOfGoodsSold, profit: (typeof netProfitForDisplay !== "undefined" ? netProfitForDisplay : profit),
-            grandTotal: totalSellPrice,
-            accountId: selectedAccountId,
-            deductionAmount: (typeof getDeductionData === 'function') ? (getDeductionData('quick')?.amount || 0) : 0,
-            deductionLiabilityName: (typeof getDeductionData === 'function') ? (getDeductionData('quick')?.liabilityName || '') : ''
-        };
-        salesToday.push(saleRecord);
-        // ✅ نظام الاستقطاع المخفي: تطبيق الاستقطاع عند البيع النهائي
-        const _deductionData = (typeof getDeductionData === 'function') ? getDeductionData('quick') : null;
-        if (_deductionData && !_deductionData.error) {
-            if (typeof applyDeduction === 'function') applyDeduction(_deductionData, saleRecord);
+        for (const item of additionalItemsToUpdate) {
+            if (typeof window.adjustStock === 'function') {
+                if (!window.adjustStock(item.index, -item.quantity, "إكسسوارات مباعة")) {
+                    showMessage(sellMessage, "مخزون أحد الملحقات لا يكفي لإتمام البيع!", true);
+                    if (_tx) await _tx.rollback();
+                    return;
+                }
+            } else {
+                products[item.index].quantity -= item.quantity;
+            }
         }
-        if (typeof saveInvoiceToFirestore === 'function') {
-            await saveInvoiceToFirestore(saleRecord);
-        }
-        logOperation("بيع بضاعة", `بيع ${productNameWithSerial} بسعر ${formatCurrency(totalSellPrice)}`);
-        showMessage(sellMessage, "تم تسجيل البيعة بنجاح.");
-    }
 
-    updateUI();
-    resetSellForm(); // تنظيف النموذج فوراً بعد البيع لمنع ظهور البيانات القديمة
-    window.showPostSaleModal('quick');
+        let productNameWithSerial = mainProduct.name;
+        if (selectedSerial) {
+            productNameWithSerial += ` (S/N: ${selectedSerial})`;
+        }
+
+        if (isPendingSale) {
+            goodsOnConsignmentValue = m((Number(goodsOnConsignmentValue) || 0) + costOfGoodsSold);
+            const pendingSaleData = {
+                id: generateId("PSALE"),
+                createdAt: new Date().toISOString(),
+                timestamp: new Date().toISOString(),
+                saleDate: currentLoadedDate || (typeof getCairoDateString === 'function' ? getCairoDateString() : new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' })),
+                customerName,
+
+                mainProduct: {
+                    id: mainProduct.id,
+                    name: mainProduct.name,
+                    quantity: Number(quantitySold) || 0,
+                    costPrice: Number(mainProduct.costPrice) || 0,
+                    category: mainProduct.category || "عام",
+                    supplierId: mainProduct.supplierId || "",
+                    serial: selectedSerial || null
+                },
+
+                additionalItems: (additionalItemsDataForPending || []).map(item => ({
+                    ...item,
+                    quantity: Number(item.quantity) || 0,
+                    costPrice: Number(item.costPrice) || 0
+                })),
+
+                totalSellPrice: Number(totalSellPrice) || 0,
+                totalCost: Number(costOfGoodsSold) || 0,
+                potentialProfit: Number(profit) || 0,
+                depositPaid: 0,
+                paidAmount: 0,
+                status: 'pending',
+                isRepeatCustomerOrder: !!repeatCheckResult.isRepeat,
+                repeatOrderNumber: repeatCheckResult.orderNumber || 1
+            };
+            const _pendingDeduction = (typeof getDeductionData === 'function') ? getDeductionData('quick') : null;
+            if (_pendingDeduction && !_pendingDeduction.error) {
+                pendingSaleData.deductionAmount = _pendingDeduction.amount;
+                pendingSaleData.deductionLiabilityName = _pendingDeduction.liabilityName;
+                pendingSaleData.potentialProfit = netProfitForDisplay;
+            }
+            pendingSales.push(pendingSaleData);
+            logOperation("بيع مؤقت", `بيع مؤقت: ${productNameWithSerial}`);
+            showMessage(sellMessage, "تم تسجيل البيع المؤقت بنجاح.");
+        } else {
+            account.balance = m((Number(account.balance) || 0) + totalSellPrice);
+            totalProfit = m((Number(totalProfit) || 0) + (typeof netProfitForDisplay !== "undefined" ? netProfitForDisplay : profit));
+            
+            const newTotalLiquidity = m(accounts.reduce((sum, acc) => sum + (Number(acc.balance) || 0), 0));
+            liquidityLog.push({ id: generateId("liq"), timestamp: new Date().toISOString(), type: "add", amount: totalSellPrice, description: `بيع بضاعة: ${productNameWithSerial}`, currentBalance: newTotalLiquidity, accountId: account.id });
+
+            const allItems = [
+                { id: mainProduct.id, name: mainProduct.name, quantity: quantitySold, costPrice: mainProduct.costPrice, serial: selectedSerial || null },
+                ...additionalItemsDataForPending
+            ];
+
+            // توليد رقم فاتورة تلقائي للبيع السريع - يستخدم تاريخ اليوم المحمل بدل تاريخ اليوم الحقيقي
+            const quickDateStr = (currentLoadedDate || (typeof getTodayDateString === 'function' ? getTodayDateString() : (typeof getCairoDateString === 'function' ? getCairoDateString() : new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' })))).replace(/-/g, '');
+            const quickRandNum = (typeof crypto !== 'undefined' && crypto.getRandomValues) ? (10000 + (crypto.getRandomValues(new Uint32Array(1))[0] % 90000)) : Math.floor(10000 + Math.random() * 90000);
+            const quickInvoiceNumber = `${quickDateStr}-${quickRandNum}`;
+
+            const saleRecord = { 
+                id: generateId('sale'), 
+                type: 'quick', 
+                timestamp: new Date().toISOString(),
+                createdAt: new Date().toISOString(),
+                saleDate: currentLoadedDate || getTodayDateString(),
+                invoiceNumber: quickInvoiceNumber,
+                customerName, 
+                items: allItems, 
+                totalSellPrice, totalCost: costOfGoodsSold, profit: (typeof netProfitForDisplay !== "undefined" ? netProfitForDisplay : profit),
+                grandTotal: totalSellPrice,
+                paidAmount: totalSellPrice,
+                accountId: selectedAccountId,
+                deductionAmount: (typeof getDeductionData === 'function') ? (getDeductionData('quick')?.amount || 0) : 0,
+                deductionLiabilityName: (typeof getDeductionData === 'function') ? (getDeductionData('quick')?.liabilityName || '') : '',
+                isRepeatCustomerOrder: !!repeatCheckResult.isRepeat,
+                repeatOrderNumber: repeatCheckResult.orderNumber || 1
+            };
+            salesToday.push(saleRecord);
+            const _deductionData = (typeof getDeductionData === 'function') ? getDeductionData('quick') : null;
+            if (_deductionData && !_deductionData.error) {
+                if (typeof applyDeduction === 'function') applyDeduction(_deductionData, saleRecord);
+            }
+            if (typeof saveInvoiceToFirestore === 'function') {
+                await saveInvoiceToFirestore(saleRecord);
+            }
+            logOperation("بيع بضاعة", `بيع ${productNameWithSerial} بسعر ${formatCurrency(totalSellPrice)}`);
+            showMessage(sellMessage, "تم تسجيل البيعة بنجاح.");
+        }
 
         if (typeof saveCurrentStateByDate === 'function') { 
             await saveCurrentStateByDate(currentLoadedDate || (typeof getTodayDateString === 'function' ? getTodayDateString() : (typeof getCairoDateString === 'function' ? getCairoDateString() : new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' })))); 
         }
+        if (_tx) _tx.commit();
+        updateUI();
+        resetSellForm();
+        window.showPostSaleModal('quick');
     } catch (sellErr) {
         if (_tx) await _tx.rollback();
         console.error("❌ فشلت عملية البيع السريع (تم التراجع عن التعديلات):", sellErr);
         showMessage(sellMessage, "فشلت عملية البيع؛ تم التراجع التلقائي عن أي تعديل في المخزن أو الخزنة.", true);
         throw sellErr;
+    }
+    } finally {
+        _releaseQuickLock();
     }
 }
 async function updatePendingSale(pendingId) {
@@ -441,16 +481,14 @@ async function updatePendingSale(pendingId) {
             return;
         }
 
-        // ضبط الاسم بالسيريال الجديد
-        let displayName = newMainProductName;
-        if (newSerial) displayName += ` (S/N: ${newSerial})`;
+        const displayName = newMainProductName;
 
-        // تحديث حالة السيريال
+        // تحديث حالة السيريال (يدعم حقل serial المنفصل والأسماء القديمة المدمج بها S/N)
         if (typeof serialNumbersLog !== 'undefined') {
-            const oldSerialName = oldMainProduct.name;
-            const oldSerialMatch = oldSerialName.match(/\(S\/N: (.*?)\)/);
-            if (oldSerialMatch) {
-                const oldS = oldSerialMatch[1];
+            const oldSerialName = String(oldMainProduct.name || '');
+            const oldSerialMatch = oldSerialName.match(/\(S\/N:\s*(.*?)\)/i);
+            const oldS = oldMainProduct.serial || (oldSerialMatch ? oldSerialMatch[1].trim() : '');
+            if (oldS) {
                 const oldLogIdx = serialNumbersLog.findIndex(l => l.serial === oldS);
                 if (oldLogIdx !== -1) serialNumbersLog[oldLogIdx].status = 'in_stock';
             }
@@ -462,6 +500,7 @@ async function updatePendingSale(pendingId) {
                      serialNumbersLog.push({
                          id: generateId("SER"),
                          serial: newSerial,
+                         productId: products[newMainIndex].id,
                          productName: newMainProductName,
                          supplierId: products[newMainIndex].supplierId || "",
                          addedTimestamp: new Date().toISOString(),
@@ -510,10 +549,13 @@ async function updatePendingSale(pendingId) {
             ...originalSale,
             customerName: newCustomerName,
             mainProduct: { 
+                id: products[newMainIndex].id,
                 name: displayName, 
                 quantity: newQuantitySold, 
                 costPrice: products[newMainIndex].costPrice, 
-                supplierId: products[newMainIndex].supplierId 
+                supplierId: products[newMainIndex].supplierId,
+                category: products[newMainIndex].category || "عام",
+                serial: newSerial || null
             },
             additionalItems: newAdditionalItemsData,
             totalSellPrice: newTotalSellPrice,

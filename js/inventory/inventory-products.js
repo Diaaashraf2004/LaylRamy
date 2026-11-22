@@ -151,7 +151,7 @@ function updateProductListDisplay() {
             const quantity = Number(product.quantity) || 0;
             const unregisteredCount = Math.max(0, quantity - registeredSerialsCount);
             const isOutOfStock = quantity <= 0;
-            const stockBadge = isOutOfStock ? `<span class="text-xs font-bold text-red-700 bg-red-100 px-2 py-0.5 rounded-full inline-block mr-2">منتهي من المخزن (رصيد 0)</span>` : '';
+            const stockBadge = isOutOfStock ? `<span class="text-xs font-bold text-red-700 bg-red-100 px-2 py-0.5 rounded-full inline-block">منتهي من المخزن (رصيد 0)</span>` : '';
             
             // إضافة كود HTML لعرض القسم (إذا كان موجودًا)
             const categoryHTML = product.category ? `<p class="text-xs font-semibold text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full inline-block mt-2">${escapeHTML(product.category)}</p>` : '';
@@ -159,8 +159,8 @@ function updateProductListDisplay() {
             // كود بطاقة المنتج مع إضافة القسم وتنبيه انتهاء المخزون
             return `<div class="bg-gray-50 rounded-lg shadow p-4 border ${isOutOfStock ? 'border-red-300 bg-red-50/20' : 'border-gray-200'} flex flex-col justify-between">
                         <div>
-                            <div class="flex items-center justify-between mb-2">
-                                <h3 class="text-lg font-semibold text-gray-800">${escapeHTML(product.name || 'غير مسمى')}</h3>
+                            <div class="flex flex-wrap items-center justify-between gap-1.5 mb-2">
+                                <h3 class="text-lg font-semibold text-gray-800 min-w-0">${escapeHTML(product.name || 'غير مسمى')}</h3>
                                 ${stockBadge}
                             </div>
                             <p class="text-gray-600 text-sm">الكمية الإجمالية: <span class="font-semibold ${isOutOfStock ? 'text-red-600' : 'text-blue-500'}">${quantity}</span></p>
@@ -171,7 +171,7 @@ function updateProductListDisplay() {
                             <p class="text-gray-600 text-sm">إجمالي التكلفة: <span class="font-semibold text-gray-700">${formatCurrency(quantity * (Number(product.costPrice) || 0))}</span></p>
                             ${categoryHTML}
                         </div>
-                        <div class="mt-3 pt-3 border-t border-gray-200 flex justify-end gap-2 product-actions">
+                        <div class="mt-3 pt-3 border-t border-gray-200 flex flex-wrap justify-end gap-2 product-actions">
                             <button data-product-id="${escapeHTML(product.id || '')}" data-product-name="${escapeHTML(product.name || '')}" class="manage-serials-btn text-xs font-semibold py-1 px-2 rounded">إدارة السيريالات</button>
                             <button data-product-id="${escapeHTML(product.id || '')}" data-product-name="${escapeHTML(product.name || '')}" class="edit-product-btn text-xs bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-semibold py-1 px-2 rounded border border-yellow-500">تعديل</button>
                             <button data-product-id="${escapeHTML(product.id || '')}" data-product-name="${escapeHTML(product.name || '')}" class="delete-product-btn text-xs bg-red-500 hover:bg-red-600 text-white font-semibold py-1 px-2 rounded border border-red-600">حذف</button>

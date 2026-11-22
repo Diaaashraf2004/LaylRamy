@@ -85,11 +85,13 @@ function updateLogDisplay() {
     }
 
     const filteredLogs = [...operationLog].reverse().filter(log => {
-        const matchesSearch = !searchVal || log.details.toLowerCase().includes(searchVal) || log.type.toLowerCase().includes(searchVal);
+        const lDetails = String(log && log.details || '');
+        const lType = String(log && log.type || '');
+        const matchesSearch = !searchVal || lDetails.toLowerCase().includes(searchVal) || lType.toLowerCase().includes(searchVal);
         const matchesType = currentLogCategory === "all" || 
             (currentLogCategory === "بيع" 
-                ? (((log.type.includes("بيع") || log.type.includes("مبيعات") || (log.type.includes("فاتورة") && !log.type.includes("شراء") && !log.type.includes("مورد")) || log.type.includes("عربون")) && !log.type.includes("مرتجع"))) 
-                : log.type.includes(currentLogCategory));
+                ? (((lType.includes("بيع") || lType.includes("مبيعات") || (lType.includes("فاتورة") && !lType.includes("شراء") && !lType.includes("مورد")) || lType.includes("عربون")) && !lType.includes("مرتجع"))) 
+                : lType.includes(currentLogCategory));
         return matchesSearch && matchesType;
     });
 
@@ -136,8 +138,13 @@ function openDetailModal(filteredIndex) {
     const searchInput = document.getElementById("log-search-input2");
     const searchVal = searchInput ? searchInput.value.trim().toLowerCase() : "";
     const filteredLogs = [...operationLog].reverse().filter(log => {
-        const matchesSearch = !searchVal || log.details.toLowerCase().includes(searchVal) || log.type.toLowerCase().includes(searchVal);
-        const matchesType = currentLogCategory === "all" || log.type.includes(currentLogCategory);
+        const lDetails = String(log && log.details || '');
+        const lType = String(log && log.type || '');
+        const matchesSearch = !searchVal || lDetails.toLowerCase().includes(searchVal) || lType.toLowerCase().includes(searchVal);
+        const matchesType = currentLogCategory === "all" ||
+            (currentLogCategory === "بيع"
+                ? (((lType.includes("بيع") || lType.includes("مبيعات") || (lType.includes("فاتورة") && !lType.includes("شراء") && !lType.includes("مورد")) || lType.includes("عربون")) && !lType.includes("مرتجع")))
+                : lType.includes(currentLogCategory));
         return matchesSearch && matchesType;
     });
 
@@ -145,20 +152,21 @@ function openDetailModal(filteredIndex) {
     if (!log) return;
 
     const timeObj = formatLogTime(log.timestamp);
-    const badge = getLogBadge(log.type);
+    const badge = getLogBadge(String(log.type || ''));
     const logId = operationLog.length - filteredIndex;
 
     document.getElementById("modal-ref-id").innerText = `#LOG-${logId}`;
     document.getElementById("modal-time").innerText = `${timeObj.date} - ${timeObj.time}`;
-    document.getElementById("modal-details").innerText = log.details;
+    document.getElementById("modal-details").innerText = log.details || '';
 
     const iconBox = document.getElementById("modal-type-icon");
     iconBox.className = `w-8 h-8 rounded-xl flex items-center justify-center text-sm border ${badge.style}`;
     iconBox.innerHTML = `<i class="fas ${badge.icon}"></i>`;
 
+    const safeType = typeof escapeHTML === 'function' ? escapeHTML(log.type || '') : (window.escapeHTML ? window.escapeHTML(log.type || '') : String(log.type || ''));
     document.getElementById("modal-badge").innerHTML = `
         <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-bold border ${badge.style}">
-            <span>${log.type}</span>
+            <span>${safeType}</span>
         </span>
     `;
 
@@ -215,11 +223,13 @@ window.clearLogConfirm = clearLogConfirm;
 
 function exportCSVLog() {
     if (operationLog.length === 0) return;
-    let csvContent = "\\uFEFF#;الوقت والتاريخ;نوع العملية;التفاصيل\\n";
+    let csvContent = "\uFEFF#;الوقت والتاريخ;نوع العملية;التفاصيل\n";
     [...operationLog].reverse().forEach((log, index) => {
         const timeObj = formatLogTime(log.timestamp);
         const logId = operationLog.length - index;
-        csvContent += `"${logId}";"${timeObj.date} ${timeObj.time}";"${log.type}";"${log.details.replace(/"/g, '""')}"\\n`;
+        const cleanType = String(log.type || '').replace(/"/g, '""');
+        const cleanDetails = String(log.details || '').replace(/"/g, '""');
+        csvContent += `"${logId}";"${timeObj.date} ${timeObj.time}";"${cleanType}";"${cleanDetails}"\n`;
     });
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);

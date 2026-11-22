@@ -4,12 +4,33 @@ async function generateMonthlySalesReport() {
     
     if (!monthInput || !msgEl) return;
     if (!window.currentUser) { showMessage(msgEl, "يجب تسجيل الدخول أولاً.", true); return; }
-    
+
+    if (!monthInput.value) {
+        const refDate = (typeof currentLoadedDate !== 'undefined' && currentLoadedDate)
+            ? currentLoadedDate
+            : (typeof getTodayDateString === 'function' ? getTodayDateString() : (typeof getCairoDateString === 'function' ? getCairoDateString() : new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' })));
+        if (refDate) monthInput.value = refDate.substring(0, 7);
+    }
+
     const yearMonth = monthInput.value;
     if (!yearMonth) { showMessage(msgEl, "يرجى اختيار الشهر والسنة.", true); return; }
 
-    showMessage(msgEl, "جاري جلب البيانات...", false, true);
-    if(typeof displaySalesReport === 'function') displaySalesReport([]); 
+    window._salesReportReqId = (window._salesReportReqId || 0) + 1;
+    const reqId = window._salesReportReqId;
+
+    const hasSameMonthCached = window._lastSalesReportMonth === yearMonth
+        && Array.isArray(currentMonthlySalesData)
+        && currentMonthlySalesData.length > 0;
+
+    if (hasSameMonthCached) {
+        showMessage(msgEl, "جاري تحديث التقرير...", false, true);
+    } else {
+        showMessage(msgEl, "جاري جلب البيانات...", false, true);
+        const tableBody = document.getElementById('sales-report-table-body');
+        if (tableBody) {
+            tableBody.innerHTML = '<tr><td colspan="7" class="text-center text-blue-600 py-8 font-bold"><i class="fas fa-spinner fa-spin ml-2"></i> جاري تحميل بيانات التقرير...</td></tr>';
+        }
+    }
 
     const userId = window.currentUser.uid;
     const [year, month] = yearMonth.split('-');
@@ -37,6 +58,8 @@ async function generateMonthlySalesReport() {
         console.warn("[تقرير] فشل السحابة:", e);
         showMessage(msgEl, "فشل الاتصال بالسحابة.", true);
     }
+
+    if (reqId !== window._salesReportReqId) return;
 
     // دمج المبيعات المحلية (اليوم الحالي)
     if (typeof salesToday !== 'undefined' && Array.isArray(salesToday)) {
@@ -106,6 +129,7 @@ async function generateMonthlySalesReport() {
     });
     
     currentMonthlySalesData = finalList;
+    window._lastSalesReportMonth = yearMonth;
     if(typeof displaySalesReport === 'function') displaySalesReport(finalList);
 
     if (finalList.length === 0) {

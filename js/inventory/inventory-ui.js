@@ -18,6 +18,26 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!piAddItemBtn) piAddItemBtn = d('pi_add_item_btn');
     if (!piClearFormBtn) piClearFormBtn = d('pi_clear_form_btn');
     if (!piConfirmBtn) piConfirmBtn = d('pi_confirm_btn');
+    if (!piSupplierSelect) piSupplierSelect = d('pi_supplier');
+    if (!piInvoiceNumberInput) piInvoiceNumberInput = d('pi_invoice_number');
+    if (!piDateInput) piDateInput = d('pi_date');
+    if (!piItemsBody) piItemsBody = d('pi_items_body');
+    if (!piNoItemsMsg) piNoItemsMsg = d('pi_no_items_msg');
+    if (!piItemNameInput) piItemNameInput = d('pi_item_name');
+    if (!piItemQuantityInput) piItemQuantityInput = d('pi_item_quantity');
+    if (!piItemCostInput) piItemCostInput = d('pi_item_cost');
+    window.piItemTotalCostInput = d('pi_item_total_cost');
+    piItemTotalCostInput = window.piItemTotalCostInput;
+    if (!piItemSerialsContainer) piItemSerialsContainer = d('pi_item_serials_container');
+    if (!piItemSerialsTextarea) piItemSerialsTextarea = d('pi_item_serials');
+    if (!piItemAddMessage) piItemAddMessage = d('pi_item_add_message');
+    if (!piGrandTotalSpan) piGrandTotalSpan = d('pi_grand_total');
+    if (!piPaidAmountInput) piPaidAmountInput = d('pi_paid_amount');
+    if (!piPaidAmountDisplaySpan) piPaidAmountDisplaySpan = d('pi_paid_amount_display');
+    if (!piRemainingBalanceSpan) piRemainingBalanceSpan = d('pi_remaining_balance');
+    if (!piSaveDraftBtn) piSaveDraftBtn = d('pi_save_draft_btn');
+    if (!piFormMessage) piFormMessage = d('pi_form_message');
+    if (!piRecentPurchasesList) piRecentPurchasesList = d('recent-purchases-list');
     if (!importSerialCsvInput) importSerialCsvInput = d('import-serial-csv-input');
     if (!returnProductSelect) returnProductSelect = d('return-product-select');
     if (!confirmManualReturnBtn) confirmManualReturnBtn = d('confirm-manual-return-btn');
@@ -186,12 +206,12 @@ if (addProductButton) {
                 const addedQty = quantity - oldQty;
 
                 if (deductLiquidity) {
-                    const costToDeduct = addedQty * costPrice;
-                    if (costToDeduct > account.balance) {
+                    const costToDeduct = window.money(addedQty * costPrice);
+                    if (costToDeduct > (Number(account.balance) || 0) + 0.001) {
                         showMessage(productMessage, `لا توجد سيولة كافية في حساب "${account.name}".`, true);
                         return;
                     }
-                    account.balance = window.money(account.balance - costToDeduct);
+                    account.balance = window.money((Number(account.balance) || 0) - costToDeduct);
                     logOperation("شراء بضاعة (تعديل كمية)", `خصم ${formatCurrency(costToDeduct)} من حساب "${account.name}" لزيادة كمية منتج "${name}" بمقدار ${addedQty} قطعة.`);
                     
                     liquidityLog.push({
@@ -200,19 +220,20 @@ if (addProductButton) {
                         type: "remove",
                         amount: costToDeduct,
                         description: `شراء بضاعة (تعديل): ${addedQty}x ${name}`,
-                        currentBalance: accounts.reduce((sum, acc) => sum + acc.balance, 0),
+                        currentBalance: window.money(accounts.reduce((sum, acc) => sum + (Number(acc.balance) || 0), 0)),
                         accountId: account.id
                     });
-                    
-                    // معادلة متوسط التكلفة المرجح الحقيقية لحماية تقارير الأرباح
-                    products[productIndex].costPrice = quantity > 0 ? (typeof window.money === 'function' ? window.money(((oldQty * oldCost) + (addedQty * costPrice)) / quantity) : ((oldQty * oldCost) + (addedQty * costPrice)) / quantity) : costPrice;
-                } else {
-                    // إذا لم يتم تفعيل خصم السيولة، نعتمد التكلفة المدخلة مباشرة للكمية الجديدة
-                    products[productIndex].costPrice = costPrice;
                 }
+                // معادلة متوسط التكلفة المرجح بدقة 6 أرقام عشرية سواء خُصمت السيولة أم لا (لحماية تكلفة المخزون القديم)
+                products[productIndex].costPrice = quantity > 0
+                    ? Math.round((((oldQty * oldCost) + (addedQty * costPrice)) / quantity) * 1e6) / 1e6
+                    : (Math.round((Number(costPrice) || 0) * 1e6) / 1e6);
             } else {
-                // إذا بقيت الكمية ثابتة نعتمد السعر الجديد مباشرة لمنع تجمد الأسعار
-                products[productIndex].costPrice = costPrice;
+                const newCostUnit = Math.round((Number(costPrice) || 0) * 1e6) / 1e6;
+                if (Math.abs(newCostUnit - oldCost) > 0.0001) {
+                    logOperation("إعادة تقييم تكلفة منتج", `تعديل تكلفة "${name}" من ${formatCurrency(oldCost)} إلى ${formatCurrency(newCostUnit)} (الكمية: ${quantity}).`);
+                }
+                products[productIndex].costPrice = newCostUnit;
             }
 
             // ج. حفظ الأرقام التسلسلية الجديدة بنجاح في السجل العام للبرنامج
@@ -235,13 +256,16 @@ if (addProductButton) {
             // ��️ تحديث اسم المنتج داخل سجل السيريالات القديمة لكي لا تنفصل عن المنتج بعد تعديل اسمه
             if (editingProductName !== name) {
                 serialNumbersLog.forEach(s => {
-                    if (s.productName === editingProductName) {
+                    if (s && (s.productId ? s.productId === oldProduct.id : s.productName === editingProductName)) {
                         s.productName = name;
                     }
                 });
             }
 
-            // د. حفظ البيانات النصية المحدثة بالمنتج
+            // د. حفظ البيانات النصية المحدثة بالمنتج وتسجيل أي تغيير في الكمية أو التكلفة أو الاسم
+            if (oldQty !== quantity || oldProduct.name !== name) {
+                logOperation("تعديل منتج", `تحديث "${name}" (الكمية: ${oldQty} -> ${quantity}، التكلفة: ${formatCurrency(products[productIndex].costPrice)}).`);
+            }
             products[productIndex].name = name;
             products[productIndex].category = category;
             products[productIndex].quantity = quantity;
@@ -258,7 +282,9 @@ if (addProductButton) {
          // �� [تعديل د. ضياء]: البحث والدمج بالـ ID أولاً لمنع دمج الصنف في القسم الخاطئ عند تشابه الأسماء
         let existingIndex = -1;
         if (window.currentDuplicateProductID) {
-            existingIndex = products.findIndex(p => p.id === window.currentDuplicateProductID);
+            const targetDupId = window.currentDuplicateProductID;
+            window.currentDuplicateProductID = null; // تصفير فوري لمنع تلوث الإضافة التالية
+            existingIndex = products.findIndex(p => p.id === targetDupId);
         }
         // خط دفاع بديل بالاسم إذا كان منتجاً قديماً بلا ID
         if (existingIndex === -1) {
@@ -280,12 +306,12 @@ if (addProductButton) {
                  const existing = products[existingIndex];
                  
                  if (deductLiquidity && newQuantity > 0) {
-                    const costToDeduct = newQuantity * newCostPriceInput;
-                    if (costToDeduct > account.balance) {
+                    const costToDeduct = window.money(newQuantity * newCostPriceInput);
+                    if (costToDeduct > (Number(account.balance) || 0) + 0.001) {
                         showMessage(productMessage, `لا توجد سيولة كافية في حساب "${account.name}".`, true);
                         return;
                     }
-                    account.balance = window.money(account.balance - costToDeduct);
+                    account.balance = window.money((Number(account.balance) || 0) - costToDeduct);
                     logOperation("شراء بضاعة", `خصم ${formatCurrency(costToDeduct)} من حساب "${account.name}" لشراء ${newQuantity}x ${name}.`);
                     liquidityLog.push({
                         id: 'liq-buy-' + Date.now(),
@@ -293,7 +319,7 @@ if (addProductButton) {
                         type: "remove",
                         amount: costToDeduct,
                         description: `شراء بضاعة: ${newQuantity}x ${name}`,
-                        currentBalance: accounts.reduce((sum, acc) => sum + acc.balance, 0),
+                        currentBalance: window.money(accounts.reduce((sum, acc) => sum + (Number(acc.balance) || 0), 0)),
                         accountId: account.id
                     });
                 }
@@ -303,16 +329,19 @@ if (addProductButton) {
                 const totalQuantity = oldQuantity + newQuantity;
                 
                 existing.quantity = totalQuantity;
-                existing.costPrice = totalQuantity > 0 ? (typeof window.money === 'function' ? window.money(((oldQuantity * oldCostPrice) + (newQuantity * newCostPriceInput)) / totalQuantity) : ((oldQuantity * oldCostPrice) + (newQuantity * newCostPriceInput)) / totalQuantity) : newCostPriceInput;
+                existing.costPrice = totalQuantity > 0
+                    ? Math.round((((oldQuantity * oldCostPrice) + (newQuantity * newCostPriceInput)) / totalQuantity) * 1e6) / 1e6
+                    : (Math.round(newCostPriceInput * 1e6) / 1e6);
                 existing.supplierId = supplierId || existing.supplierId;
                 existing.category = category || existing.category;
 
-                // حقن السيريالات الجديدة المضافة بنجاح في السجل العام للبرنامج
+                // حقن السيريالات الجديدة مع ربطها بـ productId
                 enteredSerials.forEach(serial => {
                     if (!serialNumbersLog.some(s => s.serial === serial)) {
                         serialNumbersLog.push({
-                id: generateId("SER"),
-                serial, 
+                            id: generateId("SER"),
+                            serial,
+                            productId: existing.id,
                             productName: existing.name, 
                             supplierId: supplierId || "", 
                             addedTimestamp: new Date().toISOString(), 
@@ -328,12 +357,12 @@ if (addProductButton) {
                 if (newQuantity < 0) { showMessage(productMessage, "كمية المنتج الجديد لا يمكن أن تكون سالبة.", true); return; }
 
                 if (deductLiquidity && newQuantity > 0) {
-                    const costToDeduct = newQuantity * costPrice;
-                    if (costToDeduct > account.balance) {
+                    const costToDeduct = window.money(newQuantity * costPrice);
+                    if (costToDeduct > (Number(account.balance) || 0) + 0.001) {
                         showMessage(productMessage, `لا توجد سيولة كافية في حساب "${account.name}".`, true);
                         return;
                     }
-                    account.balance = window.money(account.balance - costToDeduct);
+                    account.balance = window.money((Number(account.balance) || 0) - costToDeduct);
                     logOperation("شراء بضاعة جديدة", `خصم ${formatCurrency(costToDeduct)} من حساب "${account.name}" لشراء ${newQuantity}x ${name}.`);
                     liquidityLog.push({
                         id: 'liq-buy-new-' + Date.now(),
@@ -341,7 +370,7 @@ if (addProductButton) {
                         type: "remove",
                         amount: costToDeduct,
                         description: `شراء بضاعة جديدة: ${newQuantity}x ${name}`,
-                        currentBalance: accounts.reduce((sum, acc) => sum + acc.balance, 0),
+                        currentBalance: window.money(accounts.reduce((sum, acc) => sum + (Number(acc.balance) || 0), 0)),
                         accountId: account.id
                     });
                 }
@@ -353,7 +382,7 @@ if (addProductButton) {
                     id: uniqueProductCode, 
                     name, 
                     quantity: newQuantity, 
-                    costPrice, 
+                    costPrice: Math.round((Number(costPrice) || 0) * 1e6) / 1e6, 
                     supplierId: supplierId || "", 
                     category: category,
                     lastUpdated: new Date().toISOString()
@@ -379,6 +408,7 @@ if (addProductButton) {
             resetProductForm();
         }
         updateUI();
+        if (typeof saveSystemToCloud === 'function') saveSystemToCloud().catch(e => console.error(e));
     });
 }
                  if (productList) {
@@ -426,41 +456,44 @@ if (addProductButton) {
             const productId = target.dataset.productId;
             const productName = target.dataset.productName;
 
-            if (confirm(`هل أنت متأكد من حذف المنتج "${productName}" نهائياً من المخزن؟`)) {
+            let productIndex = -1;
+            if (productId) {
+                productIndex = products.findIndex(p => p.id === productId);
+            }
+            if (productIndex === -1) {
+                productIndex = products.findIndex(p => p.name === productName);
+            }
+            if (productIndex === -1) return;
+
+            const product = products[productIndex];
+            const qty = Number(product.quantity) || 0;
+            const cost = Number(product.costPrice) || 0;
+            const totalCardValue = qty * cost;
+
+            // حماية رأس المال: يُمنع حذف أي منتج به كمية > 0 مباشرة قبل تسوية كميته إلى صفر (عبر تعديل المخزون أو مرتجع المورد)
+            if (qty > 0) {
+                const msg = `لا يمكن حذف المنتج "${product.name}" لأن رصيده الحالي في المخزون (${qty} قطعة، بقيمة ${formatCurrency(totalCardValue)}) أكبر من صفر.\nيرجى تعديل الكمية إلى 0 أولاً (تسوية مخزون / هالك / مرتجع للمورد) ثم حذفه.`;
+                if (typeof showGlobalMessage === 'function') showGlobalMessage(msg, true);
+                else alert(msg);
+                return;
+            }
+
+            if (confirm(`هل أنت متأكد من حذف المنتج "${product.name}" (رصيده 0) نهائياً من المخزن؟`)) {
                 saveStateToHistory();
-                
-                let productIndex = -1;
-                // 1. البحث بالـ ID الفريد أولاً منعاً لحذف المنتجات المتشابهة في الاسم
-                if (productId) {
-                    productIndex = products.findIndex(p => p.id === productId);
+                const initialSerialCount = serialNumbersLog.length;
+                serialNumbersLog = serialNumbersLog.filter(log => log.productId ? log.productId !== product.id : log.productName !== product.name);
+                const deletedSerialCount = initialSerialCount - serialNumbersLog.length;
+
+                logOperation("حذف منتج", `تم حذف المنتج "${product.name}" (الكمية: 0) و ${deletedSerialCount} سيريال مرتبط.`);
+                showMessage(productMessage, `تم حذف المنتج "${product.name}" و ${deletedSerialCount} رقم تسلسلي مرتبط بنجاح.`);
+
+                products.splice(productIndex, 1);
+
+                if (editingProductName === product.name || window.currentEditingProductID === product.id) {
+                    resetProductForm();
                 }
-                // 2. خط دفاع بديل بالاسم لو منتج قديم لا يملك كود
-                if (productIndex === -1) {
-                    productIndex = products.findIndex(p => p.name === productName);
-                }
-
-                if (productIndex !== -1) {
-                    const product = products[productIndex];
-                    const qty = Number(product.quantity) || 0;
-                    const cost = Number(product.costPrice) || 0;
-                    const totalCardValue = qty * cost;
-
-                    // **** حذف السيريالات المرتبطة بالمنتج المحذوف ****
-                    const initialSerialCount = serialNumbersLog.length;
-                    serialNumbersLog = serialNumbersLog.filter(log => log.productId ? log.productId !== productId : log.productName !== productName);
-                    const deletedSerialCount = initialSerialCount - serialNumbersLog.length;
-
-                    logOperation("حذف منتج", `تم حذف المنتج "${productName}" (الكمية: ${qty} قطعة، التكلفة الإجمالية المحذوفة من رأس المال: ${formatCurrency(totalCardValue)}).`);
-                    showMessage(productMessage, `تم حذف المنتج "${productName}" و ${deletedSerialCount} رقم تسلسلي مرتبط بنجاح.`);
-
-                    // ��️ [التعديل الأهم]: الحذف الفعلي لعنصر واحد فقط من المصفوفة لمنع تدمير باقي المنتجات
-                    products.splice(productIndex, 1);
-
-                    if (editingProductName === productName) {
-                        resetProductForm();
-                    }
-                    updateUI();
-                }
+                updateUI();
+                if (typeof saveSystemToCloud === 'function') saveSystemToCloud().catch(e => console.error(e));
             }
        } else if (target.classList.contains('manage-serials-btn')) {
     // **** [تحديث د. ضياء]: التعامل مع زر إدارة السيريالات بالـ ID الفريد لمنع تداخل الأصناف متشابهة الاسم
@@ -764,11 +797,11 @@ if (reportClearSearchBtn) {
         // ربط الزر بالدالة
         autoSaveToggle.addEventListener('change', () => window.toggleAutoSave());
 
-        // التحقق من التفضيل المحفوظ عند بدء تشغيل البرنامج
+        // التحقق من التفضيل المحفوظ عند بدء تشغيل البرنامج (تشغيل صامت دون إزعاج شاشة الإقلاع)
         const savedAutoSavePref = fetchData(lsAutoSaveKey, false);
         if (savedAutoSavePref === true) {
             autoSaveToggle.checked = true; // اجعل الزر في وضعية "التشغيل"
-            toggleAutoSave(); // قم بتفعيل الحفظ التلقائي مباشرة
+            toggleAutoSave(true); // تفعيل صامت للحفظ التلقائي
         }
     }
     // --- Event Listeners for Account Management (STEP 2) ---
@@ -784,7 +817,8 @@ if (accountForm) {
         const accountIdInput = document.getElementById('account-id-input');
         
         const name = accountNameInput.value.trim();
-        const balance = parseFloat(accountBalanceInput.value) || 0;
+        const rawBalance = parseFloat(accountBalanceInput.value);
+        const balance = isNaN(rawBalance) ? 0 : (typeof window.money === 'function' ? window.money(rawBalance) : rawBalance);
         const id = accountIdInput.value;
 
         if (!name) {
@@ -799,22 +833,41 @@ if (accountForm) {
                     (window.safeAlert || alert)('اسم الحساب موجود بالفعل.');
                     return;
                 }
+                if (typeof saveStateToHistory === 'function') saveStateToHistory();
                 logOperation("تعديل حساب", `تم تغيير اسم حساب "${account.name}" إلى "${name}".`);
                 account.name = name;
             }
         } else { // Adding new account
+            if (balance < 0) {
+                (window.safeAlert || alert)('لا يمكن إنشاء حساب برصيد افتتاحي سالب.');
+                return;
+            }
             if (accounts.some(acc => acc.name.toLowerCase() === name.toLowerCase())) {
                 (window.safeAlert || alert)('اسم الحساب موجود بالفعل.');
                 return;
             }
+            if (typeof saveStateToHistory === 'function') saveStateToHistory();
             const newAccount = { id: generateId("acc"), name: name, balance: balance };
             if (!newAccount.id) newAccount.id = generateId("ACC");
             accounts.push(newAccount);
+            if (balance > 0 && typeof liquidityLog !== 'undefined' && Array.isArray(liquidityLog)) {
+                const newTotalLiq = (typeof window.money === 'function' ? window.money : Number)(accounts.reduce((s, a) => s + (Number(a.balance) || 0), 0));
+                liquidityLog.push({
+                    id: 'liq-open-' + Date.now(),
+                    timestamp: new Date().toISOString(),
+                    type: 'add',
+                    amount: balance,
+                    description: `رصيد افتتاحي لحساب جديد "${name}"`,
+                    currentBalance: newTotalLiq,
+                    accountId: newAccount.id
+                });
+            }
             logOperation("إضافة حساب", `تم إنشاء حساب جديد "${name}" برصيد افتتاحي ${formatCurrency(balance)}.`);
         }
         
         updateUI();
         resetAccountForm();
+        if (typeof saveSystemToCloud === 'function') saveSystemToCloud().catch(err => console.error(err));
     });
 }
 
@@ -849,39 +902,28 @@ if (accountsList) {
                 (window.safeAlert || alert)('لا يمكن حذف الحساب الرئيسي أو الحساب الوحيد المتبقي في النظام.');
                 return;
             }
+            // منع حذف حساب برصيد غير صفري لحماية رأس المال من التبخّر
             if (Math.abs(Number(account.balance) || 0) > 0.001) {
-                if ((Number(account.balance) || 0) > 0) {
-                    if (!confirm(`تحذير: حساب "${account.name}" يحتوي على رصيد (${formatCurrency(account.balance)}).\nهل أنت متأكد من حذفه؟ سيتم تصفير هذا الرصيد وتخفيض السيولة.`)) {
-                        return;
-                    }
-                    if (typeof liquidityLog !== 'undefined' && Array.isArray(liquidityLog)) {
-                        const bal = Number(account.balance) || 0;
-                        liquidityLog.push({
-                            id: 'liq-del-' + Date.now(),
-                            date: new Date().toISOString(),
-                            timestamp: new Date().toISOString(),
-                            type: 'remove',
-                            amount: bal,
-                            description: `حذف حساب "${account.name}" مع رصيده المتبقي (${formatCurrency(bal)})`,
-                            reason: `حذف حساب "${account.name}" مع رصيده المتبقي`,
-                            accountId: account.id,
-                            accountName: account.name,
-                            currentBalance: Math.max(0, (typeof totalLiquidity !== 'undefined' ? totalLiquidity : 0) - bal)
-                        });
-                    }
-                } else {
-                    if (!confirm(`تحذير: حساب "${account.name}" عليه رصيد سالب (${formatCurrency(account.balance)}).\nهل أنت متأكد من حذفه؟`)) {
-                        return;
-                    }
-                }
-            } else if (!confirm(`هل أنت متأكد من حذف حساب "${account.name}"؟`)){
+                (window.safeAlert || alert)(`لا يمكن حذف حساب "${account.name}" لأن رصيده الحالي (${formatCurrency(account.balance)}) غير صفري.\nيرجى تحويل الرصيد إلى حساب آخر أو تسويته إلى 0.00 أولاً.`);
+                return;
+            }
+            // منع حذف حساب مرتبط بمشتريات معلقة مفتوحة (حتى لا يتعطل استرداد المدفوعات عند الإلغاء)
+            const hasLinkedPendingPurchase = typeof pendingPurchases !== 'undefined' && Array.isArray(pendingPurchases) && pendingPurchases.some(p =>
+                p.paidFromAccountId === account.id ||
+                (Array.isArray(p.payments) && p.payments.some(pay => pay.accountId === account.id))
+            );
+            if (hasLinkedPendingPurchase) {
+                (window.safeAlert || alert)(`لا يمكن حذف حساب "${account.name}" لأنه مرتبط بفاتورة مشتريات معلقة مفتوحة.`);
+                return;
+            }
+            if (!confirm(`هل أنت متأكد من حذف حساب "${account.name}"؟`)){
                 return;
             }
             
             if (typeof saveStateToHistory === 'function') saveStateToHistory();
             accounts = accounts.filter(acc => acc.id !== id);
             logOperation("حذف حساب", `تم حذف حساب "${account.name}".`);
-            if (typeof saveSystemToCloud === 'function') saveSystemToCloud();
+            if (typeof saveSystemToCloud === 'function') saveSystemToCloud().catch(err => console.error(err));
             updateUI();
         }
     });
@@ -960,48 +1002,74 @@ if (returnProductSelect) {
 // END: Returns Section Event Listeners
 // =======================================================
     // --- Purchase Invoice (PI) Event Listeners ---
-if (piAddItemBtn) {
-    piAddItemBtn.addEventListener('click', pi_addItem);
+const piAddBtn = piAddItemBtn || d('pi_add_item_btn');
+if (piAddBtn) {
+    piAddBtn.onclick = pi_addItem;
 }
 
-if (piItemNameInput) {
-    piItemNameInput.addEventListener('change', () => {
-        const name = piItemNameInput.value.trim();
-        const product = products.find(p => p.name.toLowerCase() === name.toLowerCase());
-        if (product && piItemCostInput) {
-            piItemCostInput.value = product.costPrice.toFixed(2);
+const piNameInp = piItemNameInput || d('pi_item_name');
+if (piNameInp) {
+    const handleItemNameChange = () => {
+        const name = piNameInp.value.trim();
+        if (!name) return;
+        const product = (typeof products !== 'undefined' && Array.isArray(products)) 
+            ? products.find(p => p.name.toLowerCase() === name.toLowerCase()) 
+            : null;
+        const costInp = piItemCostInput || d('pi_item_cost');
+        if (product && costInp) {
+            costInp.value = Number(product.costPrice || 0).toFixed(2);
             const catInput = document.getElementById('pi_item_category');
             if (catInput && product.category && !catInput.value) { catInput.value = product.category; }
-            if (piItemTotalCostInput && piItemQuantityInput) {
-                const qty = parseFloat(piItemQuantityInput.value) || 1;
-                piItemTotalCostInput.value = (qty * product.costPrice).toFixed(2);
+            const totalCostInp = piItemTotalCostInput || d('pi_item_total_cost');
+            const qtyInp = piItemQuantityInput || d('pi_item_quantity');
+            if (totalCostInp && qtyInp) {
+                const qty = parseFloat(qtyInp.value) || 1;
+                totalCostInp.value = (qty * Number(product.costPrice || 0)).toFixed(2);
             }
-            showMessage(piItemAddMessage, `تم جلب متوسط التكلفة للمنتج "${name}".`, false, true);
+            const addMsg = piItemAddMessage || d('pi_item_add_message');
+            if (addMsg) showMessage(addMsg, `تم جلب متوسط التكلفة للمنتج "${name}".`, false, true);
+        }
+    };
+    piNameInp.addEventListener('change', handleItemNameChange);
+    piNameInp.addEventListener('input', handleItemNameChange);
+}
+
+const piQtyInp = piItemQuantityInput || d('pi_item_quantity');
+if (piQtyInp) {
+    piQtyInp.addEventListener('input', () => {
+        const qty = parseInt(piQtyInp.value) || 0;
+        const serialsContainer = piItemSerialsContainer || d('pi_item_serials_container');
+        if (serialsContainer) {
+            if (qty > 0) {
+                serialsContainer.classList.remove('hidden');
+            } else {
+                serialsContainer.classList.add('hidden');
+            }
         }
     });
 }
 
-if (piItemQuantityInput) {
-    piItemQuantityInput.addEventListener('input', () => {
-        const qty = parseInt(piItemQuantityInput.value);
-        if (qty > 0) {
-            piItemSerialsContainer.classList.remove('hidden');
-        } else {
-            piItemSerialsContainer.classList.add('hidden');
-        }
-    });
-}
-
-if (piItemsBody) {
-    piItemsBody.addEventListener('click', (e) => {
-        if (e.target.classList.contains('pi_remove_item_btn')) {
-            e.target.closest('tr').remove();
-            window.pi_updateTotals();
-            if (piItemsBody.children.length === 0) {
-                pi_no_items_msg.classList.remove('hidden');
+const piItemsTbody = piItemsBody || d('pi_items_body');
+if (piItemsTbody) {
+    piItemsTbody.addEventListener('click', (e) => {
+        const removeBtn = e.target.closest('.pi_remove_item_btn');
+        const editBtn = e.target.closest('.pi_edit_item_btn');
+        if (removeBtn) {
+            const row = removeBtn.closest('tr');
+            if (row) {
+                row.remove();
+                if (window.pi_updateTotals) window.pi_updateTotals();
+                const noItemsMsg = d('pi_no_items_msg') || piNoItemsMsg;
+                const tbody = d('pi_items_body') || piItemsBody;
+                if (tbody && tbody.children.length === 0 && noItemsMsg) {
+                    noItemsMsg.classList.remove('hidden');
+                }
+                const addMsg = d('pi_item_add_message') || piItemAddMessage;
+                if (addMsg) showMessage(addMsg, "تم حذف البند من الفاتورة.", false, true);
             }
-        } else if (e.target.classList.contains('pi_edit_item_btn')) {
-            const row = e.target.closest('tr');
+        } else if (editBtn) {
+            const row = editBtn.closest('tr');
+            if (!row) return;
             
             const nameInput = document.getElementById('pi_item_name');
             const catInput = document.getElementById('pi_item_category');
@@ -1015,7 +1083,7 @@ if (piItemsBody) {
             if (catInput) catInput.value = row.dataset.category || '';
             if (qtyInput) qtyInput.value = row.dataset.quantity || '1';
             if (costInput) costInput.value = row.dataset.cost || '0';
-            if (totalCostInput) totalCostInput.value = row.dataset.subtotal || '0';
+            if (totalCostInput) totalCostInput.value = row.dataset.subtotal || ((parseFloat(row.dataset.quantity) || 1) * (parseFloat(row.dataset.cost) || 0)).toFixed(2);
             
             try {
                 const serials = JSON.parse(row.dataset.serials || '[]');
@@ -1029,11 +1097,20 @@ if (piItemsBody) {
             }
 
             row.remove();
-            window.pi_updateTotals();
-            if (piItemsBody.children.length === 0) {
-                pi_no_items_msg.classList.remove('hidden');
+            if (window.pi_updateTotals) window.pi_updateTotals();
+            const noItemsMsg = d('pi_no_items_msg') || piNoItemsMsg;
+            const tbody = d('pi_items_body') || piItemsBody;
+            if (tbody && tbody.children.length === 0 && noItemsMsg) {
+                noItemsMsg.classList.remove('hidden');
             }
-            if (nameInput) nameInput.focus();
+            if (nameInput) {
+                nameInput.focus();
+                nameInput.select();
+            }
+            const addMsg = d('pi_item_add_message') || piItemAddMessage;
+            if (addMsg) {
+                showMessage(addMsg, 'تم استرجاع بيانات البند إلى الحقول لتعديلها. قم بالتعديل ثم اضغط "إضافة البند".', false, true);
+            }
         }
     });
 }

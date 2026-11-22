@@ -9,7 +9,12 @@ window.adjustStock = function(productIndex, delta, reason = "") {
 
     const product = products[productIndex];
     const currentQty = Number(product.quantity) || 0;
-    const amountToAdjust = Number(delta) || 0;
+    const rawDelta = Number(delta);
+    if (!Number.isFinite(rawDelta)) {
+        console.error("adjustStock: قيمة التعديل غير صالحة (NaN/Infinity)", delta);
+        return false;
+    }
+    const amountToAdjust = rawDelta;
 
     // منع نزول المخزون تحت الصفر
     if (currentQty + amountToAdjust < 0) {
