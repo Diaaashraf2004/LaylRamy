@@ -14,9 +14,10 @@
                              ${supplier.contact ? `<p class="text-gray-600 text-sm">الاتصال: ${escapeHTML(supplier.contact)}</p>` : ''}
                              ${supplier.address ? `<p class="text-gray-600 text-sm">العنوان: ${escapeHTML(supplier.address)}</p>` : ''}
                          </div>
-                         <div class="mt-3 pt-3 border-t border-gray-200 flex justify-end gap-2 supplier-actions">
-                             <button data-supplier-id="${supplier.id}" class="edit-supplier-btn text-xs bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-semibold py-1 px-2 rounded border border-yellow-500">تعديل</button>
-                             <button data-supplier-id="${supplier.id}" class="delete-supplier-btn text-xs bg-red-500 hover:bg-red-600 text-white font-semibold py-1 px-2 rounded border border-red-600">حذف</button>
+                         <div class="mt-3 pt-3 border-t border-gray-200 flex flex-wrap justify-end gap-2 supplier-actions">
+                             <button type="button" data-supplier-id="${escapeHTML(supplier.id)}" onclick="if(typeof window.openSupplierStatementSection==='function') window.openSupplierStatementSection(this.dataset.supplierId)" class="text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-1 px-2.5 rounded border border-indigo-700">كشف الحساب والفواتير</button>
+                             <button data-supplier-id="${escapeHTML(supplier.id)}" class="edit-supplier-btn text-xs bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-semibold py-1 px-2 rounded border border-yellow-500">تعديل</button>
+                             <button data-supplier-id="${escapeHTML(supplier.id)}" class="delete-supplier-btn text-xs bg-red-500 hover:bg-red-600 text-white font-semibold py-1 px-2 rounded border border-red-600">حذف</button>
                          </div>
                      </div>
                  `).join('');

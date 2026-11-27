@@ -9,7 +9,10 @@ window.captureHistoricalBaseline = function(dateStr) {
             accounts: JSON.parse(JSON.stringify(typeof accounts !== 'undefined' ? accounts : (window.accounts || []))),
             products: JSON.parse(JSON.stringify(typeof products !== 'undefined' ? products : (window.products || []))),
             debtors: JSON.parse(JSON.stringify(typeof debtors !== 'undefined' ? debtors : (window.debtors || []))),
+            debtorProfiles: JSON.parse(JSON.stringify(typeof debtorProfiles !== 'undefined' ? debtorProfiles : (window.debtorProfiles || []))),
             liabilities: JSON.parse(JSON.stringify(typeof liabilities !== 'undefined' ? liabilities : (window.liabilities || []))),
+            monthlyLiabilities: JSON.parse(JSON.stringify(typeof monthlyLiabilities !== 'undefined' ? monthlyLiabilities : (window.monthlyLiabilities || []))),
+            recordedLosses: Number(typeof recordedLosses !== 'undefined' ? recordedLosses : (window.recordedLosses || 0)) || 0,
             pendingSales: JSON.parse(JSON.stringify(typeof pendingSales !== 'undefined' ? pendingSales : (window.pendingSales || []))),
             pendingPurchases: JSON.parse(JSON.stringify(typeof pendingPurchases !== 'undefined' ? pendingPurchases : (window.pendingPurchases || []))),
             pendingReturns: JSON.parse(JSON.stringify(typeof pendingReturns !== 'undefined' ? pendingReturns : (window.pendingReturns || []))),
@@ -72,6 +75,21 @@ window.processSmartDeltaRollover = async function(newState, dateStr) {
     const debtDiff = computeNumDeltaMap(oldState.debtors, newState.debtors, d => d.amount !== undefined ? Number(d.amount) : (Number(d.total_debt) || 0));
     const liabDiff = computeNumDeltaMap(oldState.liabilities, newState.liabilities, l => Number(l.amount) || 0);
 
+    // تتبع التغييرات الوصفية وتاريخ السدادات في الالتزامات وبروفايلات العملاء والخسائر المسجلة
+    const liabMetaById = {};
+    (newState.liabilities || []).forEach(nl => {
+        const ol = (oldState.liabilities || []).find(x => x.id === nl.id);
+        if (ol && (
+            JSON.stringify(ol.paymentHistory || []) !== JSON.stringify(nl.paymentHistory || []) ||
+            JSON.stringify(ol.history || []) !== JSON.stringify(nl.history || []) ||
+            JSON.stringify(ol.extraCostContributions || []) !== JSON.stringify(nl.extraCostContributions || []) ||
+            ol.name !== nl.name || ol.status !== nl.status
+        )) {
+            liabMetaById[nl.id] = JSON.parse(JSON.stringify(nl));
+            liabDiff.changed = true;
+        }
+    });
+
     const syncListDiff = (oldArr, newArr) => {
         const added = (newArr || []).filter(n => !(oldArr || []).some(o => o.id === n.id)).map(n => JSON.parse(JSON.stringify(n)));
         const deletedIds = (oldArr || []).filter(o => !(newArr || []).some(n => n.id === o.id)).map(o => o.id);
@@ -86,10 +104,21 @@ window.processSmartDeltaRollover = async function(newState, dateStr) {
     const ppDiff = syncListDiff(oldState.pendingPurchases, newState.pendingPurchases);
     const prDiff = syncListDiff(oldState.pendingReturns, newState.pendingReturns);
     const poDiff = syncListDiff(oldState.pendingOrders, newState.pendingOrders);
+    const profDiff = syncListDiff(oldState.debtorProfiles || [], newState.debtorProfiles || []);
+    const mLiabDiff = syncListDiff(oldState.monthlyLiabilities || [], newState.monthlyLiabilities || []);
+    const lossesDelta = m((Number(newState.recordedLosses) || 0) - (Number(oldState.recordedLosses) || 0));
 
     const anyChanged = accDiff.changed || prodQtyDiff.changed || debtDiff.changed || liabDiff.changed
-        || psDiff.changed || ppDiff.changed || prDiff.changed || poDiff.changed;
+        || psDiff.changed || ppDiff.changed || prDiff.changed || poDiff.changed
+        || profDiff.changed || mLiabDiff.changed || lossesDelta !== 0;
     if (!anyChanged) return;
+
+    const mergeUniqueByKey = (arrA, arrB, keyFn) => {
+        const map = new Map();
+        (arrA || []).forEach(x => { if (x) map.set(keyFn(x), JSON.parse(JSON.stringify(x))); });
+        (arrB || []).forEach(x => { if (x) map.set(keyFn(x), JSON.parse(JSON.stringify(x))); });
+        return Array.from(map.values());
+    };
 
     const applyAllDeltasToDoc = (targetData) => {
         const applyNum = (arr, diffObj, field, altField) => {
@@ -123,11 +152,41 @@ window.processSmartDeltaRollover = async function(newState, dateStr) {
 
         const updatedLiabilities = applyNum(targetData.liabilities, liabDiff, 'amount', null);
         updatedLiabilities.forEach(l => {
+            const metaSrc = liabMetaById[l.id];
+            if (metaSrc) {
+                if (metaSrc.name) l.name = metaSrc.name;
+                if (Array.isArray(metaSrc.paymentHistory)) {
+                    l.paymentHistory = mergeUniqueByKey(l.paymentHistory, metaSrc.paymentHistory, p => p.id || `${p.date || ''}|${Number(p.amount) || 0}|${p.accountId || ''}`);
+                }
+                if (Array.isArray(metaSrc.history)) {
+                    l.history = mergeUniqueByKey(l.history, metaSrc.history, h => `${h.date || ''}|${Number(h.addedAmount) || 0}|${h.saleId || ''}`);
+                }
+                if (Array.isArray(metaSrc.extraCostContributions)) {
+                    l.extraCostContributions = mergeUniqueByKey(l.extraCostContributions, metaSrc.extraCostContributions, c => `${c.invoiceId || ''}|${c.name || ''}|${Number(c.amount) || 0}`);
+                }
+                if (metaSrc.lastUpdated) l.lastUpdated = metaSrc.lastUpdated;
+            }
             if ((Number(l.amount) || 0) <= 0.001) {
                 l.amount = 0;
                 l.status = 'paid';
+            } else {
+                l.status = 'active';
             }
         });
+
+        // دمج بروفايلات العملاء مع الحفاظ على تاريخ السدادات paymentHistory
+        let updatedProfiles = JSON.parse(JSON.stringify(targetData.debtorProfiles || []));
+        if (profDiff.changed) {
+            updatedProfiles = updatedProfiles.filter(x => !profDiff.deletedIds.includes(x.id));
+            profDiff.modified.forEach(mod => {
+                const idx = updatedProfiles.findIndex(x => x.id === mod.id);
+                if (idx > -1) {
+                    const mergedPays = mergeUniqueByKey(updatedProfiles[idx].paymentHistory, mod.paymentHistory, p => p.id || `${p.date || ''}|${Number(p.amount) || 0}|${p.debtReason || ''}`);
+                    updatedProfiles[idx] = { ...updatedProfiles[idx], ...JSON.parse(JSON.stringify(mod)), paymentHistory: mergedPays };
+                }
+            });
+            profDiff.added.forEach(a => { if (!updatedProfiles.some(x => x.id === a.id)) updatedProfiles.push(JSON.parse(JSON.stringify(a))); });
+        }
 
         const updatedPendingReturns = applyList(targetData.pendingReturns, prDiff);
         const updatedPendingReturnsValue = m(updatedPendingReturns.reduce((s, r) => s + (Number(r.returnedAmount) || 0), 0));
@@ -136,7 +195,10 @@ window.processSmartDeltaRollover = async function(newState, dateStr) {
             accounts: applyNum(targetData.accounts, accDiff, 'balance', null),
             products: updatedProducts,
             debtors: applyNum(targetData.debtors, debtDiff, 'amount', 'total_debt'),
+            debtorProfiles: updatedProfiles,
             liabilities: updatedLiabilities,
+            monthlyLiabilities: mLiabDiff.changed ? applyList(targetData.monthlyLiabilities, mLiabDiff) : (targetData.monthlyLiabilities || []),
+            recordedLosses: m((Number(targetData.recordedLosses) || 0) + lossesDelta),
             pendingSales: applyList(targetData.pendingSales, psDiff),
             pendingPurchases: applyList(targetData.pendingPurchases, ppDiff),
             pendingReturns: updatedPendingReturns,
@@ -149,35 +211,48 @@ window.processSmartDeltaRollover = async function(newState, dateStr) {
     try {
         const db = window.db;
         const summaryRef = window.doc(db, 'users', userId, 'summaries', 'latestBalances');
-        const summarySnap = await window.getDoc(summaryRef, { serverOnly: true });
+        const todayStr = typeof getTodayDateString === 'function' ? getTodayDateString() : (typeof getCairoDateString === 'function' ? getCairoDateString() : new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' }));
+        const todayRef = (todayStr && todayStr !== dateStr) ? window.doc(db, 'users', userId, 'days', todayStr) : null;
+
+        // قراءة المستندين معاً من الخادم أولاً ثم الكتابة الذرية بدفعة واحدة (Batch) لمنع تضاعف الفروقات عند إعادة المحاولة
+        const [summarySnap, todaySnap] = await Promise.all([
+            window.getDoc(summaryRef, { serverOnly: true }),
+            todayRef ? window.getDoc(todayRef, { serverOnly: true }) : Promise.resolve(null)
+        ]);
+
         if (!summarySnap || summarySnap._unreachable) {
             throw new Error('Smart Delta aborted: latestBalances server read unreachable');
         }
-        if (summarySnap.exists()) {
-            const patch = applyAllDeltasToDoc(summarySnap.data() || {});
-            await window.setDoc(summaryRef, patch, { merge: true });
+        if (todayRef && (!todaySnap || todaySnap._unreachable)) {
+            throw new Error(`Smart Delta aborted: days/${todayStr} server read unreachable`);
         }
 
-        // أيضاً تطبيق نفس الفروقات على وثيقة اليوم الحالي (days/{todayStr}) إذا كانت موجودة بالفعل حتى لا تُمسح عند العودة لليوم
-        const todayStr = typeof getTodayDateString === 'function' ? getTodayDateString() : (typeof getCairoDateString === 'function' ? getCairoDateString() : new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' }));
-        if (todayStr && todayStr !== dateStr) {
-            const todayRef = window.doc(db, 'users', userId, 'days', todayStr);
-            const todaySnap = await window.getDoc(todayRef, { serverOnly: true });
-            if (!todaySnap || todaySnap._unreachable) {
-                throw new Error(`Smart Delta aborted: days/${todayStr} server read unreachable`);
-            }
-            if (todaySnap.exists()) {
-                const todayPatch = applyAllDeltasToDoc(todaySnap.data() || {});
-                await window.setDoc(todayRef, todayPatch, { merge: true });
+        const summaryPatch = summarySnap.exists() ? JSON.parse(JSON.stringify(applyAllDeltasToDoc(summarySnap.data() || {}))) : null;
+        const todayPatch = (todayRef && todaySnap && todaySnap.exists()) ? JSON.parse(JSON.stringify(applyAllDeltasToDoc(todaySnap.data() || {}))) : null;
+
+        if (summaryPatch || todayPatch) {
+            if (typeof db.batch === 'function') {
+                const batch = db.batch();
+                if (summaryPatch) batch.set(summaryRef, summaryPatch, { merge: true });
+                if (todayPatch) batch.set(todayRef, todayPatch, { merge: true });
+                await batch.commit();
+            } else {
+                const writes = [];
+                if (summaryPatch) writes.push(window.setDoc(summaryRef, summaryPatch, { merge: true }));
+                if (todayPatch) writes.push(window.setDoc(todayRef, todayPatch, { merge: true }));
+                await Promise.all(writes);
             }
         }
 
-        console.log('[Smart Delta] Successfully rolled over full balance-sheet deltas to latestBalances & today doc');
+        console.log('[Smart Delta] Successfully rolled over full balance-sheet deltas atomically to latestBalances & today doc');
         window.historicalBaseline = {
             accounts: JSON.parse(JSON.stringify(newState.accounts || [])),
             products: JSON.parse(JSON.stringify(newState.products || [])),
             debtors: JSON.parse(JSON.stringify(newState.debtors || [])),
+            debtorProfiles: JSON.parse(JSON.stringify(newState.debtorProfiles || [])),
             liabilities: JSON.parse(JSON.stringify(newState.liabilities || [])),
+            monthlyLiabilities: JSON.parse(JSON.stringify(newState.monthlyLiabilities || [])),
+            recordedLosses: Number(newState.recordedLosses) || 0,
             pendingSales: JSON.parse(JSON.stringify(newState.pendingSales || [])),
             pendingPurchases: JSON.parse(JSON.stringify(newState.pendingPurchases || [])),
             pendingReturns: JSON.parse(JSON.stringify(newState.pendingReturns || [])),

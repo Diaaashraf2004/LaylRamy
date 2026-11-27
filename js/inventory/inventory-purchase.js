@@ -441,6 +441,7 @@ function handlePendingPurchaseActions(event) {
             throw e;
         }
         showGlobalMessage("تم استلام البضاعة وتحديث المخزون بالتصنيفات والتكاليف الصحيحة.", false);
+        if (typeof updatePurchaseArchiveInCloud === 'function') updatePurchaseArchiveInCloud(purchase).catch(e => console.warn(e));
         if (typeof saveSystemToCloud === 'function') saveSystemToCloud().catch(e => console.error(e));
 
     } else if (target.classList.contains('receive-and-pay-btn')) {
@@ -560,6 +561,9 @@ function handlePendingPurchaseActions(event) {
         showGlobalMessage("تم إلغاء الشراء وإرجاع المدفوعات وتسوية الالتزامات بنجاح.", false, true);
 
         if (typeof updateUI === 'function') updateUI(); 
+        if (typeof markPurchaseArchiveCancelled === 'function') {
+            markPurchaseArchiveCancelled(targetPendingId, 'cancelled_pending_purchase').catch(e => console.warn(e));
+        }
         if (typeof saveSystemToCloud === 'function') {
             saveSystemToCloud().catch(e => console.error(e));
         }

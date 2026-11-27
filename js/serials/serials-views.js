@@ -230,7 +230,7 @@
                     <div class="flex flex-wrap items-center justify-between gap-1.5 pb-2 mb-2 border-b border-slate-100">
                         <div class="flex items-center gap-1.5 min-w-0">
                             <span class="font-mono font-bold text-sm text-slate-800 tracking-wider break-all">${window.escapeHTML(log.serial)}</span>
-                            <button onclick="window.copySerialToClipboard('${window.escapeHTML(log.serial)}', this)" class="p-1 text-slate-400 hover:text-blue-600 transition-colors" title="نسخ السيريال">
+                            <button data-serial="${window.escapeHTML(log.serial)}" onclick="window.copySerialToClipboard(this.dataset.serial, this)" class="p-1 text-slate-400 hover:text-blue-600 transition-colors" title="نسخ السيريال">
                                 <i class="fas fa-copy text-xs"></i>
                             </button>
                         </div>
@@ -254,9 +254,9 @@
                                 <i class="fas ${batteryIcon}"></i> البطارية: ${battery}%
                             </span>
                             <div class="flex flex-wrap gap-1">
-                                <button onclick="window.quickSetBattery('${window.escapeHTML(log.serial)}', 100)" class="text-[10px] bg-white px-1.5 py-0.5 rounded font-bold border hover:bg-slate-50" title="تعيين 100%">100%</button>
-                                <button onclick="window.quickSetBattery('${window.escapeHTML(log.serial)}', 80)" class="text-[10px] bg-white px-1.5 py-0.5 rounded font-bold border hover:bg-slate-50" title="تعيين 80%">80%</button>
-                                <button onclick="window.quickSetBattery('${window.escapeHTML(log.serial)}', 50)" class="text-[10px] bg-white px-1.5 py-0.5 rounded font-bold border hover:bg-slate-50" title="تعيين 50%">50%</button>
+                                <button data-serial="${window.escapeHTML(log.serial)}" onclick="window.quickSetBattery(this.dataset.serial, 100)" class="text-[10px] bg-white px-1.5 py-0.5 rounded font-bold border hover:bg-slate-50" title="تعيين 100%">100%</button>
+                                <button data-serial="${window.escapeHTML(log.serial)}" onclick="window.quickSetBattery(this.dataset.serial, 80)" class="text-[10px] bg-white px-1.5 py-0.5 rounded font-bold border hover:bg-slate-50" title="تعيين 80%">80%</button>
+                                <button data-serial="${window.escapeHTML(log.serial)}" onclick="window.quickSetBattery(this.dataset.serial, 50)" class="text-[10px] bg-white px-1.5 py-0.5 rounded font-bold border hover:bg-slate-50" title="تعيين 50%">50%</button>
                             </div>
                         </div>
                         <div class="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
@@ -265,7 +265,7 @@
                     </div>
 
                     <!-- صندوق الملاحظات -->
-                    <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 mb-3 cursor-pointer hover:bg-amber-50/60 transition-colors" onclick="window.openNoteModal('${window.escapeHTML(log.serial)}')" title="انقر لتعديل الملاحظات">
+                    <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 mb-3 cursor-pointer hover:bg-amber-50/60 transition-colors" data-serial="${window.escapeHTML(log.serial)}" onclick="window.openNoteModal(this.dataset.serial)" title="انقر لتعديل الملاحظات">
                         <div class="flex items-center justify-between text-xs text-slate-500 mb-1 font-bold">
                             <span><i class="fas fa-comment-dots text-blue-500 mr-1"></i> ملاحظات:</span>
                             <span class="text-blue-600 text-[11px] hover:underline">تعديل</span>
@@ -357,7 +357,7 @@
                         <div class="min-w-0">
                             <div class="flex flex-wrap justify-between items-center gap-1 mb-1.5">
                                 <span class="font-mono font-bold text-xs text-slate-800 break-all">${window.escapeHTML(log.serial)}</span>
-                                <button onclick="window.copySerialToClipboard('${window.escapeHTML(log.serial)}', this)" class="text-slate-400 hover:text-blue-600 p-0.5" title="نسخ">
+                                <button data-serial="${window.escapeHTML(log.serial)}" onclick="window.copySerialToClipboard(this.dataset.serial, this)" class="text-slate-400 hover:text-blue-600 p-0.5" title="نسخ">
                                     <i class="fas fa-copy text-xs"></i>
                                 </button>
                             </div>
@@ -367,7 +367,7 @@
                                 <span class="text-[11px] ${log.isChecked ? 'text-emerald-600 font-bold' : 'text-slate-400'}">${log.isChecked ? '✓ مفحوص' : 'غير مفحوص'}</span>
                             </div>
                         </div>
-                        <button onclick="window.openNoteModal('${window.escapeHTML(log.serial)}')" class="text-[11px] text-right truncate text-slate-500 hover:text-blue-600 pt-1.5 border-t border-slate-200/60 min-w-0">
+                        <button data-serial="${window.escapeHTML(log.serial)}" onclick="window.openNoteModal(this.dataset.serial)" class="text-[11px] text-right truncate text-slate-500 hover:text-blue-600 pt-1.5 border-t border-slate-200/60 min-w-0">
                             📝 ${log.notes ? window.escapeHTML(log.notes) : 'أضف ملاحظة...'}
                         </button>
                     </div>

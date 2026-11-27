@@ -33,7 +33,11 @@ window.toggleAutoSave = function toggleAutoSave(silent = false) {
                     try {
                         console.log(`🌅 [Midnight Rollover] تم رصد دخول يوم جديد (${todayStr}) بعد (${activeDate}). جاري حفظ اليوم المنقضي وترحيل الأرصدة تلقائياً...`);
                         if (window.hasUnsavedChanges || window._autoSaveDirty || window._pendingCloudSave) {
-                            await saveCurrentStateByDate(activeDate, true);
+                            const prevSavedOk = await saveCurrentStateByDate(activeDate, true);
+                            if (!prevSavedOk) {
+                                console.warn("[Midnight Rollover] تم تأجيل الترحيل لأن حفظ اليوم المنقضي لم يكتمل بعد.");
+                                return;
+                            }
                         }
                         const rolledOk = await loadDataForDate(todayStr);
                         if (rolledOk) {
@@ -504,6 +508,7 @@ window.checkEmergencyBackupAvailability = function() {
     try {
         if (typeof localStorage === 'undefined') return { available: false, source: null, data: null };
         const currentUid = (window.currentUser && window.currentUser.uid) ? window.currentUser.uid : null;
+        if (!currentUid) return { available: false, source: null, data: null };
         const isValidBackup = (parsed) => {
             if (!parsed || typeof parsed !== 'object') return false;
             // عند تسجيل الدخول، لا نقبل إلا النسخ التي تخص نفس المستخدم لمنع تسرب بيانات مستخدم آخر

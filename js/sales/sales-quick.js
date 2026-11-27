@@ -337,7 +337,8 @@ async function sellProduct(skipConfirmation = true) {
         }
 
         if (typeof saveCurrentStateByDate === 'function') { 
-            await saveCurrentStateByDate(currentLoadedDate || (typeof getTodayDateString === 'function' ? getTodayDateString() : (typeof getCairoDateString === 'function' ? getCairoDateString() : new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' })))); 
+            const savedOk = await saveCurrentStateByDate(currentLoadedDate || (typeof getTodayDateString === 'function' ? getTodayDateString() : (typeof getCairoDateString === 'function' ? getCairoDateString() : new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' }))), false, { throwOnError: true }); 
+            if (!savedOk) throw new Error('تعذر إتمام الحفظ السحابي للبيع السريع');
         }
         if (_tx) _tx.commit();
         updateUI();

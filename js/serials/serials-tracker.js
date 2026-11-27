@@ -348,6 +348,7 @@
 
         document.querySelector('.serials-controls').scrollIntoView({ behavior: 'smooth' });
     };
+    window.cancelSerialEditMode = function() { if (!editingSerial) return; editingSerial = null; if (addSn) addSn.value = ''; if (addProduct) addProduct.value = ''; if (addSupplier) addSupplier.value = ''; if (addShipping) addShipping.value = ''; if (addFollowup) addFollowup.value = ''; if (addNotes) addNotes.value = ''; if (addBtn) { addBtn.innerHTML = '<i class="fas fa-plus"></i> <span>إضافة للسجل</span>'; addBtn.classList.remove('bg-emerald-600', 'hover:bg-emerald-700'); addBtn.classList.add('bg-blue-600', 'hover:bg-blue-700'); } };
 
     window.toggleStandaloneFlag = function(serial, flagName) {
         takeSnapshot();

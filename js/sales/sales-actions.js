@@ -338,7 +338,7 @@ async function handleInvoiceSearchForReturn() {
             <td class="p-2 text-center">${origQty} <span class="text-xs text-gray-500">(متاح: ${remQty})</span></td>
             <td class="p-2 text-center font-mono">${formatCurrency(item.unitPrice)}</td>
             <td class="p-2" style="width: 100px;">
-                <input type="number" value="0" min="0" max="${remQty}" ${remQty <= 0 ? 'disabled' : ''} class="text-center return-invoice-qty" data-item-index="${index}" data-item-id="${escapeHTML(item.id || '')}" data-unit-price="${item.unitPrice}" data-cost-price="${item.costPrice}" data-serial="${escapeHTML(item.serial || '')}" data-serials='${JSON.stringify(item.serials || (item.serial ? [item.serial] : []))}'>
+                <input type="number" value="0" min="0" max="${remQty}" ${remQty <= 0 ? 'disabled' : ''} class="text-center return-invoice-qty" data-item-index="${index}" data-item-id="${escapeHTML(item.id || '')}" data-unit-price="${item.unitPrice}" data-cost-price="${item.costPrice}" data-serial="${escapeHTML(item.serial || '')}" data-serials="${escapeHTML(JSON.stringify(item.serials || (item.serial ? [item.serial] : [])))}">
             </td>
         </tr>
     `;
@@ -575,7 +575,8 @@ window.executeQuickConfirmPendingSale = async function() {
             const safeDate = (typeof currentLoadedDate !== 'undefined' && currentLoadedDate)
                 ? currentLoadedDate
                 : (typeof getTodayDateString === 'function' ? getTodayDateString() : (typeof getCairoDateString === 'function' ? getCairoDateString() : new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' })));
-            await saveCurrentStateByDate(safeDate, true);
+            const savedOk = await saveCurrentStateByDate(safeDate, true, { throwOnError: true });
+            if (!savedOk) throw new Error('تعذر إتمام الحفظ السحابي لتأكيد البيع المؤقت');
         } else if (typeof saveSystemToCloud === 'function') {
             await saveSystemToCloud({ immediate: true });
         }

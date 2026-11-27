@@ -31,6 +31,10 @@
         console.log('[SaveGuard] تم السماح بالانكماش لمرة واحدة فقط بتأكيد صريح من المستخدم.');
     }
 
+    function clearAllowShrinkOnce() {
+        shrinkAllowedOnce = false;
+    }
+
     function recordLoadedState(state) {
         if (!state) return;
         CRITICAL_ARRAYS.forEach(key => {
@@ -59,6 +63,20 @@
                 const msg = `🚨 خطأ حرج: تم منع الحفظ السحابي لحماية رأس المال والسيولة بسبب قيم رقمية فاسدة (${corruptions[0]}).`;
                 if (typeof global.showGlobalMessage === 'function') global.showGlobalMessage(msg, true);
                 console.error('[SaveGuard][IntegrityGuard]', msg, corruptions);
+                return false;
+            }
+        }
+
+        // حماية صارمة للخزائن (accounts): يُمنع تفريغها بالكامل حتى مع تصريح allowShrinkOnce
+        const initialAccounts = loadedCounts['accounts'];
+        if (typeof initialAccounts === 'number' && initialAccounts >= 1) {
+            const currentAccArr = Array.isArray(stateToSave['accounts'])
+                ? stateToSave['accounts']
+                : (Array.isArray(global['accounts']) ? global['accounts'] : []);
+            if (currentAccArr.length === 0) {
+                const msg = `⚠️ خطأ حرج: تم منع الحفظ السحابي لأن مصفوفة الخزائن (accounts) أصبحت فارغة (كانت ${initialAccounts} والآن 0).`;
+                if (typeof global.showGlobalMessage === 'function') global.showGlobalMessage(msg, true);
+                console.error('[SaveGuard]', msg);
                 return false;
             }
         }
@@ -116,6 +134,7 @@
         recordLoadedState,
         canSaveState,
         allowShrinkOnce,
+        clearAllowShrinkOnce,
         isShrinkAllowed: () => shrinkAllowedOnce,
         getLoadedCounts: () => ({ ...loadedCounts }),
         setLoadedCounts: (counts) => {

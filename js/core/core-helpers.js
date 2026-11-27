@@ -24,18 +24,55 @@ function clearAndSecureOldData() {
 clearAndSecureOldData();
         // --- الدوال المساعدة (Helper Functions) ---
 // دالة مساعدة لإضافة مبلغ إلى السيولة وتسجيله في السجل
-// دالة لحفظ فاتورة الشراء في أرشيف مستقل للرجوع إليها لاحقاً من قسم الالتزامات
+// دالة لحفظ أو تحديث فاتورة الشراء في أرشيف مستقل للرجوع إليها لاحقاً من قسم الالتزامات وكشف حساب الموردين
 async function savePurchaseInvoiceToCloud(invoiceData) {
-    if (!window.currentUser) return;
+    if (!window.currentUser || !invoiceData || !invoiceData.id) return false;
+    if (window.SessionGuard && typeof window.SessionGuard.assertCanWrite === 'function') {
+        const canWrite = await window.SessionGuard.assertCanWrite();
+        if (!canWrite) return false;
+    }
     const userId = window.currentUser.uid;
     try {
         const docRef = window.doc(window.db, "users", userId, "purchase_archives", invoiceData.id);
-        await window.setDoc(docRef, invoiceData);
+        await window.setDoc(docRef, { ...invoiceData, isCancelled: false, updatedAt: new Date().toISOString() }, { merge: true });
         console.log("✅ تم أرشفة فاتورة الشراء سحابياً.");
+        return true;
     } catch (error) {
         console.error("❌ فشل أرشفة فاتورة الشراء:", error);
+        return false;
     }
 }
+window.savePurchaseInvoiceToCloud = savePurchaseInvoiceToCloud;
+
+async function updatePurchaseArchiveInCloud(invoiceData) {
+    return savePurchaseInvoiceToCloud(invoiceData);
+}
+window.updatePurchaseArchiveInCloud = updatePurchaseArchiveInCloud;
+
+async function markPurchaseArchiveCancelled(invoiceId, reason = 'cancelled') {
+    if (!window.currentUser || !invoiceId) return false;
+    if (window.SessionGuard && typeof window.SessionGuard.assertCanWrite === 'function') {
+        const canWrite = await window.SessionGuard.assertCanWrite();
+        if (!canWrite) return false;
+    }
+    const userId = window.currentUser.uid;
+    try {
+        const docRef = window.doc(window.db, "users", userId, "purchase_archives", invoiceId);
+        await window.setDoc(docRef, {
+            id: invoiceId,
+            status: 'Cancelled',
+            isCancelled: true,
+            cancelledReason: reason,
+            cancelledAt: new Date().toISOString()
+        }, { merge: true });
+        console.log(`✅ تم وسم فاتورة الشراء (${invoiceId}) كملغاة في الأرشيف السحابي.`);
+        return true;
+    } catch (error) {
+        console.error("❌ فشل تحديث حالة الإلغاء في أرشيف المشتريات:", error);
+        return false;
+    }
+}
+window.markPurchaseArchiveCancelled = markPurchaseArchiveCancelled;
 // ✅✅✅ دالة جديدة لمسح كل البيانات في الجلسة الحالية ✅✅✅
 function resetAllData() {
     console.log("resetAllData called - Clearing ALL current session data.");
@@ -245,9 +282,11 @@ function sanitizeDataForFirebase(obj) {
                 messageElement.style.backgroundColor = '';
                 messageElement.style.borderColor = '';
             }
-            messageElement.innerHTML = text || '';
+            const safeText = String(text || '').replace(/<br\s*\/?>/gi, '\n');
+            if (messageElement.style) messageElement.style.whiteSpace = 'pre-line';
+            messageElement.textContent = safeText;
             messageElement.className = 'section-message';
-            if (text) {
+            if (safeText) {
                 if (messageElement.classList && typeof messageElement.classList.add === 'function') {
                     if (isError) messageElement.classList.add('error');
                     else if (isInfo) messageElement.classList.add('info');
@@ -260,7 +299,7 @@ function sanitizeDataForFirebase(obj) {
                     if (messageElement) {
                         if (messageElement.classList && typeof messageElement.classList.remove === 'function') messageElement.classList.remove('visible');
                         if (messageElement.style) messageElement.style.display = 'none';
-                        messageElement.innerHTML = '';
+                        messageElement.textContent = '';
                     }
                 }, delay);
             } else {
@@ -381,6 +420,12 @@ async function findLatestValidDayBeforeDate(userId, targetDate) {
         // ================== بداية الدالة المساعدة الجديدة ==================
 async function saveInvoiceToFirestore(invoiceRecord) {
     if (!window.currentUser) return;
+    if (window.SessionGuard && typeof window.SessionGuard.assertCanWrite === 'function') {
+        const canWrite = await window.SessionGuard.assertCanWrite();
+        if (!canWrite) {
+            throw new Error('الجلسة غير نشطة للكتابة — تم منع رفع الفاتورة لحماية البيانات.');
+        }
+    }
     const userId = window.currentUser.uid;
     
     // ضمان وجود تاريخ البيع
@@ -736,9 +781,12 @@ async function undo() {
         // 2. الحصول على الحالة السابقة من الذاكرة
         const lastState = stateHistory.pop();
         
-        // تجهيز قائمة المعرفات للمقارنة
+        // تجهيز قائمة المعرفات للمقارنة (مبيعات + مشتريات)
         const currentInvoiceIds = (salesToday || []).map(inv => inv.id);
         const previousInvoiceIds = (lastState.salesToday || []).map(inv => inv.id);
+        const currentPurchaseIds = [...(purchaseInvoices || []), ...(pendingPurchases || [])].map(p => p && p.id).filter(Boolean);
+        const previousPurchaseList = [...(lastState.purchaseInvoices || []), ...(lastState.pendingPurchases || [])];
+        const previousPurchaseIds = previousPurchaseList.map(p => p && p.id).filter(Boolean);
 
         // 3. تطبيق الحالة السابقة محلياً فوراً
         loadStateFromSnapshot(lastState);
@@ -782,6 +830,19 @@ async function undo() {
                 await Promise.all(restorePromises);
             }
 
+            // ج. مزامنة أرشيف المشتريات (purchase_archives) عند التراجع عن فاتورة شراء أو استعادتها
+            const undonePurchaseIds = currentPurchaseIds.filter(id => !previousPurchaseIds.includes(id));
+            if (undonePurchaseIds.length > 0 && typeof markPurchaseArchiveCancelled === 'function') {
+                await Promise.all(undonePurchaseIds.map(id => markPurchaseArchiveCancelled(id, 'undo').catch(e => console.warn(e))));
+            }
+            const restoredPurchaseIds = previousPurchaseIds.filter(id => !currentPurchaseIds.includes(id));
+            if (restoredPurchaseIds.length > 0 && typeof savePurchaseInvoiceToCloud === 'function') {
+                await Promise.all(restoredPurchaseIds.map(id => {
+                    const pData = previousPurchaseList.find(p => p && p.id === id);
+                    return pData ? savePurchaseInvoiceToCloud(pData).catch(e => console.warn(e)) : Promise.resolve();
+                }));
+            }
+
             // 5. حفظ التغييرات الشاملة بالسحابة فوراً مع التصريح بالانكماش لمرة واحدة
             if (window.SaveGuard && typeof window.SaveGuard.allowShrinkOnce === 'function') {
                 window.SaveGuard.allowShrinkOnce();
@@ -819,6 +880,7 @@ async function redo() {
 
         // لقطة للوضع الحالي قبل التغيير
         const currentInvoiceIds = salesToday.map(inv => inv.id);
+        const currentPurchaseIds = [...(purchaseInvoices || []), ...(pendingPurchases || [])].map(p => p && p.id).filter(Boolean);
 
         // نقل الحالة الحالية إلى ذاكرة "التراجع"
         stateHistory.push(createStateSnapshot());
@@ -826,6 +888,8 @@ async function redo() {
         // استرجاع الحالة القادمة (المستقبل)
         const nextState = redoHistory.pop();
         const nextInvoiceIds = nextState.salesToday.map(inv => inv.id);
+        const nextPurchaseList = [...(nextState.purchaseInvoices || []), ...(nextState.pendingPurchases || [])];
+        const nextPurchaseIds = nextPurchaseList.map(p => p && p.id).filter(Boolean);
 
         // تطبيق الحالة القادمة محلياً
         loadStateFromSnapshot(nextState);
@@ -866,6 +930,19 @@ async function redo() {
                 await Promise.all(reDeletedInvoiceIds.map(id => 
                     window.deleteDoc(window.doc(window.db, "users", userId, "invoices", id)).catch(e => console.error(e))
                 ));
+            }
+
+            // ج. مزامنة أرشيف المشتريات (purchase_archives) عند الإعادة
+            const reCreatedPurchaseIds = nextPurchaseIds.filter(id => !currentPurchaseIds.includes(id));
+            if (reCreatedPurchaseIds.length > 0 && typeof savePurchaseInvoiceToCloud === 'function') {
+                await Promise.all(reCreatedPurchaseIds.map(id => {
+                    const pData = nextPurchaseList.find(p => p && p.id === id);
+                    return pData ? savePurchaseInvoiceToCloud(pData).catch(e => console.warn(e)) : Promise.resolve();
+                }));
+            }
+            const reDeletedPurchaseIds = currentPurchaseIds.filter(id => !nextPurchaseIds.includes(id));
+            if (reDeletedPurchaseIds.length > 0 && typeof markPurchaseArchiveCancelled === 'function') {
+                await Promise.all(reDeletedPurchaseIds.map(id => markPurchaseArchiveCancelled(id, 'redo_delete').catch(e => console.warn(e))));
             }
 
             // حفظ التغييرات الشاملة بالسحابة فوراً مع التصريح بالانكماش لمرة واحدة

@@ -39,8 +39,11 @@ async function saveCurrentStateByDate(dateString, immediate = false, options = {
     // 🛡️ حارس حماية الحفظ السحابي من انكماش أو تفريغ البيانات الحرجة
     if (typeof window.SaveGuard !== 'undefined' && typeof window.SaveGuard.canSaveState === 'function') {
         if (!window.SaveGuard.canSaveState(stateToSave)) {
+            const hasCorruption = (window.FinancialIntegrityGuard && typeof window.FinancialIntegrityGuard.hasCriticalCorruption === 'function')
+                ? window.FinancialIntegrityGuard.hasCriticalCorruption(stateToSave).length > 0
+                : false;
             const hasValidAccounts = Array.isArray(stateToSave.accounts) && stateToSave.accounts.length > 0;
-            if (options && options.isManualUserSave && hasValidAccounts && typeof window.SaveGuard.allowShrinkOnce === 'function') {
+            if (!hasCorruption && options && options.isManualUserSave && hasValidAccounts && typeof window.SaveGuard.allowShrinkOnce === 'function') {
                 const approveShrink = confirm(
                     "⚠️ تنبيه حماية البيانات (SaveGuard):\n\n" +
                     "لاحظ النظام نقصاً كبيراً (أكثر من 50%) في عدد عناصر إحدى القوائم مقارنة ببداية الجلسة.\n" +
@@ -50,43 +53,50 @@ async function saveCurrentStateByDate(dateString, immediate = false, options = {
                     window.SaveGuard.allowShrinkOnce();
                 } else {
                     console.error('[saveCurrentStateByDate] تم إلغاء الحفظ اليدوي بواسطة المستخدم بعد تنبيه SaveGuard.');
+                    if (options && options.throwOnError) throw new Error('تم إلغاء الحفظ بعد تنبيه حماية البيانات.');
                     return false;
                 }
             } else {
-                console.error('[saveCurrentStateByDate] تم إيقاف الحفظ لمنع تفريغ أو انكماش البيانات الحرجة.');
+                console.error('[saveCurrentStateByDate] تم إيقاف الحفظ لمنع تفريغ أو تلف البيانات الحرجة.');
+                if (options && options.throwOnError) throw new Error('تم إيقاف الحفظ بواسطة حارس حماية البيانات.');
                 return false;
             }
         }
     }
 
-    try {
-        const fullLocalBackup = { ...stateToSave }; 
-        const backupKey = `goodsMgmt_backup_${dateString}_slot_${safeBackupIndex}`;
-        
-        const keysToRemove = [];
-        for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key && key.startsWith("goodsMgmt_backup_") && !key.includes(dateString)) {
-                keysToRemove.push(key);
-            }
-        }
-        keysToRemove.forEach(k => localStorage.removeItem(k));
+    const currentUid = (window.currentUser && window.currentUser.uid) ? window.currentUser.uid : null;
+    if (currentUid) {
+        try {
+            const fullLocalBackup = { ...stateToSave, _userId: currentUid };
+            const userBackupPrefix = `goodsMgmt_backup_${currentUid}_`;
+            const backupKey = `${userBackupPrefix}${dateString}_slot_${safeBackupIndex}`;
 
-        saveData(backupKey, fullLocalBackup);
-        
-        if (typeof backupSlotIndex !== 'undefined') {
-            backupSlotIndex = (backupSlotIndex + 1) % MAX_BACKUP_SLOTS;
-        }
-    } catch (e) {
-        console.warn("Local backup warning (silent):", e);
-        if (e && (e.name === 'QuotaExceededError' || String(e.message || '').toLowerCase().includes('quota'))) {
-            alert("خطأ حرج: الذاكرة المحلية للمتصفح ممتلئة تماماً ولم يتم الحفظ المحلي! يرجى إفراغ مساحة أو التأكد من اتصال الإنترنت لتجنب ضياع البيانات.");
+            const keysToRemove = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.startsWith(userBackupPrefix) && !key.includes(dateString)) {
+                    keysToRemove.push(key);
+                }
+            }
+            keysToRemove.forEach(k => localStorage.removeItem(k));
+
+            saveData(backupKey, fullLocalBackup);
+
+            if (typeof backupSlotIndex !== 'undefined') {
+                backupSlotIndex = (backupSlotIndex + 1) % MAX_BACKUP_SLOTS;
+            }
+        } catch (e) {
+            console.warn("Local backup warning (silent):", e);
+            if (e && (e.name === 'QuotaExceededError' || String(e.message || '').toLowerCase().includes('quota'))) {
+                alert("خطأ حرج: الذاكرة المحلية للمتصفح ممتلئة تماماً ولم يتم الحفظ المحلي! يرجى إفراغ مساحة أو التأكد من اتصال الإنترنت لتجنب ضياع البيانات.");
+            }
         }
     }
 
     // 1. التحقق من تسجيل الدخول
     if (!window.currentUser) {
         showGlobalMessage("تنبيه: أنت غير مسجل دخول. يتم الحفظ على الجهاز فقط.", false, true);
+        if (options && options.throwOnError) throw new Error('لم يتم تسجيل الدخول.');
         return false;
     }
     
@@ -103,14 +113,19 @@ async function saveCurrentStateByDate(dateString, immediate = false, options = {
 
     if (typeof window.saveSystemToCloud === 'function') {
         try {
-            await window.saveSystemToCloud({ immediate: Boolean(immediate) });
+            await window.saveSystemToCloud({
+                immediate: Boolean(immediate),
+                allowArchiveWrite: Boolean(options && (options.allowArchiveWrite || options.isManualUserSave))
+            });
             window._autoSaveDirty = false;
             return true;
         } catch (err) {
             console.error('[saveCurrentStateByDate] Unified cloud save failed:', err);
+            if (options && options.throwOnError) throw err;
             return false;
         }
     }
+    if (options && options.throwOnError) throw new Error('دالة الحفظ السحابي غير متاحة.');
     return false;
 }
 
@@ -135,19 +150,23 @@ function openBackupHistoryModal() {
 
     // �� التغيير الجذري: مسح شامل لكل مفاتيح الذاكرة بدلاً من التخمين
     // هذا يتجاوز مشاكل ترتيب المفاتيح في كروم
+    const currentUid = (window.currentUser && window.currentUser.uid) ? window.currentUser.uid : null;
+    if (!currentUid) {
+        listContainer.innerHTML = `<div class="text-center py-4 text-gray-500">يجب تسجيل الدخول أولاً لعرض النسخ الاحتياطية الخاصة بحسابك.</div>`;
+        modal.style.display = 'block';
+        return;
+    }
+    const userBackupPrefix = `goodsMgmt_backup_${currentUid}_`;
+
+    // مسح النسخ الاحتياطية الخاصة بالحساب المسجل حالياً فقط (عزل تام بين الحسابات)
     for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        
-        // هل المفتاح يخص برنامجنا ويخص التاريخ المطلوب؟
-        if (key && key.includes("goodsMgmt_backup_") && key.includes(targetDate)) {
+        if (key && key.startsWith(userBackupPrefix) && key.includes(targetDate)) {
             try {
                 const raw = localStorage.getItem(key);
                 const data = JSON.parse(raw);
-                
-                if (data && data.savedAt) {
-                    // حساب حجم البيانات
+                if (data && data.savedAt && data._userId === currentUid) {
                     const infoCount = (data.products?.length || 0) + (data.log?.length || 0);
-                    
                     backups.push({
                         key: key,
                         time: new Date(data.savedAt),
@@ -163,11 +182,13 @@ function openBackupHistoryModal() {
     // ترتيب النسخ: الأحدث أولاً
     backups.sort((a, b) => b.time - a.time);
 
+    const safeEsc = (s) => (typeof window.escapeHTML === 'function' ? window.escapeHTML(s) : String(s || '').replace(/[&<>"']/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])));
+
     // عرض القائمة
     if (backups.length === 0) {
         listContainer.innerHTML = `
             <div class="text-center py-4">
-                <p class="text-gray-500 mb-2">لا توجد نسخ لهذا اليوم (${targetDate}).</p>
+                <p class="text-gray-500 mb-2">لا توجد نسخ لهذا اليوم (${safeEsc(targetDate)}).</p>
                 <small class="text-gray-400">تأكد أنك قمت بعملية حفظ واحدة على الأقل.</small>
             </div>`;
     } else {
@@ -181,7 +202,7 @@ function openBackupHistoryModal() {
                         محتوى النسخة: <b>${backup.info}</b> عنصر
                     </div>
                 </div>
-                <button type="button" data-backup-key="${backup.key}" class="restore-backup-btn-action" style="
+                <button type="button" data-backup-key="${safeEsc(backup.key)}" class="restore-backup-btn-action" style="
                     background-color: #16a34a; 
                     color: white; 
                     font-weight: bold; 
@@ -214,6 +235,11 @@ document.addEventListener('click', async function(e) {
                 const raw = localStorage.getItem(key);
                 if (raw) {
                     const data = JSON.parse(raw);
+                    const currentUid = (window.currentUser && window.currentUser.uid) ? window.currentUser.uid : null;
+                    if (!currentUid || data._userId !== currentUid) {
+                        alert("تم رفض الاستعادة: هذه النسخة لا تخص الحساب المسجّل حالياً.");
+                        return;
+                    }
                     // استخدام التاريخ المحفوظ أو الحالي
                     const dateStr = data.savedForDate || (typeof getCairoDateString === 'function' ? getCairoDateString() : new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' }));
                     
@@ -232,7 +258,7 @@ document.addEventListener('click', async function(e) {
                     if (window.SaveGuard && typeof window.SaveGuard.allowShrinkOnce === 'function') {
                         window.SaveGuard.allowShrinkOnce();
                     }
-                    const savedOk = await saveCurrentStateByDate(dateStr, true);
+                    const savedOk = await saveCurrentStateByDate(dateStr, true, { allowArchiveWrite: true });
                     if (savedOk) {
                         alert("تمت الاستعادة والحفظ في السحابة بنجاح!");
                     } else {

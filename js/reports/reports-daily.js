@@ -72,7 +72,7 @@ function displaySalesReport(salesToDisplay) {
                     <td>
                         <div style="font-weight:bold; color:#334155;">${saleDateDisplay}</div>
                         <div style="font-size:0.75rem; color:#94a3b8;">${timeDisplay}</div>
-                        ${sale.invoiceNumber ? `<div style="font-size:0.7rem; color:#6366f1; margin-top:2px;">#${sale.invoiceNumber}</div>` : ''}
+                        ${sale.invoiceNumber ? `<div style="font-size:0.7rem; color:#6366f1; margin-top:2px;">#${typeof escapeHTML === 'function' ? escapeHTML(sale.invoiceNumber) : sale.invoiceNumber}</div>` : ''}
                     </td>
                     <td style="font-weight:500;">${customer}</td>
                     <td>${itemsDesc}</td>

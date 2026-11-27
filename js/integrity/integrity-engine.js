@@ -27,19 +27,27 @@ const _FIG_EXACT_MANUAL_OP_TYPES = new Set([
     'سحب سيولة',
     'إضافة إيراد',
     'إضافة حساب',
+    'تعديل حساب',
     'حذف حساب',
     'تعديل خزينة',
     'تعديل منتج',
     'إضافة منتج',
     'اضافة منتج',
+    'إضافة منتج (اسم مستقل)',
     'حذف منتج',
     'تعديل كمية',
+    'إعادة تقييم تكلفة منتج',
+    'تسوية مخزن (إيداع)',
+    'تسوية مخزن (هالك/خسارة)',
     'إضافة التزام',
     'اضافة التزام',
     'زيادة التزام',
+    'تسجيل/زيادة التزام',
     'زيادة يدوية',
     'حذف التزام',
     'تعديل التزام',
+    'تسجيل/زيادة دين',
+    'إلغاء دين',
     'إيداع رأس مال',
     'ايداع راس مال',
     'سحب رأس مال',
@@ -50,7 +58,32 @@ const _FIG_EXACT_MANUAL_OP_TYPES = new Set([
     'رصيد افتتاح',
     'شطب دين',
     'مصادرة عربون',
-    'تعديل فاتورة شراء'
+    'تعديل فاتورة شراء',
+    'معالجة التزامات شهرية',
+    'تصفير شامل'
+]);
+
+// عمليات تشغيلية متزنة محاسبياً (تغيّر رأس المال المتوقع لها = 0) لها الأولوية على التصنيف اليدوي لو ظهرت مع قيود مساعدة
+const _FIG_STRICT_OPERATIONAL_TYPES = new Set([
+    'شراء بضاعة (تعديل كمية)',
+    'شراء بضاعة (منفصلة الاسم)',
+    'شراء بضاعة جديدة',
+    'شراء بضاعة',
+    'بيع بضاعة',
+    'بيع مؤقت',
+    'تأكيد بيع مؤقت',
+    'مرتجع فوري',
+    'مرتجع من فاتورة',
+    'مرتجع مشتريات',
+    'توزيع تكاليف (تحميل إداري)'
+]);
+
+// أنواع سداد الالتزامات التي قد يُفعّل معها خيار "تسجيل كمصروف بتقرير المصروفات" كمذكرة تقريرية
+const _FIG_LIABILITY_PAYMENT_OP_TYPES = new Set([
+    'تسديد جزء من التزام',
+    'تسديد التزام مجمع',
+    'سداد كامل التزامات دائن',
+    'سداد جماعي للالتزامات'
 ]);
 
 function _figMoney(v) {
@@ -150,6 +183,7 @@ function captureFinancialIntegritySnapshot() {
     const totalDeductions = _figMoney(liabilitiesVal + pendingDeposits);
     const totalCapital = _figMoney(totalAssets - totalDeductions);
     const opLog = _figGetArr('operationLog').length ? _figGetArr('operationLog') : _figGetArr('log');
+    const liqLog = _figGetArr('liquidityLog');
 
     return {
         timestamp: new Date().toISOString(),
@@ -169,7 +203,8 @@ function captureFinancialIntegritySnapshot() {
         totalProfit: _figMoney(_figGetNum('totalProfit')),
         expenses: _figMoney(_figGetNum('expenses')),
         recordedLosses: _figMoney(_figGetNum('recordedLosses')),
-        opLogLength: opLog.length
+        opLogLength: opLog.length,
+        liqLogLength: liqLog.length
     };
 }
 
@@ -187,6 +222,8 @@ function _figHasCriticalCorruption(stateObj) {
     const dbts = Array.isArray(src.debtors) ? src.debtors : _figGetArr('debtors');
     const liabs = Array.isArray(src.liabilities) ? src.liabilities : _figGetArr('liabilities');
     const pSales = Array.isArray(src.pendingSales) ? src.pendingSales : _figGetArr('pendingSales');
+    const pPurs = Array.isArray(src.pendingPurchases) ? src.pendingPurchases : _figGetArr('pendingPurchases');
+    const mLiabs = Array.isArray(src.monthlyLiabilities) ? src.monthlyLiabilities : _figGetArr('monthlyLiabilities');
     const pRets = Array.isArray(src.pendingReturns) ? src.pendingReturns : _figGetArr('pendingReturns');
     const pOrds = Array.isArray(src.pendingOrders) ? src.pendingOrders : _figGetArr('pendingOrders');
     const liqLog = Array.isArray(src.liquidityLog) ? src.liquidityLog : _figGetArr('liquidityLog');
@@ -197,14 +234,16 @@ function _figHasCriticalCorruption(stateObj) {
     prods.forEach(p => { if (p && (_figIsBadNumber(p.quantity) || _figIsBadNumber(p.costPrice))) problems.push(`كمية أو تكلفة فاسدة (NaN) في الصنف "${p.name || p.id}"`); });
     dbts.forEach(d => { if (d && _figIsBadNumber(d.amount)) problems.push(`قيمة دين فاسدة (NaN) للعميل "${d.name || d.id}"`); });
     liabs.forEach(l => { if (l && _figIsBadNumber(l.amount)) problems.push(`قيمة التزام فاسدة (NaN) لـ "${l.name || l.id}"`); });
+    mLiabs.forEach(ml => { if (ml && _figIsBadNumber(ml.amount)) problems.push(`قيمة التزام شهري فاسدة (NaN) لـ "${ml.name || ml.id}"`); });
     pSales.forEach(s => { if (s && (_figIsBadNumber(s.totalCost) || _figIsBadNumber(s.totalSellPrice) || _figIsBadNumber(s.depositPaid))) problems.push(`أرقام فاسدة (NaN) في بيع مؤقت "${s.customerName || s.id}"`); });
+    pPurs.forEach(pp => { if (pp && (_figIsBadNumber(pp.grandTotal) || _figIsBadNumber(pp.paidAmount) || _figIsBadNumber(pp.remainingBalance))) problems.push(`أرقام فاسدة (NaN) في شراء معلق "${pp.invoiceNumber || pp.id}"`); });
     pRets.forEach(r => { if (r && (_figIsBadNumber(r.costOfGoods) || _figIsBadNumber(r.returnedAmount))) problems.push(`أرقام فاسدة (NaN) في مرتجع معلق "${r.customerName || r.id}"`); });
     pOrds.forEach(o => { if (o && (_figIsBadNumber(o.diffAmount) || _figIsBadNumber(o.nMainCost) || _figIsBadNumber(o.rMainCost))) problems.push(`أرقام فاسدة (NaN) في طلب استبدال "${o.customerName || o.id}"`); });
     liqLog.forEach(l => { if (l && (_figIsBadNumber(l.amount) || _figIsBadNumber(l.currentBalance))) problems.push(`قيد سيولة فاسد (NaN) في "${l.description || l.id}"`); });
     purInvs.forEach(inv => { if (inv && (_figIsBadNumber(inv.grandTotal) || _figIsBadNumber(inv.paidAmount) || _figIsBadNumber(inv.remainingBalance))) problems.push(`فاتورة شراء فاسدة (NaN) رقم "${inv.invoiceNumber || inv.id}"`); });
     sToday.forEach(s => { if (s && (_figIsBadNumber(s.grandTotal) || _figIsBadNumber(s.totalCost) || _figIsBadNumber(s.profit))) problems.push(`فاتورة بيع فاسدة (NaN) رقم "${s.invoiceNumber || s.id}"`); });
 
-    ['expenses', 'recordedLosses', 'profit', 'totalProfit'].forEach(k => {
+    ['expenses', 'recordedLosses', 'profit', 'totalProfit', 'pendingReturnsValue'].forEach(k => {
         const val = (stateObj && src[k] !== undefined)
             ? src[k]
             : ((typeof window !== 'undefined' && window[k] !== undefined) ? window[k] : (typeof globalThis !== 'undefined' ? globalThis[k] : undefined));
@@ -213,21 +252,63 @@ function _figHasCriticalCorruption(stateObj) {
     return problems;
 }
 
-function _figDetectOpMeta(beforeSnap, explicitLabel) {
-    const opLog = _figGetArr('operationLog').length ? _figGetArr('operationLog') : _figGetArr('log');
-    let detectedType = '';
-    let detectedDetails = '';
-    if (opLog.length > beforeSnap.opLogLength) {
-        const latest = opLog[opLog.length - 1];
-        if (latest) {
-            detectedType = String(latest.type || '').trim();
-            detectedDetails = String(latest.details || '').trim();
+function _figComputeLiabilityExpenseMemo(beforeSnap, deltaExpenses, deltaLiabilities) {
+    // عند سداد التزام (جزئي / مجمع / كامل دائن / جماعي) مع تفعيل خيار "تسجيل كمصروف بتقرير المصروفات":
+    // ينقص النقد والالتزام معاً بنفس القيمة (تغيّر رأس المال الفعلي = 0 لأن الالتزام خُصم من رأس المال وقت نشأته)
+    // بينما يزداد عداد expenses كمذكرة لتقرير المصروفات فقط.
+    // نقوم بالتحقق الفعلي من قيود liquidityLog الجديدة (isLiabilityPayment && isExpense) ونقيّد الاستثناء
+    // رياضياً بالحد الأدنى بين (المسجّل بالسجل، زيادة المصروفات، ونقص الالتزام الفعلي) لمنع إخفاء أي خطأ حقيقي.
+    if (deltaExpenses <= 0.005 || deltaLiabilities >= -0.005) return 0;
+    const liqLog = _figGetArr('liquidityLog');
+    const startIdx = Math.max(0, Number(beforeSnap && beforeSnap.liqLogLength) || 0);
+    if (liqLog.length <= startIdx) return 0;
+
+    let taggedSum = 0;
+    for (let i = startIdx; i < liqLog.length; i++) {
+        const entry = liqLog[i];
+        if (entry && entry.type === 'remove' && entry.isLiabilityPayment === true && entry.isExpense === true) {
+            const amt = Number(entry.amount) || 0;
+            if (amt > 0) taggedSum = _figMoney(taggedSum + amt);
         }
     }
+    if (taggedSum <= 0.005) return 0;
+    return _figMoney(Math.min(taggedSum, deltaExpenses, Math.abs(deltaLiabilities)));
+}
+
+function _figDetectOpMeta(beforeSnap, explicitLabel, memoLiabilityExpense) {
+    const opLog = _figGetArr('operationLog').length ? _figGetArr('operationLog') : _figGetArr('log');
+    const startIdx = Math.max(0, Number(beforeSnap && beforeSnap.opLogLength) || 0);
+    const newEntries = opLog.length > startIdx ? opLog.slice(startIdx).filter(Boolean) : [];
+
+    let detectedType = '';
+    let detectedDetails = '';
+    let isManual = false;
+
+    if (newEntries.length > 0) {
+        const latest = newEntries[newEntries.length - 1];
+        detectedType = String(latest.type || '').trim();
+        detectedDetails = String(latest.details || '').trim();
+
+        // لو العملية الأساسية كانت سداد التزام ثم تبعها قيد "تسجيل مصروف" تلقائي، نعرض اسم العملية الحقيقية بوضوح
+        if (memoLiabilityExpense > 0.005) {
+            const liabEntry = newEntries.find(e => _FIG_LIABILITY_PAYMENT_OP_TYPES.has(String(e.type || '').trim()));
+            if (liabEntry) {
+                detectedType = `${String(liabEntry.type).trim()} (مسجّل كمصروف)`;
+                detectedDetails = String(liabEntry.details || detectedDetails || '').trim();
+            }
+        }
+
+        // فحص جميع القيود الجديدة في نفس المعاملة: للعمليات التشغيلية الصارمة أولوية على التصنيف اليدوي
+        const hasStrictOp = newEntries.some(e => _FIG_STRICT_OPERATIONAL_TYPES.has(String(e.type || '').trim()));
+        if (!hasStrictOp) {
+            isManual = newEntries.some(e => _FIG_EXACT_MANUAL_OP_TYPES.has(String(e.type || '').trim()));
+        }
+    }
+
     const cleanLabel = String(explicitLabel || '').trim();
     const displayLabel = cleanLabel || detectedType || 'عملية مالية';
-    // مطابقة label و type فقط بالقائمة الصريحة (ممنوع فحص details!)
-    const isManual = _FIG_EXACT_MANUAL_OP_TYPES.has(cleanLabel) || _FIG_EXACT_MANUAL_OP_TYPES.has(detectedType);
+    if (_FIG_EXACT_MANUAL_OP_TYPES.has(cleanLabel) && !_FIG_STRICT_OPERATIONAL_TYPES.has(cleanLabel)) isManual = true;
+
     return { label: displayLabel, details: detectedDetails, isManual };
 }
 
@@ -241,9 +322,13 @@ function _figRecordDelta(before, after, explicitLabel, sourceTag) {
     const deltaExpenses = _figMoney(after.expenses - before.expenses);
     const deltaLosses = _figMoney(after.recordedLosses - before.recordedLosses);
 
-    const expectedDeltaCapital = _figMoney(deltaProfit - deltaExpenses - deltaLosses);
+    // استثناء محاسبي مضبوط لسداد الالتزامات المسجّلة كمصروف تقريري (تغيّر رأس المال المتوقع لها = 0)
+    const memoLiabilityExpense = _figComputeLiabilityExpenseMemo(before, deltaExpenses, deltaLiabilities);
+    const effectiveDeltaExpenses = _figMoney(deltaExpenses - memoLiabilityExpense);
+
+    const expectedDeltaCapital = _figMoney(deltaProfit - effectiveDeltaExpenses - deltaLosses);
     const drift = _figMoney(deltaCapital - expectedDeltaCapital);
-    const opInfo = _figDetectOpMeta(before, explicitLabel);
+    const opInfo = _figDetectOpMeta(before, explicitLabel, memoLiabilityExpense);
 
     // تتبع تراكمي للفروق الصغيرة (<= 1 ج.م) في العمليات غير اليدوية (بند 2)
     if (!opInfo.isManual && Math.abs(drift) > 0.005 && Math.abs(drift) <= _FIG_DRIFT_TOLERANCE) {

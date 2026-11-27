@@ -1856,6 +1856,7 @@ if (addLiabilityButton) {
 
             if (existingIndex !== -1) {
                 liabilities[existingIndex].amount = window.money((Number(liabilities[existingIndex].amount) || 0) + liabilityAmountVal);
+                liabilities[existingIndex].status = 'active';
                 liabilities[existingIndex].lastUpdated = realTime;
                 if (!liabilities[existingIndex].history) liabilities[existingIndex].history = [];
                 liabilities[existingIndex].history.push({
@@ -2147,6 +2148,8 @@ if (ppConfirmBtn) {
         }
 
         saveStateToHistory();
+        const _ppTx = (typeof window.createStateTransaction === 'function') ? window.createStateTransaction('استلام وتسديد شراء معلق') : null;
+        try {
 
         // --- 1. حساب توزيع التكاليف الإضافية نسبياً (أو حسب الكمية إذا كانت قيمة البضاعة 0) ---
         const totalExtraCosts = extraCostsList.reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
@@ -2257,20 +2260,28 @@ if (ppConfirmBtn) {
                     l.status = 'paid';
                 }
             });
-            liabilities = liabilities.filter(l => !(l.purchaseInvoiceId === purchase.id && l.source !== 'purchase_extra_cost' && (Number(l.amount) || 0) <= 0.001));
+            // الإبقاء على الالتزام المسدد بحالة paid ومبلغ 0 للحفاظ على سجل الدفعات (paymentHistory) وكشف حساب المورد
         }
         
         purchaseInvoices.push(purchase);
         pendingPurchases.splice(purchaseIndex, 1);
         
         logOperation("استلام وتسديد شامل", `تم استلام بضاعة وتسديد المتبقي (${formatCurrency(debtToPay)}) شامل المصاريف من حساب "${account.name}".`);
+        if (typeof saveSystemToCloud === 'function') {
+            await saveSystemToCloud({ immediate: true });
+        }
+        if (_ppTx) _ppTx.commit();
+        if (typeof updatePurchaseArchiveInCloud === 'function') {
+            updatePurchaseArchiveInCloud(purchase).catch(e => console.warn(e));
+        }
         showGlobalMessage("تم الاستلام النهائي وتحديث المخزون بالتصنيفات والتكاليف الشاملة بنجاح.", false);
         
         d('pending-purchase-payment-form').classList.add('hidden');
         updateUI();
-
-        if (typeof saveSystemToCloud === 'function') {
-            await saveSystemToCloud();
+        } catch (ppErr) {
+            if (_ppTx) await _ppTx.rollback();
+            console.error("❌ فشل استلام وتسديد الفاتورة المعلقة (تم التراجع):", ppErr);
+            showMessage(d('pp-payment-message'), "تعذر إتمام الاستلام والتسديد؛ تم التراجع التلقائي عن التعديلات.", true);
         }
     });
 }
@@ -2521,8 +2532,15 @@ if (d('liabilities-list-container')) {
     }
   if (logoutBtn) {
     logoutBtn.addEventListener('click', async () => {
-        await window.SessionGuard.stop();
+        const uidBeforeLogout = (window.currentUser && window.currentUser.uid) ? window.currentUser.uid : null;
+        if (window.SessionGuard && typeof window.SessionGuard.stop === 'function') {
+            await window.SessionGuard.stop();
+        }
         await window.signOut(window.auth);
+        if (typeof window.clearUserLocalDataOnLogout === 'function') {
+            await window.clearUserLocalDataOnLogout(uidBeforeLogout);
+        }
+        location.reload();
     });
 }  
 
@@ -2530,6 +2548,15 @@ if (window.onAuthStateChanged) {
     window.onAuthStateChanged(window.auth, async (user) => {
     const splashEl = d('app-splash-loader');
     if (user) {
+        if (window.SerialScannerBridge && typeof window.SerialScannerBridge.shouldRunCompanionScannerOnly === 'function' && window.SerialScannerBridge.shouldRunCompanionScannerOnly()) {
+            if (authContainer) authContainer.classList.add('hidden');
+            if (mainContent) mainContent.classList.add('hidden');
+            if (splashEl) splashEl.style.display = 'none';
+            window.currentUser = user;
+            window._scannerCompanionBootUser = user;
+            window.SerialScannerBridge.activateCompanionMode(user);
+            return;
+        }
         // 🚀 تسريع فتح البرنامج: بدء جلب بيانات اليوم والأرصدة والسيريالات بالتوازي في نفس لحظة فحص الجلسة
         try {
             const todayPrefetchDate = (typeof getTodayDateString === 'function')
@@ -2698,8 +2725,9 @@ if (confirmPartialLiabBtn) {
             d('partial-liability-is-expense').checked = false;
         }
         
-        // لا تحذف الالتزام بالكامل، فقط غير حالته
+        // لا تحذف الالتزام بالكامل، فقط صفّره وغيّر حالته
         if (liability.amount < 0.01) {
+            liability.amount = 0;
             liability.status = 'paid';
         }
         
@@ -3015,8 +3043,11 @@ async function _executeCloudSave() {
     const currentResolvers = [...window._pendingSaveResolvers];
     window._pendingSaveResolvers = [];
 
+    const allowArchiveForThisSave = Boolean(window._allowArchiveWriteNext);
+    window._allowArchiveWriteNext = false;
+
     try {
-        const saveResult = await _internalSaveSystemToCloud();
+        const saveResult = await _internalSaveSystemToCloud({ allowArchiveWrite: allowArchiveForThisSave });
         if (saveResult !== true) {
             const err = new Error('لم يتم الحفظ الفعلي في السحابة.');
             err.code = 'SAVE_REJECTED';
@@ -3044,8 +3075,12 @@ async function _executeCloudSave() {
             err?.code === 'SESSION_LOCKED' || 
             err?.code === 'NOT_LOGGED_IN' || 
             err?.code === 'LOAD_FAILED' ||
-            err?.code === 'SERIALS_LOAD_FAILED'
+            err?.code === 'SERIALS_LOAD_FAILED' ||
+            err?.code === 'ARCHIVE_READONLY_GUARD'
         );
+        if (window.SaveGuard && typeof window.SaveGuard.clearAllowShrinkOnce === 'function') {
+            window.SaveGuard.clearAllowShrinkOnce();
+        }
 
         const statusMsg = isNonRetryable
             ? `⚠️ لم يُحفظ في السحابة (${errMsg})`
@@ -3092,6 +3127,9 @@ async function _executeCloudSave() {
 }
 
 function saveSystemToCloud(options = {}) {
+    if (options && options.allowArchiveWrite) {
+        window._allowArchiveWriteNext = true;
+    }
     window.hasUnsavedChanges = true;
     window._autoSaveDirty = true;
     window._saveGeneration = (window._saveGeneration || 0) + 1;
@@ -3130,11 +3168,18 @@ window.addEventListener('online', () => {
     }
 });
 
-async function _internalSaveSystemToCloud() {
+async function _internalSaveSystemToCloud(options = {}) {
     if (window._loadFailed || window._serialsLoadFailed) {
         console.warn('الحفظ متوقف: فشل تحميل البيانات السابقة أو السيريالات');
         const err = new Error('فشل تحميل البيانات السابقة، تم إيقاف الحفظ لمنع مسح أو تلف البيانات.');
         err.code = window._serialsLoadFailed ? 'SERIALS_LOAD_FAILED' : 'LOAD_FAILED';
+        err.noRetry = true;
+        throw err;
+    }
+    if (window._isArchiveBrowsingMode && !(options && options.allowArchiveWrite)) {
+        console.warn('[Archive Guard] تم إيقاف الحفظ السحابي التلقائي أثناء استعراض يوم أرشيف سابق. استخدم زر الحفظ اليدوي للتأكيد.');
+        const err = new Error('أنت تستعرض حالياً يوم أرشيف سابق. اضغط زر (حفظ) اليدوي إذا كنت تقصد تعديل الأرشيف.');
+        err.code = 'ARCHIVE_READONLY_GUARD';
         err.noRetry = true;
         throw err;
     }
@@ -3345,7 +3390,8 @@ async function _internalSaveSystemToCloud() {
         };
 
         const todayStr = typeof getTodayDateString === 'function' ? getTodayDateString() : (typeof getCairoDateString === 'function' ? getCairoDateString() : new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' }));
-        if (dateStr === todayStr) {
+        const isClosingActiveDayAtMidnight = !window._isArchiveBrowsingMode && !window.historicalBaseline && dateStr < todayStr;
+        if (dateStr === todayStr || isClosingActiveDayAtMidnight) {
             let saveSummaryPromise = Promise.resolve();
             if (isStateMeaningful(latestBalancesData)) {
                 saveSummaryPromise = window.setDoc(
@@ -3565,11 +3611,12 @@ document.addEventListener('click', function(e) {
 // ==========================================
 function emergencyStateFlush() {
     if (window._loadFailed || window._serialsLoadFailed) return;
+    const uid = (window.currentUser && window.currentUser.uid) ? window.currentUser.uid : null;
+    if (!uid) return; // منع كتابة أي لقطات باسم anon بعد تسجيل الخروج
     // 1. أخذ لقطة طوارئ فورية متوافقة مع loadState في الذاكرة المحلية (مقيدة بمعرف المستخدم)
     try {
         if (typeof createStateSnapshot === 'function') {
             const snap = createStateSnapshot();
-            const uid = (window.currentUser && window.currentUser.uid) ? window.currentUser.uid : 'anon';
             const todayKey = (typeof getTodayDateString === 'function' ? getTodayDateString() : 'latest');
             const targetBackupDate = (typeof currentLoadedDate !== 'undefined' && currentLoadedDate) ? currentLoadedDate : todayKey;
             const canonicalSnap = {
@@ -3586,6 +3633,11 @@ function emergencyStateFlush() {
         }
     } catch(err) {
         console.warn("Emergency localStorage snapshot warning:", err);
+    }
+
+    // حماية الأرشيف: لا ننفّذ حفظاً سحابياً تلقائياً أثناء مغادرة التبويب في وضع تصفح يوم أرشيف سابق
+    if (window._isArchiveBrowsingMode) {
+        return;
     }
 
     // 2. إذا كان هناك حفظ سحابي مجدول أو معلق، قم بتنفيذه فوراً عبر البوابة الموحدة saveSystemToCloud

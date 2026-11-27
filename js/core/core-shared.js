@@ -354,11 +354,49 @@ window.generateGlobalID = function generateGlobalID(prefix = 'id') {
 window.generateUniqueId = window.generateGlobalID;
 window.generateId = window.generateGlobalID;
 
+window.clearUserLocalDataOnLogout = async function(explicitUid) {
+    const uid = explicitUid || (window.currentUser && window.currentUser.uid) || null;
+    try {
+        if (typeof localStorage !== 'undefined') {
+            const keysToRemove = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const k = localStorage.key(i);
+                if (!k) continue;
+                if (
+                    k === 'finance_pi_draft' ||
+                    k === 'finance_needs_verify' ||
+                    k === 'erp_scanner_recent_history' ||
+                    k === 'goodsMgmt_data_salesToday' ||
+                    k === 'goodsMgmt_data_pendingSales' ||
+                    k.startsWith('goodsMgmt_backup_') ||
+                    k.startsWith('goodsMgmt_SHADOW_BACKUP') ||
+                    k.startsWith('emergency_backup_') ||
+                    k.startsWith('fc_distributed_expenses_') ||
+                    (uid && (k.includes(uid) || k === `finance_quick_pin_${uid}`))
+                ) {
+                    keysToRemove.push(k);
+                }
+            }
+            keysToRemove.forEach(k => localStorage.removeItem(k));
+        }
+    } catch (e) {
+        console.warn('[Logout Cleanup] localStorage cleanup warning:', e);
+    }
+    try {
+        if (window.db && typeof window.db.terminate === 'function' && typeof window.db.clearPersistence === 'function') {
+            await window.db.terminate();
+            await window.db.clearPersistence();
+        }
+    } catch (e) {
+        console.warn('[Logout Cleanup] Firestore cache clear skipped (may have other open tabs):', e && e.message ? e.message : e);
+    }
+};
+
 console.log('✅ finance-shared.js جاهز — الدوال المشتركة محمّلة.');
 
 // دالة موحدة لتقريب الأرقام المالية لتفادي أخطاء الأعداد العشرية (مثال: 0.1 + 0.2 = 0.30000000000000004)
 window.money = function(value) {
-    const num = Number(value); if (isNaN(num)) return 0; return Math.round((num + Number.EPSILON) * 100) / 100;
+    const num = Number(value); if (!Number.isFinite(num)) return 0; return Math.round((num + Number.EPSILON) * 100) / 100;
 };
 
 // ── 6. توحيد تواريخ النظام بتوقيت القاهرة (Cairo Timezone) ──────────────────────

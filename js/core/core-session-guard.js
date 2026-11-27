@@ -33,12 +33,14 @@
     return id;
   }
 
+  // توليد معرّف فريد لكل تبويب في الذاكرة فقط لمنع تطابق sessionId عند تكرار التبويب (Duplicate Tab)
+  let inMemoryTabSessionId = null;
   function makeSessionId() {
-    let existing = sessionStorage.getItem(SESSION_KEY);
-    if (existing) return existing;
-
-    const id = (typeof crypto !== 'undefined' && crypto.randomUUID) ? ("sess_" + crypto.randomUUID()) : ("sess_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 10));
-    sessionStorage.setItem(SESSION_KEY, id);
+    if (inMemoryTabSessionId) return inMemoryTabSessionId;
+    const id = (typeof crypto !== 'undefined' && crypto.randomUUID)
+      ? ("sess_" + crypto.randomUUID())
+      : ("sess_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 10));
+    inMemoryTabSessionId = id;
     return id;
   }
 
@@ -291,10 +293,14 @@
   }
 
   async function fullSignOut() {
+    const uidBeforeLogout = currentUserId || (window.currentUser && window.currentUser.uid) || null;
     clearNeedsVerify();
     sessionStorage.removeItem(TAKEOVER_KEY);
     stopHeartbeat();
     try { await window.signOut(window.auth); } catch (e) { console.error(e); }
+    if (typeof window.clearUserLocalDataOnLogout === 'function') {
+      try { await window.clearUserLocalDataOnLogout(uidBeforeLogout); } catch (_) {}
+    }
     location.reload();
   }
 
@@ -397,7 +403,29 @@
     try {
       // 1. قراءة حالة الجلسة من الخادم مباشرة لضمان عدم قراءة قفل قديم من الكاش على شبكة بطيئة
       const snap = await window.getDoc(lockRef, { serverOnly: true });
-      const data = (snap && !snap._unreachable && snap.exists()) ? snap.data() : null;
+      const serverUnreachable = Boolean(!snap || snap._unreachable);
+      const data = (!serverUnreachable && snap.exists()) ? snap.data() : null;
+
+      // فحص حالة التحقق المعلّق قبل أي استثناء أوفلاين (Fail-Closed عند وجود تحقق هوية مطلوب)
+      const lostAt = Number(localStorage.getItem(VERIFY_KEY) || 0);
+      if (lostAt && (Date.now() - lostAt) > MAX_FROZEN_MS) {
+        notifyUser("الجلسة المتوقفة على هذا الجهاز انتهت صلاحيتها (أكثر من 12 ساعة). سجّل الدخول من جديد.");
+        await fullSignOut();
+        return false;
+      }
+
+      // عند تعذر الوصول للخادم: لا نكتب قفلاً جديداً في طابور الأوفلاين حتى لا نخطف جلسة جهاز آخر نشط عند عودة الإنترنت
+      if (serverUnreachable) {
+        if (lostAt) {
+          showFrozenScreen("تعذر الاتصال بالخادم لتأكيد الهوية.\nاتصل بالإنترنت ثم اضغط استعادة الجلسة.");
+          return false;
+        }
+        notifyUser("تعذر الاتصال بالخادم لفحص الجلسة. سيتم الدخول في وضع قراءة محلي مؤقتاً دون كتابة قفل الجلسة.", false);
+        currentUserId = user.uid;
+        currentSessionId = newSessionId;
+        lockDocRef = lockRef;
+        return true;
+      }
 
       const forceTakeover = sessionStorage.getItem(TAKEOVER_KEY) === "1";
       sessionStorage.removeItem(TAKEOVER_KEY);
@@ -419,12 +447,6 @@
       }
 
       // 2. التحقق بالـ PIN لو الجلسة كانت متوقفة هنا، أو لو هنسحبها من جهاز تاني
-      const lostAt = Number(localStorage.getItem(VERIFY_KEY) || 0);
-      if (lostAt && (Date.now() - lostAt) > MAX_FROZEN_MS) {
-        notifyUser("الجلسة المتوقفة على هذا الجهاز انتهت صلاحيتها (أكثر من 12 ساعة). سجّل الدخول من جديد.");
-        await fullSignOut();
-        return false;
-      }
       if (lostAt || otherDeviceActive) {
         const result = await verifyIdentity(user);
         if (result === "cancel") {
@@ -473,13 +495,15 @@
 
     } catch (e) {
       console.error("Session check error:", e);
-      notifyUser("حدث خطأ أثناء فحص الجلسة. قد تكون الشبكة ضعيفة. سيتم الدخول في وضع الأوفلاين.", false);
-      
-      // الدخول الإجباري حتى لو فشل القفل (للسماح بالعمل دون اتصال)
+      const pendingVerify = Number(localStorage.getItem(VERIFY_KEY) || 0);
+      if (pendingVerify) {
+        showFrozenScreen("تعذر التحقق من الجلسة أثناء وجود قفل تحقق معلق.\nتحقق من الإنترنت ثم أعد المحاولة.");
+        return false;
+      }
+      notifyUser("حدث خطأ أثناء فحص الجلسة. قد تكون الشبكة ضعيفة. سيتم الدخول في وضع قراءة محلي.", false);
       currentUserId = user.uid;
       currentSessionId = newSessionId;
       lockDocRef = lockRef;
-      await startHeartbeat();
       return true;
     }
   }

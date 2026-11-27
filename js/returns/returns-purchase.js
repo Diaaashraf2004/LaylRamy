@@ -331,8 +331,8 @@ window.confirmPurchaseReturn = async function() {
                         invLiability.amount = window.money ? window.money(Math.max(0, liveAmt - deduct)) : Math.max(0, liveAmt - deduct);
                         remDebtToApply = window.money ? window.money(Math.max(0, remDebtToApply - deduct)) : Math.max(0, remDebtToApply - deduct);
                         if (invLiability.amount <= 0.001) {
-                            const liabIdx = liabilities.indexOf(invLiability);
-                            if (liabIdx > -1) liabilities.splice(liabIdx, 1);
+                            invLiability.amount = 0;
+                            invLiability.status = 'paid';
                         }
                     }
                 }
@@ -537,6 +537,9 @@ window.confirmPurchaseReturn = async function() {
             if (typeof window.renderCompletedPurchaseReturns === 'function') window.renderCompletedPurchaseReturns();
             if (typeof showGlobalMessage === 'function') {
                 showGlobalMessage(`تم إتمام مرتجع المشتريات للمورد بقيمة ${formatCurrency(totalReturnVal)} بنجاح.`);
+            }
+            if (typeof updatePurchaseArchiveInCloud === 'function') {
+                updatePurchaseArchiveInCloud(invoice).catch(e => console.warn("Purchase archive update error after return:", e));
             }
             if (typeof saveSystemToCloud === 'function') {
                 saveSystemToCloud().catch(e => console.error("Cloud save error after purchase return:", e));

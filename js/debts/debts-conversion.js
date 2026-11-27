@@ -10,8 +10,6 @@ window.convertPendingSaleToDebt = async function(pendingSaleId, debtMode, target
     saleData.isProcessingDebt = true;
     const confirmDebtBtn = document.getElementById('cpd_confirm_btn');
     if (confirmDebtBtn) confirmDebtBtn.disabled = true;
-    const _tx = (typeof window.createStateTransaction === 'function') ? window.createStateTransaction() : null;
-    try {
 
     // 2. تأكيد المبالغ
     const totalAmount = Number(saleData.grandTotal || saleData.finalTotal || saleData.totalSellPrice || 0);
@@ -20,9 +18,13 @@ window.convertPendingSaleToDebt = async function(pendingSaleId, debtMode, target
 
     if (remainingAmount <= 0) {
         saleData.isProcessingDebt = false; // تحرير القفل
+        if (confirmDebtBtn) confirmDebtBtn.disabled = false;
         showGlobalMessage("المبلغ مدفوع بالكامل، لا يمكن تحويله لدين.", true);
         return;
     }
+
+    const _tx = (typeof window.createStateTransaction === 'function') ? window.createStateTransaction('تحويل بيع مؤقت لدين') : null;
+    try {
 
     if (typeof saveStateToHistory === 'function') saveStateToHistory();
 
@@ -266,14 +268,18 @@ window.convertPendingSaleToDebt = async function(pendingSaleId, debtMode, target
     
     const m = document.getElementById('convertPendingToDebtModal');
     if (typeof saveCurrentStateByDate === 'function') {
-        await saveCurrentStateByDate(currentLoadedDate || (typeof getTodayDateString === 'function' ? getTodayDateString() : (typeof getCairoDateString === 'function' ? getCairoDateString() : new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' }))), true);
+        const savedOk = await saveCurrentStateByDate(currentLoadedDate || (typeof getTodayDateString === 'function' ? getTodayDateString() : (typeof getCairoDateString === 'function' ? getCairoDateString() : new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' }))), true, { throwOnError: true });
+        if (!savedOk) throw new Error('فشل الحفظ السحابي بعد تحويل البيع لدين');
     } else if (typeof saveSystemToCloud === 'function') {
         await saveSystemToCloud({ immediate: true });
     }
     if (_tx) _tx.commit();
     try {
-        localStorage.setItem("goodsMgmt_data_salesToday", JSON.stringify(typeof salesToday !== 'undefined' ? salesToday : []));
-        localStorage.setItem("goodsMgmt_data_pendingSales", JSON.stringify(typeof pendingSales !== 'undefined' ? pendingSales : []));
+        const uidPrefix = (window.currentUser && window.currentUser.uid) ? `${window.currentUser.uid}_` : '';
+        if (uidPrefix) {
+            localStorage.setItem(`goodsMgmt_data_${uidPrefix}salesToday`, JSON.stringify(typeof salesToday !== 'undefined' ? salesToday : []));
+            localStorage.setItem(`goodsMgmt_data_${uidPrefix}pendingSales`, JSON.stringify(typeof pendingSales !== 'undefined' ? pendingSales : []));
+        }
     } catch(e) {
         console.warn("فشل حفظ نسخة الطوارئ في localStorage داخل convertPendingToDebt:", e);
     }

@@ -1,9 +1,13 @@
-const CACHE_NAME = 'finance-erp-v130'; // 10-agent audit hardening across integrity guard, repeat alarm, expenses, purchases, returns & exchanges
+const CACHE_NAME = 'finance-erp-v151'; // Hardened security/guards + Supplier Statement & Purchase Archive screen
 const ASSETS_TO_CACHE = [
   './finance.html',
   './css/finance.css',
   './css/finance2.css',
   './css/tailwind.js',
+  './css/icon-192.png',
+  './css/icon-512.png',
+  './css/icon-maskable-512.png',
+  './css/apple-touch-icon.png',
   './manifest.json',
   './js/core/core-firebase.js',
   './js/core/core-session-guard.js',
@@ -27,8 +31,12 @@ const ASSETS_TO_CACHE = [
   './js/serials/serials-tracker.js',
   './js/serials/serials-supplier.js',
   './js/serials/serials-views.js',
+  './js/serials/serials-scanner.js',
+  './js/serials/serials-scanner-ui.js',
+  './js/serials/serials-scanner-camera.js',
   './js/inventory/inventory-products.js',
   './js/inventory/inventory-purchase.js',
+  './js/inventory/inventory-supplier-statement.js',
   './js/inventory/inventory-ui.js',
   './js/sales/sales-repeat-alarm.js',
   './js/sales/sales-pending.js',
@@ -91,23 +99,28 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-    // We only want to intercept local requests, not Firebase API calls
-    if (event.request.url.includes('firestore.googleapis.com') || event.request.url.includes('identitytoolkit.googleapis.com')) {
+    if (event.request.method !== 'GET') { return; }
+    let reqUrl;
+    try {
+        reqUrl = new URL(event.request.url);
+    } catch (_) {
         return;
     }
-    
-    // Stale-While-Revalidate: serve from cache instantly, refresh the cache in the background
-    // so the next load always gets the newest files (no more manual Ctrl+Shift+R after updates).
-    if (event.request.method !== 'GET') { return; }
+    // Never intercept cross-origin requests (Firebase, CDNs, Google Fonts, QR API)
+    if (reqUrl.origin !== self.location.origin) {
+        return;
+    }
+
+    const canonicalKey = reqUrl.origin + reqUrl.pathname;
     event.respondWith(
         caches.open(CACHE_NAME).then((cache) =>
-            cache.match(event.request, { ignoreSearch: true }).then((cached) => {
+            cache.match(canonicalKey, { ignoreSearch: true }).then((cached) => {
                 const network = fetch(event.request).then((resp) => {
-                    if (resp && resp.ok && new URL(event.request.url).origin === self.location.origin) {
-                        cache.put(event.request, resp.clone());
+                    if (resp && resp.ok) {
+                        cache.put(canonicalKey, resp.clone());
                     }
                     return resp;
-                }).catch(() => cached);
+                }).catch(() => cached || new Response('', { status: 503, statusText: 'Offline' }));
                 return cached || network;
             })
         )

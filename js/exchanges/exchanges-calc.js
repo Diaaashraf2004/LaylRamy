@@ -397,10 +397,8 @@ async function executeTransaction() {
 
 async function finalizeSave() {
     if (window.saveCurrentStateByDate) {
-        await window.saveCurrentStateByDate(window.currentLoadedDate);
-        if (typeof window.saveSystemToCloud === 'function') {
-            await window.saveSystemToCloud();
-        }
+        const savedOk = await window.saveCurrentStateByDate(window.currentLoadedDate, true, { throwOnError: true });
+        if (!savedOk) throw new Error('تعذر إتمام الحفظ السحابي لحركة الاستبدال');
         renderLocalPendingOrders();
         if (typeof window.refreshMainUI === 'function') {
             window.refreshMainUI();

@@ -380,6 +380,10 @@ function updateLinkedPurchasePayment(liability, paidForThis, accountId) {
         pinv.paidAmount = window.money((Number(pinv.paidAmount) || 0) + paidNum);
         pinv.remainingBalance = window.money(Math.max(0, (Number(pinv.remainingBalance) || 0) - paidNum));
     }
+    const targetToArchive = pnd || pinv;
+    if (targetToArchive && typeof window.updatePurchaseArchiveInCloud === 'function') {
+        window.updatePurchaseArchiveInCloud(targetToArchive).catch(e => console.warn('[updateLinkedPurchasePayment] archive sync warning:', e));
+    }
 }
 window.updateLinkedPurchasePayment = updateLinkedPurchasePayment;
 

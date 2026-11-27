@@ -68,7 +68,7 @@ const selectedMap = new Map(
         const isPreviouslySelected = !!selectedItem;
         const selectedQty = Number(selectedItem?.quantity || 1);
 
-        const uniqueId = `addcost-${generateId(product.name)}`;
+        const uniqueId = generateId('addcost');
         const label = document.createElement('label');
         label.style.display = 'flex';
         label.style.flexWrap = 'wrap';
@@ -432,7 +432,7 @@ function openCustomerStatement(customerId) {
                         ${notes.map(n => `
                             <div class="flex flex-wrap justify-between items-center gap-1 p-2 bg-white rounded border border-amber-100">
                                 <span>${escapeHTML(n.note)}</span>
-                                <span class="text-slate-400 font-mono text-[11px]">${new Date(n.createdAt).toLocaleDateString('ar-EG')} ${n.nextFollowUpDate ? `(متابعة: ${n.nextFollowUpDate})` : ''}</span>
+                                <span class="text-slate-400 font-mono text-[11px]">${new Date(n.createdAt).toLocaleDateString('ar-EG')} ${n.nextFollowUpDate ? `(متابعة: ${escapeHTML(n.nextFollowUpDate)})` : ''}</span>
                             </div>
                         `).join('')}
                     </div>
@@ -499,10 +499,10 @@ function openCustomerProfile(customerId) {
                         </div>
                     </div>
                     <div class="flex flex-wrap items-center gap-2">
-                        <button type="button" onclick="openCustomerStatement('${escapeHTML(customer.id)}')" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-1.5 px-3 rounded-lg flex items-center gap-1 shadow-xs transition">
+                        <button type="button" data-customer-id="${escapeHTML(customer.id)}" onclick="openCustomerStatement(this.dataset.customerId)" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-1.5 px-3 rounded-lg flex items-center gap-1 shadow-xs transition">
                             <i class="fas fa-file-invoice-dollar"></i> كشف حساب تفصيلي
                         </button>
-                        <button type="button" onclick="openCollectionNotesModal('${escapeHTML(customer.id)}')" class="bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs py-1.5 px-3 rounded-lg flex items-center gap-1 shadow-xs transition">
+                        <button type="button" data-customer-id="${escapeHTML(customer.id)}" onclick="openCollectionNotesModal(this.dataset.customerId)" class="bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs py-1.5 px-3 rounded-lg flex items-center gap-1 shadow-xs transition">
                             <i class="fas fa-comment-dots"></i> إضافة ملاحظة
                         </button>
                     </div>
@@ -520,7 +520,7 @@ function openCustomerProfile(customerId) {
                     </div>
                 </div>
                 <div class="mt-3 text-left">
-                    <button type="button" onclick="saveCustomerProfileDetails('${escapeHTML(customer.id)}')" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-1.5 px-4 rounded-lg shadow-xs transition">
+                    <button type="button" data-customer-id="${escapeHTML(customer.id)}" onclick="saveCustomerProfileDetails(this.dataset.customerId)" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-1.5 px-4 rounded-lg shadow-xs transition">
                         <i class="fas fa-save ml-1"></i> حفظ تعديلات البيانات
                     </button>
                 </div>

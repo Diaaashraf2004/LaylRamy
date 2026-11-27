@@ -1,6 +1,6 @@
 rules_version = '2';
 // =====================================================================
-// Firestore Security Rules - Finance App (Secure Edition)
+// Firestore Security Rules — Finance App (Secure Edition)
 // =====================================================================
 
 service cloud.firestore {
@@ -10,10 +10,14 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid == userId;
     }
 
-    function isReasonableSize() {
-      return request.method == 'delete' || 
+    function isReasonableDoc() {
+      return request.method == 'delete' ||
              (request.resource.data.keys().hasAny(['_hack', 'malicious']) == false &&
-              request.resource.data.keys().size() < 100); 
+              request.resource.data.keys().size() < 100);
+    }
+
+    function isValidDateId(date) {
+      return date.matches('^\\d{4}-\\d{2}-\\d{2}$');
     }
 
     match /{document=**} {
@@ -22,23 +26,32 @@ service cloud.firestore {
 
     match /users/{userId}/days/{date} {
       allow read: if isOwner(userId);
-      allow write: if isOwner(userId) && isReasonableSize();
+      allow write: if isOwner(userId) && isValidDateId(date) && isReasonableDoc();
     }
-        match /users/{userId}/purchase_archives/{docId} { allow read, write: if isOwner(userId); }
-    match /users/{userId}/summaries/{docId} { allow read, write: if isOwner(userId); }
-    match /users/{userId}/invoices/{docId} { allow read, write: if isOwner(userId); }
-    match /users/{userId}/settings/{docId} { allow read, write: if isOwner(userId); }
-    match /users/{userId}/meta/{docId} { allow read, write: if isOwner(userId); }
-    match /users/{userId}/customers/{docId} { allow read, write: if isOwner(userId); }
-    match /users/{userId}/debts/{docId} { allow read, write: if isOwner(userId); }
-    match /users/{userId}/products/{docId} { allow read, write: if isOwner(userId); }
-    match /users/{userId}/pending_sales/{docId} { allow read, write: if isOwner(userId); }
-    match /users/{userId}/sales/{docId} { allow read, write: if isOwner(userId); }
-    match /users/{userId}/salesToday/{docId} { allow read, write: if isOwner(userId); }
-    match /users/{userId}/serials_storage/{docId} { allow read, write: if isOwner(userId); }
-    match /users/{userId}/serials/{docId} { allow read, write: if isOwner(userId); }
-    match /users/{userId}/archive_log/{docId} { allow read, write: if isOwner(userId); }
-    match /users/{userId}/archive_liquidity/{docId} { allow read, write: if isOwner(userId); }
-    match /users/{userId}/operation_logs/{docId} { allow read, write: if isOwner(userId); }
+
+    match /users/{userId}/meta/{docId} {
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId) && docId == 'sessionLock' && isReasonableDoc();
+    }
+
+    match /users/{userId}/settings/{docId} {
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId) && docId == 'live_scan_bridge' && isReasonableDoc();
+    }
+
+    match /users/{userId}/purchase_archives/{docId} { allow read: if isOwner(userId); allow write: if isOwner(userId) && isReasonableDoc(); }
+    match /users/{userId}/summaries/{docId} { allow read: if isOwner(userId); allow write: if isOwner(userId) && isReasonableDoc(); }
+    match /users/{userId}/invoices/{docId} { allow read: if isOwner(userId); allow write: if isOwner(userId) && isReasonableDoc(); }
+    match /users/{userId}/customers/{docId} { allow read: if isOwner(userId); allow write: if isOwner(userId) && isReasonableDoc(); }
+    match /users/{userId}/debts/{docId} { allow read: if isOwner(userId); allow write: if isOwner(userId) && isReasonableDoc(); }
+    match /users/{userId}/products/{docId} { allow read: if isOwner(userId); allow write: if isOwner(userId) && isReasonableDoc(); }
+    match /users/{userId}/pending_sales/{docId} { allow read: if isOwner(userId); allow write: if isOwner(userId) && isReasonableDoc(); }
+    match /users/{userId}/sales/{docId} { allow read: if isOwner(userId); allow write: if isOwner(userId) && isReasonableDoc(); }
+    match /users/{userId}/salesToday/{docId} { allow read: if isOwner(userId); allow write: if isOwner(userId) && isReasonableDoc(); }
+    match /users/{userId}/serials_storage/{docId} { allow read: if isOwner(userId); allow write: if isOwner(userId) && isReasonableDoc(); }
+    match /users/{userId}/serials/{docId} { allow read: if isOwner(userId); allow write: if isOwner(userId) && isReasonableDoc(); }
+    match /users/{userId}/archive_log/{docId} { allow read: if isOwner(userId); allow write: if isOwner(userId) && isReasonableDoc(); }
+    match /users/{userId}/archive_liquidity/{docId} { allow read: if isOwner(userId); allow write: if isOwner(userId) && isReasonableDoc(); }
+    match /users/{userId}/operation_logs/{docId} { allow read: if isOwner(userId); allow write: if isOwner(userId) && isReasonableDoc(); }
   }
 }

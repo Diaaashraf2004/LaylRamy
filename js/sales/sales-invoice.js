@@ -164,10 +164,12 @@ if (currentProduct) newRow.dataset.productId = currentProduct.id || ""; // حف�
     // تنسيق العملة (يمكنك استخدام دالة formatCurrency الخاصة بك بدلاً من هذا إذا كانت متاحة)
     const formatMoney = (amount) => typeof formatCurrency === 'function' ? formatCurrency(amount) : amount.toFixed(2);
 
+    const safeName = typeof escapeHTML === 'function' ? escapeHTML(name) : String(name || '');
+    const safeSerial = typeof escapeHTML === 'function' ? escapeHTML(selectedSerial) : String(selectedSerial || '');
     newRow.innerHTML = `
         <td class="item-name">
-            ${name}
-            ${selectedSerial && qty === 1 ? `<span class="serial-display no-print" style="display:block; font-size:0.8em; color:#666;">(S/N: ${selectedSerial})</span>` : ''}
+            ${safeName}
+            ${selectedSerial && qty === 1 ? `<span class="serial-display no-print" style="display:block; font-size:0.8em; color:#666;">(S/N: ${safeSerial})</span>` : ''}
         </td>
         <td class="item-qty" style="text-align:center;">
             <input type="number" class="row-qty-input" value="${qty}" min="1" style="width: 60px; text-align: center; border: 1px solid #ddd; border-radius: 4px; padding: 2px;" ${selectedSerial && qty === 1 ? 'readonly title="لا يمكن تغيير الكمية لمنتج مسيرل"' : ''}>
@@ -274,9 +276,7 @@ async function handleSaveInvoice(skipConfirmation = true) {
         return;
     }
 
-    const _tx = (typeof window.createStateTransaction === 'function') ? window.createStateTransaction() : null;
-    try {
-        const customerName = inv_customerNameInput.value.trim();
+    const customerName = inv_customerNameInput.value.trim();
     const customerAddress = inv_customerAddressInput ? inv_customerAddressInput.value.trim() : '';
     const phones = inv_invoiceForm ? Array.from(inv_invoiceForm.querySelectorAll('input[name="phone[]"]')).map(input => input.value.trim()).filter(phone => phone) : [];
     
@@ -394,8 +394,6 @@ async function handleSaveInvoice(skipConfirmation = true) {
         return;
     }
 
-    saveStateToHistory(); 
-
     // تخطيط وتنفيذ حركات المخزون عبر sales-invoice-stock.js
     const stockOrigin = (isInvoiceFromPending || isEditingPendingInvoice) ? pendingSaleOriginData : null;
     const stockPlan = (typeof planInvoiceStockChanges === 'function') 
@@ -408,6 +406,10 @@ async function handleSaveInvoice(skipConfirmation = true) {
         if (typeof showMessage === 'function') showMessage(errDiv, stockPlan.error || "المخزون المتاح غير كافٍ.", true);
         return;
     }
+
+    saveStateToHistory();
+    const _tx = (typeof window.createStateTransaction === 'function') ? window.createStateTransaction('حفظ فاتورة مبيعات') : null;
+    try {
 
     if (typeof executeInvoiceStockChanges === 'function') {
         executeInvoiceStockChanges(products, stockPlan.changes);
@@ -597,7 +599,10 @@ async function handleSaveInvoice(skipConfirmation = true) {
     updateUI();
     inv_closeModal();
     if (isPendingSave && typeof window.switchSalesTab === 'function') window.switchSalesTab('pending');
-    if (typeof saveCurrentStateByDate === 'function') { await saveCurrentStateByDate(currentLoadedDate || (typeof getTodayDateString === 'function' ? getTodayDateString() : (typeof getCairoDateString === 'function' ? getCairoDateString() : new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' })))); }
+    if (typeof saveCurrentStateByDate === 'function') {
+        const savedOk = await saveCurrentStateByDate(currentLoadedDate || (typeof getTodayDateString === 'function' ? getTodayDateString() : (typeof getCairoDateString === 'function' ? getCairoDateString() : new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' }))), false, { throwOnError: true });
+        if (!savedOk) throw new Error('تعذر إتمام الحفظ السحابي للفاتورة');
+    }
     if (_tx) _tx.commit();
     if (!isPendingSave) window.showPostSaleModal('invoice', wasPending);
     restoreSaveBtn();

@@ -87,7 +87,7 @@ window.getDoc = async function(docRef, options = {}) {
     }
 };
 window.deleteDoc = function(docRef) { return docRef.delete(); };
-window.addDoc = function(collRef, data) { return collRef.add(data); };
+window.addDoc = function(collRef, data) { return collRef.add(removeUndefinedFromFirestoreData(data)); };
 window.serverTimestamp = firebase.firestore.FieldValue.serverTimestamp;
 window.collection = function(dbInstance, ...paths) { return dbInstance.collection(paths.join('/')); };
 
