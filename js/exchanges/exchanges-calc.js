@@ -175,40 +175,46 @@ async function executeTransaction() {
             }
         };
 
-        const processOut = (name, cost, price, onDeductedCost) => {
-            if(!name) return;
+        const processOut = (name, cost, price, onDeductedInfo) => {
+            if(!name) return null;
             const cleanName = String(name).trim().toLowerCase();
             let p = liveProducts.find(x => x && x.name && String(x.name).trim().toLowerCase() === cleanName && (Number(x.quantity) || 0) > 0)
                 || liveProducts.find(x => x && x.name && String(x.name).trim().toLowerCase() === cleanName);
             if(p) {
                 p.quantity = Math.max(0, (Number(p.quantity) || 0) - 1);
-                if (typeof onDeductedCost === 'function' && Number.isFinite(Number(p.costPrice))) {
-                    onDeductedCost(Number(p.costPrice));
+                if (typeof onDeductedInfo === 'function') {
+                    onDeductedInfo(Number.isFinite(Number(p.costPrice)) ? Number(p.costPrice) : Number(cost) || 0, p.id || null);
                 }
+                return p.id || null;
             } else {
                 const newP = { id: "N-"+Date.now()+"-"+Math.floor(Math.random()*1000), name: String(name).trim(), category: "عام", quantity: 0, costPrice: Math.round((Number(cost) || 0) * 1e6) / 1e6, price: Number(price) || 0 };
                 if (typeof window.injectProductToMain === 'function') window.injectProductToMain(newP); 
                 else liveProducts.push(newP);
+                if (typeof onDeductedInfo === 'function') onDeductedInfo(newP.costPrice, newP.id);
+                return newP.id;
             }
         };
 
+        let nMainProductId = null;
         if (!isPending) {
             processReturn(rMainName, rMainCost, rMainPrice, rMainCat); 
             rAccs.forEach(a => processReturn(a.name, a.cost, a.price, a.cat));
 
-            processOut(nMainName, nMainCost, nMainPrice, (c) => { actualNMainCost = c; }); 
-            nAccs.forEach(a => processOut(a.name, a.cost, a.price, (c) => { a.cost = c; }));
+            processOut(nMainName, nMainCost, nMainPrice, (c, pid) => { actualNMainCost = c; nMainProductId = pid; }); 
+            nAccs.forEach(a => processOut(a.name, a.cost, a.price, (c, pid) => { a.cost = c; a.productId = pid; }));
             totalNCost = actualNMainCost + nAccs.reduce((s, a) => s + (Number(a.cost) || 0), 0);
         }
         const netExchangeProfit = m((totalNPrice - totalNCost) - (totalRPrice - totalRCost));
 
         const itemsToSell = [];
         if (nMainName) itemsToSell.push({ 
+            id: nMainProductId || null,
             name: nMainName, productName: nMainName, quantity: 1, qty: 1, 
             unitPrice: nMainPrice, price: nMainPrice, subtotal: nMainPrice, total: nMainPrice, 
-            costPrice: nMainCost, cost: nMainCost, unitCost: nMainCost 
+            costPrice: actualNMainCost || nMainCost, cost: actualNMainCost || nMainCost, unitCost: actualNMainCost || nMainCost 
         });
         nAccs.forEach(a => itemsToSell.push({ 
+            id: a.productId || null,
             name: a.name, productName: a.name, quantity: 1, qty: 1, 
             unitPrice: a.price, price: a.price, subtotal: a.price, total: a.price, 
             costPrice: a.cost, cost: a.cost, unitCost: a.cost 

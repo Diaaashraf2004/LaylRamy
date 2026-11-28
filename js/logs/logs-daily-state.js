@@ -223,10 +223,14 @@ async function loadDataForDate(dateString) {
 
             loadState(loadedDayData, dateString);
 
-            // 🛡️ إنشاء نسخة الظل (Shadow Backup) مقيدة بمعرف المستخدم لمنع تسرب البيانات بين الحسابات
+            // 🛡️ إنشاء نسخة الظل (Shadow Backup) مقيدة بمعرف المستخدم ومضغوطة لحماية مساحة localStorage
             try { 
-                const shadowPayload = { ...loadedDayData, _userId: userId };
-                localStorage.setItem(`goodsMgmt_SHADOW_BACKUP_${userId}`, JSON.stringify(shadowPayload)); 
+                if (typeof window.saveCompactShadowBackup === 'function') {
+                    window.saveCompactShadowBackup(userId, loadedDayData);
+                } else {
+                    const shadowPayload = { ...loadedDayData, _userId: userId };
+                    localStorage.setItem(`goodsMgmt_SHADOW_BACKUP_${userId}`, JSON.stringify(shadowPayload));
+                }
                 window._shadowLengths = { products: (loadedDayData.products||[]).length, debtors: (loadedDayData.debtors||[]).length, liabilities: (loadedDayData.liabilities||[]).length, pendingSales: (loadedDayData.pendingSales||[]).length };
             } catch(e){ console.warn("تعذر حفظ SHADOW_BACKUP في localStorage:", e); }
             if (typeof window.SaveGuard !== 'undefined' && typeof window.SaveGuard.recordLoadedState === 'function') {
@@ -413,10 +417,14 @@ async function loadDataForDate(dateString) {
                 if(loadMsg) showMessage(loadMsg, `تم بدء يوم جديد وترحيل كافة الأرصدة بنجاح.`, false);
                 updateUI();
 
-                // 🛡️ إنشاء نسخة الظل (Shadow Backup) مقيدة بمعرف المستخدم
+                // 🛡️ إنشاء نسخة الظل (Shadow Backup) مقيدة بمعرف المستخدم ومضغوطة لحماية مساحة localStorage
                 try { 
-                    const shadowPayload = { ...dataToMigrate, _userId: userId };
-                    localStorage.setItem(`goodsMgmt_SHADOW_BACKUP_${userId}`, JSON.stringify(shadowPayload)); 
+                    if (typeof window.saveCompactShadowBackup === 'function') {
+                        window.saveCompactShadowBackup(userId, dataToMigrate);
+                    } else {
+                        const shadowPayload = { ...dataToMigrate, _userId: userId };
+                        localStorage.setItem(`goodsMgmt_SHADOW_BACKUP_${userId}`, JSON.stringify(shadowPayload));
+                    }
                     window._shadowLengths = { products: (dataToMigrate.products||[]).length, debtors: (dataToMigrate.debtors||[]).length, liabilities: (dataToMigrate.liabilities||[]).length, pendingSales: (dataToMigrate.pendingSales||[]).length };
                 } catch(e){ console.warn("تعذر حفظ SHADOW_BACKUP في localStorage:", e); }
                 if (typeof window.SaveGuard !== 'undefined' && typeof window.SaveGuard.recordLoadedState === 'function') {
@@ -558,7 +566,10 @@ window.restoreFromEmergencyBackup = function(force = false) {
     }
 
     try {
-        const data = backupInfo.data;
+        const currentUid = (window.currentUser && window.currentUser.uid) ? window.currentUser.uid : null;
+        const data = (typeof window.rehydrateCompactSnapshot === 'function')
+            ? window.rehydrateCompactSnapshot(backupInfo.data, currentUid)
+            : backupInfo.data;
         const targetDate = data.savedForDate || (typeof getCairoDateString === 'function' ? getCairoDateString() : new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' }));
         console.log(`[Emergency Recovery] جاري استرجاع النظام من النسخة الاحتياطية (${backupInfo.source})...`);
         loadState(data, targetDate);
@@ -762,9 +773,13 @@ window.manualRolloverFromDate = async function(sourceDate) {
             }
         }
 
-        // تحديث نسخة الظل الاحتياطية المقيدة بمعرف المستخدم في المتصفح
+        // تحديث نسخة الظل الاحتياطية المقيدة بمعرف المستخدم ومضغوطة في المتصفح
         try {
-            localStorage.setItem(`goodsMgmt_SHADOW_BACKUP_${userId}`, JSON.stringify({ ...dataToMigrate, _userId: userId }));
+            if (typeof window.saveCompactShadowBackup === 'function') {
+                window.saveCompactShadowBackup(userId, dataToMigrate);
+            } else {
+                localStorage.setItem(`goodsMgmt_SHADOW_BACKUP_${userId}`, JSON.stringify({ ...dataToMigrate, _userId: userId }));
+            }
         } catch (e) { console.warn('[logs-daily-state.js] تم تجاهل خطأ:', e); }
 
         // تهيئة المزامنة الثنائية

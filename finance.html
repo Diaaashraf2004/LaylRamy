@@ -551,7 +551,12 @@
                     </div>
               </div>
                 <div class="mt-8 border-t pt-6">
-                    <h3 class="sub-heading">قائمة البضائع المتوفرة</h3>
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                        <h3 class="sub-heading m-0">قائمة البضائع المتوفرة</h3>
+                        <button type="button" onclick="if(typeof window.openProductProfitModal==='function') window.openProductProfitModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-xl text-xs sm:text-sm shadow flex items-center gap-1.5">
+                            <i class="fas fa-chart-line"></i> تحليل أرباح منتج (بالمعرّف الخاص)
+                        </button>
+                    </div>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-3.5 mb-5">
                         <div id="inventory-total-inventory-value" class="p-3.5 bg-indigo-50/80 border border-indigo-200/90 rounded-2xl text-sm md:text-base font-bold text-indigo-900 shadow-sm flex items-center justify-center text-center">إجمالي قيمة المخزون: 0.00 جنيه</div>
                         <div id="inventory-consignment-value-display" class="p-3.5 bg-amber-50/80 border border-amber-200/90 rounded-2xl text-sm md:text-base font-bold text-amber-900 shadow-sm flex items-center justify-center text-center">قيمة مؤقتة: 0.00 جنيه</div>
@@ -611,10 +616,21 @@
             <legend>البيانات الأساسية</legend>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div class="form-group">
-                    <label for="pi_supplier" class="block text-sm font-bold mb-1">اختر المورد:<span class="required">*</span></label>
-                  <select id="pi_supplier" class="shadow-sm"></select>
-
-
+                    <div class="flex items-center justify-between gap-2 mb-1">
+                        <label for="pi_supplier" class="block text-sm font-bold m-0">اختر المورد:<span class="required">*</span></label>
+                        <button type="button" id="pi_toggle_new_supplier_btn" onclick="if(typeof window.pi_toggleNewSupplierMode==='function') window.pi_toggleNewSupplierMode()" class="text-xs font-bold text-indigo-600 hover:text-indigo-800 underline cursor-pointer bg-transparent border-0 p-0">
+                            + مورد جديد
+                        </button>
+                    </div>
+                    <select id="pi_supplier" class="shadow-sm" onchange="if(typeof window.pi_handleSupplierSelectChange==='function') window.pi_handleSupplierSelectChange()"></select>
+                    <div id="pi_new_supplier_container" class="hidden mt-2 p-2.5 rounded-lg bg-indigo-50/70 border border-indigo-200 space-y-2">
+                        <input type="text" id="pi_new_supplier_name" placeholder="اكتب اسم المورد الجديد..." class="w-full p-2 text-sm border border-indigo-300 rounded-md bg-white shadow-sm">
+                        <label class="flex items-center gap-2 cursor-pointer text-xs font-bold text-indigo-900">
+                            <input type="checkbox" id="pi_save_new_supplier_cb" class="rounded border-indigo-300 text-indigo-600">
+                            <span>إضافة هذا المورد إلى قائمة الموردين الدائمة</span>
+                        </label>
+                        <p class="text-[11px] text-indigo-700/80 m-0">عند عدم التحديد يُسجّل الاسم على هذه الفاتورة فقط بدون إضافته لقائمة الموردين.</p>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label for="pi_invoice_number" class="block text-sm font-bold mb-1">رقم فاتورة المورد:</label>
@@ -2944,6 +2960,7 @@
     <script src="js/inventory/inventory-products.js?v=2.8.0" defer></script>
     <script src="js/inventory/inventory-purchase.js?v=2.8.0" defer></script>
     <script src="js/inventory/inventory-supplier-statement.js?v=2.8.0" defer></script>
+    <script src="js/inventory/inventory-product-profit.js?v=2.8.0" defer></script>
     <script src="js/inventory/inventory-ui.js?v=2.8.0" defer></script>
     <script src="js/sales/sales-repeat-alarm.js?v=2.8.0" defer></script>
     <script src="js/sales/sales-pending.js?v=2.8.0" defer></script>

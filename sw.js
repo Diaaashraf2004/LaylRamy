@@ -1,4 +1,4 @@
-const CACHE_NAME = 'finance-erp-v151'; // Hardened security/guards + Supplier Statement & Purchase Archive screen
+const CACHE_NAME = 'finance-erp-v154'; // Smart localStorage quota eviction & compact local backups
 const ASSETS_TO_CACHE = [
   './finance.html',
   './css/finance.css',
@@ -37,6 +37,7 @@ const ASSETS_TO_CACHE = [
   './js/inventory/inventory-products.js',
   './js/inventory/inventory-purchase.js',
   './js/inventory/inventory-supplier-statement.js',
+  './js/inventory/inventory-product-profit.js',
   './js/inventory/inventory-ui.js',
   './js/sales/sales-repeat-alarm.js',
   './js/sales/sales-pending.js',

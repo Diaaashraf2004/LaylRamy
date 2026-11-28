@@ -3,7 +3,7 @@ window._loadFailed = true; // DEFAULT STATE: Prevent saves until explicitly load
 var smartSearchBtn, smartSearchInput, searchResultsListContainer;
 var returnProductSelect, returnCostPriceDisplay, confirmManualReturnBtn;
 var backupSlotIndex = 0; // متغير جديد لتتبع خانة النسخ الاحتياطي
-var MAX_BACKUP_SLOTS = 4; // سنحتفظ بـ 5 نسخ فقط كحد أقصى
+var MAX_BACKUP_SLOTS = 3; // نحتفظ بـ 3 نسخ محلية كحد أقصى مع إدارة ذكية للمساحة عند الامتلاء
 var d = id => document.getElementById(id);
 var searchInvoiceInput, invoiceSearchResults, searchInvoiceBtn;
 var monthlyLiabilitiesList, monthlyLiabilityNameInput, monthlyLiabilityAmountInput, monthlyLiabilityFormTitle, addMonthlyLiabilityButton, cancelEditMonthlyLiabilityButton, monthlyLiabilityMessage; // Helper function

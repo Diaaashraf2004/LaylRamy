@@ -186,7 +186,27 @@ async function fetchOnlineDataForDate(dateString) {
         return null;
     }
 }
-        function saveData(key, data){ console.log(`saveData: Saving data for key: ${key}`); try { localStorage.setItem(key, JSON.stringify(data)) } catch(e) { console.error(`Error saving data for key "${key}":`, e); showGlobalMessage("حدث خطأ أثناء حفظ البيانات. قد يكون التخزين ممتلئًا.", true) } }
+        function saveData(key, data) {
+            console.log(`saveData: Saving data for key: ${key}`);
+            const serialized = JSON.stringify(data);
+            for (let attempt = 0; attempt < 6; attempt++) {
+                try {
+                    localStorage.setItem(key, serialized);
+                    return true;
+                } catch (e) {
+                    const isQuota = (typeof window.isLocalStorageQuotaError === 'function')
+                        ? window.isLocalStorageQuotaError(e)
+                        : Boolean(e && (e.name === 'QuotaExceededError' || e.code === 22 || String(e.message || '').toLowerCase().includes('quota')));
+                    if (isQuota && typeof window.evictOldestLocalBackupSlot === 'function' && window.evictOldestLocalBackupSlot(key)) {
+                        continue;
+                    }
+                    console.error(`Error saving data for key "${key}":`, e);
+                    showGlobalMessage("حدث خطأ أثناء حفظ البيانات. قد يكون التخزين ممتلئًا.", true);
+                    return false;
+                }
+            }
+            return false;
+        }
 
 
 function generateId(prefix = "id") {

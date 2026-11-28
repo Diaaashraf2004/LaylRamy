@@ -75,11 +75,48 @@ function pi_addItem() {
     nameInput.focus();
 }
 window.pi_addItem = pi_addItem;
+window.PI_NEW_SUPPLIER_VALUE = '__NEW_SUPPLIER__';
+
+function pi_handleSupplierSelectChange() {
+    const supplierSel = piSupplierSelect || d('pi_supplier');
+    const box = d('pi_new_supplier_container');
+    const toggleBtn = d('pi_toggle_new_supplier_btn');
+    const isNew = Boolean(supplierSel && supplierSel.value === window.PI_NEW_SUPPLIER_VALUE);
+    if (box) box.classList.toggle('hidden', !isNew);
+    if (toggleBtn) toggleBtn.textContent = isNew ? '← اختيار من القائمة' : '+ مورد جديد';
+    if (isNew) {
+        const inp = d('pi_new_supplier_name');
+        if (inp) setTimeout(() => inp.focus(), 30);
+    }
+}
+window.pi_handleSupplierSelectChange = pi_handleSupplierSelectChange;
+
+function pi_toggleNewSupplierMode() {
+    const supplierSel = piSupplierSelect || d('pi_supplier');
+    if (!supplierSel) return;
+    if (supplierSel.value === window.PI_NEW_SUPPLIER_VALUE) {
+        supplierSel.value = '';
+    } else {
+        if (!Array.from(supplierSel.options).some(o => o.value === window.PI_NEW_SUPPLIER_VALUE)) {
+            const opt = document.createElement('option');
+            opt.value = window.PI_NEW_SUPPLIER_VALUE;
+            opt.textContent = '➕ مورد جديد (كتابة اسم يدوي)...';
+            supplierSel.insertBefore(opt, supplierSel.options[1] || null);
+        }
+        supplierSel.value = window.PI_NEW_SUPPLIER_VALUE;
+    }
+    pi_handleSupplierSelectChange();
+}
+window.pi_toggleNewSupplierMode = pi_toggleNewSupplierMode;
+
 function pi_clearForm(shouldShowMessage = true) {
     // 1. مسح الحقول الأساسية
     const invoiceNum = d('pi_invoice_number'); if (invoiceNum) invoiceNum.value = '';
     const dateInp = d('pi_date'); if (dateInp) dateInp.value = (typeof getCairoDateString === 'function' ? getCairoDateString() : new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' }));
     const supplierSel = piSupplierSelect || d('pi_supplier'); if (supplierSel) supplierSel.value = '';
+    const newSupNameInp = d('pi_new_supplier_name'); if (newSupNameInp) newSupNameInp.value = '';
+    const saveNewSupCb = d('pi_save_new_supplier_cb'); if (saveNewSupCb) saveNewSupCb.checked = false;
+    pi_handleSupplierSelectChange();
     
     // 2. مسح جدول المنتجات
     const itemsBody = piItemsBody || d('pi_items_body'); if (itemsBody) itemsBody.innerHTML = '';
@@ -133,7 +170,12 @@ function pi_validateForm() {
     showMessage(piFormMessage, "");
     let errors = [];
     if (!piSupplierSelect || !piSupplierSelect.value) {
-        errors.push("يجب اختيار المورد.");
+        errors.push("يجب اختيار المورد أو كتابة اسم مورد جديد.");
+    } else if (piSupplierSelect.value === window.PI_NEW_SUPPLIER_VALUE) {
+        const typedSupName = (d('pi_new_supplier_name')?.value || '').trim();
+        if (!typedSupName) {
+            errors.push("يرجى كتابة اسم المورد الجديد.");
+        }
     }
     if (!piDateInput || !piDateInput.value) {
         errors.push("يجب تحديد تاريخ الفاتورة.");
@@ -181,6 +223,7 @@ function pi_updateRecentPurchasesDisplay() {
     const sortedInvoices = [...purchaseInvoices].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
     piRecentPurchasesList.innerHTML = sortedInvoices.map(invoice => {
         const supplier = suppliers.find(s => s.id === invoice.supplierId);
+        const supplierDisplayName = supplier ? supplier.name : (invoice.supplierName || 'غير محدد');
         const extraLiab = (invoice.extraCosts || []).filter(c => c.isLiability).reduce((s, c) => s + (Number(c.amount) || 0), 0);
         const totalLiab = (Number(invoice.remainingBalance) || 0) + extraLiab;
         const liabText = extraLiab > 0 
@@ -223,7 +266,7 @@ function pi_updateRecentPurchasesDisplay() {
             <div class="p-3 border rounded-md bg-gray-50 shadow-sm mb-2">
                 <div class="flex justify-between items-center flex-wrap gap-2">
                     <div>
-                        <strong class="text-indigo-600">المورد: ${supplier ? escapeHTML(supplier.name) : 'غير محدد'}</strong><br>
+                        <strong class="text-indigo-600">المورد: ${escapeHTML(supplierDisplayName)}</strong><br>
                         <span class="text-xs text-gray-500">رقم الفاتورة: ${escapeHTML(invoice.invoiceNumber || 'N/A')} | التاريخ: ${formatDateForDisplay(invoice.date)}</span>
                     </div>
                     <div class="font-semibold text-blue-700 text-lg">${formatCurrency(invoice.grandTotal)}</div>
@@ -280,6 +323,7 @@ function pi_updatePendingPurchasesDisplay() {
     const sortedInvoices = [...pendingPurchases].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
     container.innerHTML = sortedInvoices.map(invoice => {
         const supplier = suppliers.find(s => s.id === invoice.supplierId);
+        const supplierDisplayName = supplier ? supplier.name : (invoice.supplierName || 'غير محدد');
 
         const activeDebt = getPendingPurchaseActiveDebt(invoice);
         const hasDebt = activeDebt > 0.001;
@@ -316,7 +360,7 @@ function pi_updatePendingPurchasesDisplay() {
             <div class="p-3 border rounded-md bg-yellow-50 shadow-sm mb-2">
                 <div class="flex justify-between items-center flex-wrap gap-2">
                     <div>
-                        <strong class="text-yellow-800">المورد: ${supplier ? escapeHTML(supplier.name) : 'غير محدد'}</strong><br>
+                        <strong class="text-yellow-800">المورد: ${escapeHTML(supplierDisplayName)}</strong><br>
                         <span class="text-xs text-gray-500">رقم الفاتورة: ${escapeHTML(invoice.invoiceNumber || 'N/A')} | التاريخ: ${formatDateForDisplay(invoice.date)}</span>
                     </div>
                     <div class="font-semibold text-blue-700 text-lg">${formatCurrency(invoice.grandTotal)}</div>
@@ -347,6 +391,7 @@ function handlePendingPurchaseActions(event) {
     }
     const purchase = pendingPurchases[purchaseIndex];
     const supplier = suppliers.find(s => s.id === purchase.supplierId);
+    const pendingSupplierDisplayName = supplier ? supplier.name : (purchase.supplierName || '-');
 
     // --- التعديل هنا: دالة تحديث المخزون المطورة ---
     const updateInventoryFromPurchase = (p) => {
@@ -394,6 +439,7 @@ function handlePendingPurchaseActions(event) {
                     quantity: itemQty, 
                     costPrice: finalUnitCost, 
                     supplierId: p.supplierId,
+                    supplierName: p.supplierName || (supplier ? supplier.name : ''),
                     category: item.category || ""
                 });
                 targetProdId = uniqueProductCodeTransfer;
@@ -408,6 +454,7 @@ function handlePendingPurchaseActions(event) {
                             productId: targetProdId,
                             productName: item.name, 
                             supplierId: p.supplierId, 
+                            supplierName: p.supplierName || (supplier ? supplier.name : ''),
                             addedTimestamp: p.timestamp, 
                             status: "in_stock" 
                         });
@@ -418,7 +465,7 @@ function handlePendingPurchaseActions(event) {
     };
 
     if (target.classList.contains('receive-goods-btn')) {
-        if (!confirm(`هل أنت متأكد من استلام بضاعة الفاتورة من المورد "${supplier?.name || '-'}"؟ سيتم توزيع التكاليف الإضافية على البضاعة.`)) return;
+        if (!confirm(`هل أنت متأكد من استلام بضاعة الفاتورة من المورد "${pendingSupplierDisplayName}"؟ سيتم توزيع التكاليف الإضافية على البضاعة.`)) return;
         saveStateToHistory();
         const _recTx = typeof createStateTransaction === 'function' ? createStateTransaction('استلام بضاعة') : null;
         try {
@@ -434,7 +481,7 @@ function handlePendingPurchaseActions(event) {
             if (!purchase.id) purchase.id = generateId("PINV");
             purchaseInvoices.push(purchase);
             pendingPurchases.splice(purchaseIndex, 1);
-            logOperation("استلام بضاعة", `تم استلام بضاعة من "${supplier?.name}" وتوزيع التكاليف وتحديث التصنيفات.`);
+            logOperation("استلام بضاعة", `تم استلام بضاعة من "${pendingSupplierDisplayName}" وتوزيع التكاليف وتحديث التصنيفات.`);
             if (_recTx) _recTx.commit();
         } catch (e) {
             if (_recTx) _recTx.rollback();
@@ -446,7 +493,7 @@ function handlePendingPurchaseActions(event) {
 
     } else if (target.classList.contains('receive-and-pay-btn')) {
         const paymentForm = d('pending-purchase-payment-form');
-        d('pp-payment-supplier-name').textContent = supplier?.name || 'غير محدد';
+        d('pp-payment-supplier-name').textContent = pendingSupplierDisplayName || 'غير محدد';
         const curDebt = getPendingPurchaseActiveDebt(purchase);
         d('pp-payment-remaining-amount').textContent = formatCurrency(curDebt);
         d('pp-confirm-payment-btn').dataset.pendingId = pendingId;
@@ -478,7 +525,7 @@ function handlePendingPurchaseActions(event) {
             }
         }
 
-        if (!confirm(`هل أنت متأكد من إلغاء فاتورة الشراء المعلقة من المورد "${supplier?.name || '-'}"؟ سيتم إرجاع كافة المدفوعات وتسوية الالتزامات المرتبطة بها.`)) return;
+        if (!confirm(`هل أنت متأكد من إلغاء فاتورة الشراء المعلقة من المورد "${pendingSupplierDisplayName}"؟ سيتم إرجاع كافة المدفوعات وتسوية الالتزامات المرتبطة بها.`)) return;
         
         saveStateToHistory();
         const _cancelPurTx = typeof createStateTransaction === 'function' ? createStateTransaction('إلغاء فاتورة شراء معلقة') : null;
@@ -552,7 +599,7 @@ function handlePendingPurchaseActions(event) {
             
             pendingPurchases.splice(purchaseIndex, 1);
             
-            logOperation("إلغاء فاتورة شراء معلقة", `تم إلغاء شراء من "${supplier?.name}" وإرجاع المدفوعات وتسوية الالتزامات.`);
+            logOperation("إلغاء فاتورة شراء معلقة", `تم إلغاء شراء من "${pendingSupplierDisplayName}" وإرجاع المدفوعات وتسوية الالتزامات.`);
             if (_cancelPurTx) _cancelPurTx.commit();
         } catch (e) {
             if (_cancelPurTx) _cancelPurTx.rollback();
@@ -648,9 +695,17 @@ async function pi_confirmPurchaseInvoice() {
     const invoiceNumInput = piInvoiceNumberInput || d('pi_invoice_number');
     const dateInput = piDateInput || d('pi_date');
 
+    const rawSupplierSelection = supplierSel ? supplierSel.value : '';
+    const isManualNewSupplier = rawSupplierSelection === window.PI_NEW_SUPPLIER_VALUE;
+    const typedNewSupplierName = isManualNewSupplier ? (d('pi_new_supplier_name')?.value || '').trim() : '';
+    const shouldSaveNewSupplier = isManualNewSupplier && Boolean(d('pi_save_new_supplier_cb')?.checked);
+    const existingSupplierById = !isManualNewSupplier ? suppliers.find(s => s.id === rawSupplierSelection) : null;
+
     const invoiceData = {
         id: generateId('pi'),
-        supplierId: supplierSel ? supplierSel.value : '',
+        supplierId: isManualNewSupplier ? '' : rawSupplierSelection,
+        supplierName: isManualNewSupplier ? typedNewSupplierName : (existingSupplierById ? existingSupplierById.name : ''),
+        isAdhocSupplier: isManualNewSupplier && !shouldSaveNewSupplier,
         invoiceNumber: invoiceNumInput ? invoiceNumInput.value.trim() : '',
         date: dateInput ? dateInput.value : '',
         timestamp: new Date().toISOString(),
@@ -717,8 +772,32 @@ async function pi_confirmPurchaseInvoice() {
         // بدء المعاملة الذرية لحماية المخزون والسيولة والالتزامات
         const _tx = (typeof window.createStateTransaction === 'function') ? window.createStateTransaction() : null;
         try {
+            // [معالجة المورد الجديد داخل المعاملة الذرية]: إضافته لقائمة الموردين فقط إذا اختار المستخدم ذلك، مع منع التكرار
+            if (isManualNewSupplier && typedNewSupplierName && shouldSaveNewSupplier) {
+                const normSup = (s) => (typeof normalizeArabicText === 'function' ? normalizeArabicText(s) : String(s || '').trim().toLowerCase());
+                const existingByName = suppliers.find(s => s && normSup(s.name) === normSup(typedNewSupplierName));
+                if (existingByName) {
+                    invoiceData.supplierId = existingByName.id;
+                    invoiceData.supplierName = existingByName.name;
+                    invoiceData.isAdhocSupplier = false;
+                } else {
+                    const createdSupplier = {
+                        id: generateId('sup'),
+                        name: typedNewSupplierName,
+                        contact: '',
+                        address: ''
+                    };
+                    suppliers.push(createdSupplier);
+                    invoiceData.supplierId = createdSupplier.id;
+                    invoiceData.supplierName = createdSupplier.name;
+                    invoiceData.isAdhocSupplier = false;
+                    logOperation("إضافة مورد", `تمت إضافة مورد جديد من شاشة المشتريات: "${createdSupplier.name}".`);
+                }
+            }
+
             // [تأمين القيود]: يتم تسجيل التكاليف الإضافية في الالتزامات الآن بعد عبور الفحص بنجاح
-            const supplier = suppliers.find(s => s.id === invoiceData.supplierId);
+            const supplier = invoiceData.supplierId ? suppliers.find(s => s.id === invoiceData.supplierId) : null;
+            const resolvedSupplierName = supplier ? supplier.name : (invoiceData.supplierName || 'مورد غير محدد');
         extraCostsList.forEach(cost => {
             if (!cost.isLiability || cost.amount <= 0) return;
 
@@ -733,7 +812,7 @@ async function pi_confirmPurchaseInvoice() {
             } else {
                 const newLiability = {
                     id: generateId('liab') || generateId("LIA"),
-                    name: `${cost.name} - ${supplier?.name || 'مورد غير محدد'}`,
+                    name: `${cost.name} - ${resolvedSupplierName}`,
                     amount: window.money(cost.amount),
                     status: 'active',
                     date: invoiceData.date || (typeof getCairoDateString === 'function' ? getCairoDateString() : new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' })),
@@ -741,6 +820,7 @@ async function pi_confirmPurchaseInvoice() {
                     source: 'purchase_extra_cost',
                     invoiceNumber: invoiceData.invoiceNumber || '',
                     supplierId: invoiceData.supplierId,
+                    supplierName: resolvedSupplierName,
                     type: "supplier",
                     createdAt: new Date().toISOString()
                 };
@@ -759,7 +839,7 @@ async function pi_confirmPurchaseInvoice() {
                 timestamp: new Date().toISOString(),
                 type: "remove", 
                 amount: invoiceData.paidAmount, 
-                description: goodsReceived ? `دفع فاتورة شراء لـ ${supplier?.name}` : `عربون شراء لـ ${supplier?.name}`, 
+                description: goodsReceived ? `دفع فاتورة شراء لـ ${resolvedSupplierName}` : `عربون شراء لـ ${resolvedSupplierName}`, 
                 currentBalance: newTotalLiquidity,
                 accountId: account.id
             });
@@ -808,7 +888,8 @@ async function pi_confirmPurchaseInvoice() {
                         name: item.name, 
                         quantity: itemQty, 
                         costPrice: finalCostPerUnit, 
-                        supplierId: invoiceData.supplierId, 
+                        supplierId: invoiceData.supplierId,
+                        supplierName: resolvedSupplierName,
                         category: item.category || "" 
                     });
                     targetProdId = uniqueProductCode;
@@ -824,6 +905,7 @@ async function pi_confirmPurchaseInvoice() {
                                 productId: targetProdId,
                                 productName: item.name,
                                 supplierId: invoiceData.supplierId,
+                                supplierName: resolvedSupplierName,
                                 addedTimestamp: invoiceData.timestamp,
                                 status: "in_stock"
                             });
@@ -843,17 +925,18 @@ async function pi_confirmPurchaseInvoice() {
         id: generateId('liab'), 
         // �� هذا هو السطر الأهم للربط الذي يسمح بالحذف التلقائي عند الإلغاء
         purchaseInvoiceId: invoiceData.id, 
-        name: `متبقي فاتورة لـ: ${supplier?.name || '-'}`, 
+        name: `متبقي فاتورة لـ: ${resolvedSupplierName || '-'}`, 
         amount: invoiceData.remainingBalance,
         status: 'active',
         date: invoiceData.date || (typeof getCairoDateString === 'function' ? getCairoDateString() : new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' })), // التاريخ ليظهر في الجدول
         supplierId: invoiceData.supplierId, // لربط الدين بالمورد
+        supplierName: resolvedSupplierName,
         type: "supplier" // لتحديد نوع الالتزام
     });
 }
     // �� أهم سطر: الأرشفة السحابية تعمل الآن في الحالتين
     // حفظ محلي فوري واستجابة سريعة للواجهة
-    logOperation(goodsReceived ? "فاتورة شراء" : "شراء معلق", `فاتورة من ${supplier?.name} بقيمة ${formatCurrency(invoiceData.grandTotal)}.`);
+    logOperation(goodsReceived ? "فاتورة شراء" : "شراء معلق", `فاتورة من ${resolvedSupplierName} بقيمة ${formatCurrency(invoiceData.grandTotal)}.`);
     if (_tx) _tx.commit();
     localStorage.removeItem('finance_pi_draft');
     pi_clearForm(false);
@@ -907,6 +990,8 @@ function pi_saveDraft() {
 
     const draft = {
         supplierId: d('pi_supplier') ? d('pi_supplier').value : '',
+        newSupplierName: d('pi_new_supplier_name') ? d('pi_new_supplier_name').value.trim() : '',
+        saveNewSupplier: d('pi_save_new_supplier_cb') ? d('pi_save_new_supplier_cb').checked : false,
         invoiceNumber: d('pi_invoice_number') ? d('pi_invoice_number').value : '',
         date: d('pi_date') ? d('pi_date').value : '',
         paidAmount: d('pi_paid_amount') ? d('pi_paid_amount').value : '0',
@@ -938,7 +1023,19 @@ function pi_loadDraft() {
     }
     try {
         const draft = JSON.parse(draftStr);
-        if (d('pi_supplier') && draft.supplierId) d('pi_supplier').value = draft.supplierId;
+        const supSelEl = d('pi_supplier');
+        if (supSelEl && draft.supplierId) {
+            if (draft.supplierId === window.PI_NEW_SUPPLIER_VALUE && !Array.from(supSelEl.options).some(o => o.value === window.PI_NEW_SUPPLIER_VALUE)) {
+                const opt = document.createElement('option');
+                opt.value = window.PI_NEW_SUPPLIER_VALUE;
+                opt.textContent = '➕ مورد جديد (كتابة اسم يدوي)...';
+                supSelEl.insertBefore(opt, supSelEl.options[1] || null);
+            }
+            supSelEl.value = draft.supplierId;
+        }
+        if (d('pi_new_supplier_name') && draft.newSupplierName !== undefined) d('pi_new_supplier_name').value = draft.newSupplierName;
+        if (d('pi_save_new_supplier_cb') && draft.saveNewSupplier !== undefined) d('pi_save_new_supplier_cb').checked = Boolean(draft.saveNewSupplier);
+        pi_handleSupplierSelectChange();
         if (d('pi_invoice_number') && draft.invoiceNumber) d('pi_invoice_number').value = draft.invoiceNumber;
         if (d('pi_date') && draft.date) d('pi_date').value = draft.date;
         if (d('pi_paid_amount') && draft.paidAmount !== undefined) d('pi_paid_amount').value = draft.paidAmount;

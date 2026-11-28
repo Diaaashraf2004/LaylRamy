@@ -1,3 +1,277 @@
+function isLocalStorageQuotaError(err) {
+    if (!err) return false;
+    const msg = String(err.message || '').toLowerCase();
+    return (
+        err.name === 'QuotaExceededError' ||
+        err.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+        err.code === 22 ||
+        err.code === 1014 ||
+        msg.includes('quota') ||
+        msg.includes('exceeded')
+    );
+}
+window.isLocalStorageQuotaError = isLocalStorageQuotaError;
+
+function buildCompactLocalSnapshot(sourceObj, uid, options = {}) {
+    if (!sourceObj || typeof sourceObj !== 'object') return sourceObj;
+    const compact = { ...sourceObj };
+    if (uid) compact._userId = uid;
+
+    // إزالة التكرار عند وجود operationLog بجانب log
+    if (compact.log && compact.operationLog) {
+        delete compact.operationLog;
+    }
+
+    // إزالة السيريالات الثقيلة من كل نسخة فردية (تُخزّن مرة واحدة فقط في مفتاح مشترك لكل مستخدم)
+    if (options.omitSerials !== false) {
+        delete compact.serialNumbersLog;
+        delete compact.standaloneSerials;
+        compact._serialsRef = true;
+    }
+
+    // عند الضيق الشديد في المساحة، نقصر السجلات الطويلة في النسخة المحلية فقط (النسخة السحابية تظل كاملة)
+    if (options.trimLogs) {
+        const maxLogEntries = Number(options.maxLogEntries) || 200;
+        if (Array.isArray(compact.log) && compact.log.length > maxLogEntries) {
+            compact.log = compact.log.slice(-maxLogEntries);
+            compact._trimmedLogs = true;
+        }
+        if (Array.isArray(compact.liquidityLog) && compact.liquidityLog.length > maxLogEntries) {
+            compact.liquidityLog = compact.liquidityLog.slice(-maxLogEntries);
+            compact._trimmedLogs = true;
+        }
+    }
+
+    return compact;
+}
+window.buildCompactLocalSnapshot = buildCompactLocalSnapshot;
+
+function rehydrateCompactSnapshot(data, currentUid) {
+    if (!data || typeof data !== 'object') return data;
+    const hydrated = { ...data };
+    const needsSerials = Boolean(hydrated._serialsRef || !Array.isArray(hydrated.serialNumbersLog));
+    const needsStandalone = Boolean(hydrated._serialsRef || !Array.isArray(hydrated.standaloneSerials));
+
+    if (needsSerials || needsStandalone) {
+        let sharedSerials = null;
+        try {
+            const uid = currentUid || hydrated._userId || (window.currentUser && window.currentUser.uid) || null;
+            if (uid) {
+                const rawShared = localStorage.getItem(`goodsMgmt_backup_serials_${uid}`);
+                if (rawShared) {
+                    const parsed = JSON.parse(rawShared);
+                    if (parsed && (!parsed._userId || parsed._userId === uid)) {
+                        sharedSerials = parsed;
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn('[LocalBackup] تعذر قراءة مخزن السيريالات المحلي المشترك:', e);
+        }
+
+        if (needsSerials) {
+            if (sharedSerials && Array.isArray(sharedSerials.serialNumbersLog)) {
+                hydrated.serialNumbersLog = sharedSerials.serialNumbersLog;
+            } else if (typeof serialNumbersLog !== 'undefined' && Array.isArray(serialNumbersLog)) {
+                hydrated.serialNumbersLog = [...serialNumbersLog];
+            } else {
+                hydrated.serialNumbersLog = [];
+            }
+        }
+
+        if (needsStandalone) {
+            if (sharedSerials && Array.isArray(sharedSerials.standaloneSerials)) {
+                hydrated.standaloneSerials = sharedSerials.standaloneSerials;
+            } else if (typeof window.getStandaloneSerials === 'function') {
+                hydrated.standaloneSerials = window.getStandaloneSerials();
+            } else {
+                hydrated.standaloneSerials = [];
+            }
+        }
+    }
+    return hydrated;
+}
+window.rehydrateCompactSnapshot = rehydrateCompactSnapshot;
+
+function pruneStaleLocalBackups(currentUid, activeDate) {
+    try {
+        const userBackupPrefix = `goodsMgmt_backup_${currentUid}_`;
+        const sharedSerialsKey = `goodsMgmt_backup_serials_${currentUid}`;
+        const userEmergencyPrefix = `emergency_backup_${currentUid}_`;
+        const userShadowKey = `goodsMgmt_SHADOW_BACKUP_${currentUid}`;
+        const keysToRemove = [];
+
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (!key) continue;
+
+            // 1. حذف نسخ الأيام السابقة أو الحسابات الأخرى من goodsMgmt_backup_*
+            if (key.startsWith('goodsMgmt_backup_')) {
+                if (key === sharedSerialsKey) continue;
+                if (!key.startsWith(userBackupPrefix)) {
+                    keysToRemove.push(key);
+                } else if (activeDate && !key.includes(activeDate)) {
+                    keysToRemove.push(key);
+                }
+                continue;
+            }
+
+            // 2. حذف نسخ الطوارئ للأيام السابقة أو لحسابات أخرى
+            if (key.startsWith('emergency_backup_')) {
+                if (!key.startsWith(userEmergencyPrefix) || (activeDate && !key.includes(activeDate))) {
+                    keysToRemove.push(key);
+                }
+                continue;
+            }
+
+            // 3. حذف نسخ الظل القديمة غير المربوطة بالمستخدم أو التابعة لحسابات أخرى
+            if (key === 'goodsMgmt_SHADOW_BACKUP' || (key.startsWith('goodsMgmt_SHADOW_BACKUP_') && key !== userShadowKey)) {
+                keysToRemove.push(key);
+            }
+        }
+
+        keysToRemove.forEach(k => localStorage.removeItem(k));
+    } catch (e) {
+        console.warn('[LocalBackup] pruneStaleLocalBackups warning:', e);
+    }
+}
+window.pruneStaleLocalBackups = pruneStaleLocalBackups;
+
+function evictOldestLocalBackupSlot(excludeKey = null) {
+    try {
+        const candidates = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (!key || key === excludeKey) continue;
+            if (key.startsWith('goodsMgmt_backup_') && key.includes('_slot_')) {
+                let ts = 0;
+                try {
+                    const parsed = JSON.parse(localStorage.getItem(key) || '{}');
+                    if (parsed && parsed.savedAt) {
+                        const parsedMs = Date.parse(parsed.savedAt);
+                        if (!isNaN(parsedMs)) ts = parsedMs;
+                    }
+                } catch (_) {
+                    ts = 0; // الملفات التالفة تُحذف أولاً
+                }
+                candidates.push({ key, ts });
+            }
+        }
+        if (candidates.length > 0) {
+            candidates.sort((a, b) => a.ts - b.ts);
+            localStorage.removeItem(candidates[0].key);
+            return true;
+        }
+        // إذا لم يتبق أي slot، نحذف مخزن السيريالات المحلي المشترك (السحابة تحتفظ بالسيريالات كاملة)
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key !== excludeKey && key.startsWith('goodsMgmt_backup_serials_')) {
+                localStorage.removeItem(key);
+                return true;
+            }
+        }
+    } catch (e) {
+        console.warn('[LocalBackup] evictOldestLocalBackupSlot warning:', e);
+    }
+    return false;
+}
+window.evictOldestLocalBackupSlot = evictOldestLocalBackupSlot;
+
+function saveCompactShadowBackup(userId, sourceObj) {
+    if (!userId || !sourceObj) return false;
+    const shadowKey = `goodsMgmt_SHADOW_BACKUP_${userId}`;
+    const trySet = (payload) => {
+        const serialized = JSON.stringify(payload);
+        for (let attempt = 0; attempt < 6; attempt++) {
+            try {
+                localStorage.setItem(shadowKey, serialized);
+                return true;
+            } catch (e) {
+                if (!isLocalStorageQuotaError(e)) throw e;
+                if (!evictOldestLocalBackupSlot(shadowKey)) return false;
+            }
+        }
+        return false;
+    };
+    try {
+        if (trySet(buildCompactLocalSnapshot(sourceObj, userId, { omitSerials: true }))) return true;
+        return trySet(buildCompactLocalSnapshot(sourceObj, userId, { omitSerials: true, trimLogs: true }));
+    } catch (e) {
+        console.warn("تعذر حفظ SHADOW_BACKUP في localStorage:", e);
+        return false;
+    }
+}
+window.saveCompactShadowBackup = saveCompactShadowBackup;
+
+function saveLocalBackupSmart(currentUid, dateString, backupKey, stateToSave) {
+    pruneStaleLocalBackups(currentUid, dateString);
+
+    const tryWrite = (payloadObj) => {
+        const serialized = JSON.stringify(payloadObj);
+        for (let attempt = 0; attempt < 8; attempt++) {
+            try {
+                localStorage.setItem(backupKey, serialized);
+                return true;
+            } catch (e) {
+                if (!isLocalStorageQuotaError(e)) throw e;
+                // حذف أقدم slot متاح (غير المفتاح المستهدف) ثم إعادة المحاولة
+                const freed = evictOldestLocalBackupSlot(backupKey);
+                if (!freed) {
+                    // إفراغ المفتاح الحالي نفسه لإعادة الكتابة بمساحة نظيفة
+                    if (localStorage.getItem(backupKey) !== null) {
+                        localStorage.removeItem(backupKey);
+                        try {
+                            localStorage.setItem(backupKey, serialized);
+                            return true;
+                        } catch (retryErr) {
+                            if (!isLocalStorageQuotaError(retryErr)) throw retryErr;
+                        }
+                    }
+                    return false;
+                }
+            }
+        }
+        return false;
+    };
+
+    // المستوى 1: نسخة كاملة بدون تكرار السيريالات داخل كل slot
+    let saved = tryWrite(buildCompactLocalSnapshot(stateToSave, currentUid, { omitSerials: true }));
+
+    // المستوى 2: عند الامتلاء الشديد، تقليص السجلات الطويلة في النسخة المحلية فقط وإعادة المحاولة
+    if (!saved) {
+        saved = tryWrite(buildCompactLocalSnapshot(stateToSave, currentUid, { omitSerials: true, trimLogs: true, maxLogEntries: 200 }));
+    }
+
+    // المستوى 3: حذف نسخة الطوارئ المحلية القديمة لنفس اليوم كحل أخير وإعادة المحاولة
+    if (!saved) {
+        try {
+            localStorage.removeItem(`emergency_backup_${currentUid}_${dateString}`);
+        } catch (_) {}
+        saved = tryWrite(buildCompactLocalSnapshot(stateToSave, currentUid, { omitSerials: true, trimLogs: true, maxLogEntries: 50 }));
+    }
+
+    // حفظ السيريالات مرة واحدة فقط في مفتاح مشترك (اختياري؛ لا يعطل النسخة المحلية إن امتلأت المساحة)
+    if (saved) {
+        const sharedSerialsKey = `goodsMgmt_backup_serials_${currentUid}`;
+        try {
+            const serialsPayload = {
+                _userId: currentUid,
+                savedAt: stateToSave.savedAt || new Date().toISOString(),
+                serialNumbersLog: Array.isArray(stateToSave.serialNumbersLog) ? stateToSave.serialNumbersLog : [],
+                standaloneSerials: Array.isArray(stateToSave.standaloneSerials) ? stateToSave.standaloneSerials : []
+            };
+            localStorage.setItem(sharedSerialsKey, JSON.stringify(serialsPayload));
+        } catch (serErr) {
+            if (isLocalStorageQuotaError(serErr)) {
+                try { localStorage.removeItem(sharedSerialsKey); } catch (_) {}
+                console.warn('[LocalBackup] تم تخطي حفظ السيريالات محلياً لتوفير المساحة (محفوظة بالكامل في السحابة).');
+            }
+        }
+    }
+
+    return saved;
+}
+
 async function saveCurrentStateByDate(dateString, immediate = false, options = {}) {
     if (window._loadFailed || window._serialsLoadFailed) { console.warn('الحفظ متوقف: فشل تحميل البيانات'); return false; }
 
@@ -67,29 +341,25 @@ async function saveCurrentStateByDate(dateString, immediate = false, options = {
     const currentUid = (window.currentUser && window.currentUser.uid) ? window.currentUser.uid : null;
     if (currentUid) {
         try {
-            const fullLocalBackup = { ...stateToSave, _userId: currentUid };
             const userBackupPrefix = `goodsMgmt_backup_${currentUid}_`;
             const backupKey = `${userBackupPrefix}${dateString}_slot_${safeBackupIndex}`;
 
-            const keysToRemove = [];
-            for (let i = 0; i < localStorage.length; i++) {
-                const key = localStorage.key(i);
-                if (key && key.startsWith(userBackupPrefix) && !key.includes(dateString)) {
-                    keysToRemove.push(key);
+            const localSaved = saveLocalBackupSmart(currentUid, dateString, backupKey, stateToSave);
+            if (localSaved) {
+                if (typeof backupSlotIndex !== 'undefined') {
+                    backupSlotIndex = (backupSlotIndex + 1) % MAX_BACKUP_SLOTS;
                 }
-            }
-            keysToRemove.forEach(k => localStorage.removeItem(k));
-
-            saveData(backupKey, fullLocalBackup);
-
-            if (typeof backupSlotIndex !== 'undefined') {
-                backupSlotIndex = (backupSlotIndex + 1) % MAX_BACKUP_SLOTS;
+            } else {
+                console.warn("[LocalBackup] تعذر حفظ نسخة محلية في localStorage رغم تنظيف الخانات القديمة (الحفظ السحابي مستمر بشكل طبيعي).");
+                if (!window._localQuotaWarnedOnce) {
+                    window._localQuotaWarnedOnce = true;
+                    if (typeof showGlobalMessage === 'function') {
+                        showGlobalMessage("تنبيه: ذاكرة المتصفح المحلية ممتلئة؛ تم تنظيف النسخ القديمة والحفظ السحابي يعمل بشكل طبيعي.", false, true);
+                    }
+                }
             }
         } catch (e) {
             console.warn("Local backup warning (silent):", e);
-            if (e && (e.name === 'QuotaExceededError' || String(e.message || '').toLowerCase().includes('quota'))) {
-                alert("خطأ حرج: الذاكرة المحلية للمتصفح ممتلئة تماماً ولم يتم الحفظ المحلي! يرجى إفراغ مساحة أو التأكد من اتصال الإنترنت لتجنب ضياع البيانات.");
-            }
         }
     }
 
@@ -161,7 +431,7 @@ function openBackupHistoryModal() {
     // مسح النسخ الاحتياطية الخاصة بالحساب المسجل حالياً فقط (عزل تام بين الحسابات)
     for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key && key.startsWith(userBackupPrefix) && key.includes(targetDate)) {
+        if (key && key.startsWith(userBackupPrefix) && key.includes(targetDate) && key.includes('_slot_')) {
             try {
                 const raw = localStorage.getItem(key);
                 const data = JSON.parse(raw);
@@ -245,10 +515,13 @@ document.addEventListener('click', async function(e) {
                     
                     console.log("Restoring on Chrome logic:", key);
                     
+                    // إعادة دمج السيريالات من المفتاح المشترك أو من الذاكرة الحية حتى لا تُفقد عند استعادة نسخة مضغوطة
+                    const restoredData = rehydrateCompactSnapshot(data, currentUid);
+                    
                     // تحميل البيانات
                     window._loadFailed = false;
                     window._serialsLoadFailed = false;
-                    loadState(data, dateStr);
+                    loadState(restoredData, dateStr);
                     updateUI();
                     
                     // إغلاق النافذة

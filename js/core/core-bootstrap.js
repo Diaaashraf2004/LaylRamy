@@ -2198,6 +2198,7 @@ if (ppConfirmBtn) {
                     quantity: itemQty, 
                     costPrice: finalCostWithOverhead, 
                     supplierId: purchase.supplierId,
+                    supplierName: purchase.supplierName || '',
                     category: item.category || "" 
                 });
                 targetProductId = uniqueProductCodeOverhead;
@@ -2213,6 +2214,7 @@ if (ppConfirmBtn) {
                             productId: targetProductId,
                             productName: item.name, 
                             supplierId: purchase.supplierId, 
+                            supplierName: purchase.supplierName || '',
                             addedTimestamp: purchase.timestamp, 
                             status: "in_stock" 
                         });
@@ -3628,7 +3630,26 @@ function emergencyStateFlush() {
                 _userId: uid
             };
             if (typeof isStateMeaningful !== 'function' || isStateMeaningful(canonicalSnap)) {
-                localStorage.setItem(`emergency_backup_${uid}_${targetBackupDate}`, JSON.stringify(canonicalSnap));
+                if (typeof window.pruneStaleLocalBackups === 'function') {
+                    window.pruneStaleLocalBackups(uid, targetBackupDate);
+                }
+                const emergKey = `emergency_backup_${uid}_${targetBackupDate}`;
+                const compactEmerg = (typeof window.buildCompactLocalSnapshot === 'function')
+                    ? window.buildCompactLocalSnapshot(canonicalSnap, uid, { omitSerials: true })
+                    : canonicalSnap;
+                const serialized = JSON.stringify(compactEmerg);
+                for (let attempt = 0; attempt < 6; attempt++) {
+                    try {
+                        localStorage.setItem(emergKey, serialized);
+                        break;
+                    } catch (quotaErr) {
+                        const isQ = (typeof window.isLocalStorageQuotaError === 'function') ? window.isLocalStorageQuotaError(quotaErr) : false;
+                        if (isQ && typeof window.evictOldestLocalBackupSlot === 'function' && window.evictOldestLocalBackupSlot(emergKey)) {
+                            continue;
+                        }
+                        throw quotaErr;
+                    }
+                }
             }
         }
     } catch(err) {

@@ -27,8 +27,36 @@
                  supplierNamesDatalist.innerHTML = suppliers.map(s => `<option value="${window.escapeHTML(s.name)}"></option>`).join('');
              }
          }
-        function updateSupplierDropdown(selectElementId, selectedSupplierId = null) { const selectElement = d(selectElementId); if (!selectElement) { /*console.warn(`Dropdown element #${selectElementId} not found yet.`);*/ return; } const currentVal = selectElement.value; selectElement.innerHTML = '<option value="">-- اختر المورد --</option>'; const sortedSuppliers = [...suppliers].sort((a, b) => a.name.localeCompare(b.name, 'ar')); sortedSuppliers.forEach(supplier => { const option = document.createElement('option'); option.value = supplier.id; option.textContent = supplier.name; if (selectedSupplierId && supplier.id === selectedSupplierId) { option.selected = true; } else if (!selectedSupplierId && supplier.id === currentVal) { // Retain current selection if not specifically overridden
-                 option.selected = true; } selectElement.appendChild(option); }); }
+        function updateSupplierDropdown(selectElementId, selectedSupplierId = null) {
+            const selectElement = d(selectElementId);
+            if (!selectElement) return;
+            const currentVal = selectElement.value;
+            selectElement.innerHTML = '<option value="">-- اختر المورد --</option>';
+            if (selectElementId === 'pi_supplier') {
+                const newOpt = document.createElement('option');
+                newOpt.value = '__NEW_SUPPLIER__';
+                newOpt.textContent = '➕ مورد جديد (كتابة اسم يدوي)...';
+                if (selectedSupplierId === '__NEW_SUPPLIER__' || (!selectedSupplierId && currentVal === '__NEW_SUPPLIER__')) {
+                    newOpt.selected = true;
+                }
+                selectElement.appendChild(newOpt);
+            }
+            const sortedSuppliers = [...suppliers].sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+            sortedSuppliers.forEach(supplier => {
+                const option = document.createElement('option');
+                option.value = supplier.id;
+                option.textContent = supplier.name;
+                if (selectedSupplierId && supplier.id === selectedSupplierId) {
+                    option.selected = true;
+                } else if (!selectedSupplierId && supplier.id === currentVal) {
+                    option.selected = true;
+                }
+                selectElement.appendChild(option);
+            });
+            if (selectElementId === 'pi_supplier' && typeof window.pi_handleSupplierSelectChange === 'function') {
+                window.pi_handleSupplierSelectChange();
+            }
+        }
         function addOrUpdateSupplier() { if (!supplierNameInput || !supplierContactInput || !supplierAddressInput || !supplierMessage) return; // Ensure elements exist
              const name = supplierNameInput.value.trim(); const contact = supplierContactInput.value.trim(); const address = supplierAddressInput.value.trim(); if (!name) { showMessage(supplierMessage, "اسم المورد مطلوب.", true); return; } if (editingSupplierId) { const supplierIndex = suppliers.findIndex(s => s.id === editingSupplierId); if (supplierIndex > -1) { const oldName = suppliers[supplierIndex].name; suppliers[supplierIndex].name = name; suppliers[supplierIndex].contact = contact; suppliers[supplierIndex].address = address; logOperation("تعديل مورد", `تم تعديل بيانات المورد "${oldName}" إلى "${name}".`); showMessage(supplierMessage, `تم تحديث المورد "${name}" بنجاح.`); } else { showMessage(supplierMessage, `خطأ: المورد المحدد للتعديل غير موجود.`, true); } resetSupplierForm(); } else { // Check if name already exists
              const nameExists = suppliers.some(s => s.name.toLowerCase() === name.toLowerCase());
@@ -167,12 +195,14 @@ function updateProductListDisplay() {
                             <p class="text-gray-600 text-sm">الكمية الإجمالية: <span class="font-semibold ${isOutOfStock ? 'text-red-600' : 'text-blue-500'}">${quantity}</span></p>
                             <p class="text-gray-600 text-sm">السيريالات المتوفرة: <span class="font-semibold text-green-600">${registeredSerialsCount}</span></p>
                             ${unregisteredCount > 0 ? `<p class="text-xs text-red-500">قطع غير مسجلة: ${unregisteredCount}</p>` : ''}
-                            <p class="text-gray-600 text-sm">المورد: <span class="font-semibold text-cyan-600">${supplier ? escapeHTML(supplier.name) : '-'}</span></p>
+                            <p class="text-gray-600 text-sm">المورد: <span class="font-semibold text-cyan-600">${supplier ? escapeHTML(supplier.name) : (product.supplierName ? escapeHTML(product.supplierName) : '-')}</span></p>
                             <p class="text-gray-600 text-sm">متوسط التكلفة: <span class="font-semibold text-purple-500">${formatCurrency(product.costPrice)}</span></p>
                             <p class="text-gray-600 text-sm">إجمالي التكلفة: <span class="font-semibold text-gray-700">${formatCurrency(quantity * (Number(product.costPrice) || 0))}</span></p>
+                            ${product.id ? `<p class="text-[11px] text-gray-400 font-mono mt-1">الكود: ${escapeHTML(product.id)}</p>` : ''}
                             ${categoryHTML}
                         </div>
                         <div class="mt-3 pt-3 border-t border-gray-200 flex flex-wrap justify-end gap-2 product-actions">
+                            <button type="button" data-product-id="${escapeHTML(product.id || '')}" onclick="if(typeof window.openProductProfitModal==='function') window.openProductProfitModal(this.dataset.productId)" class="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-1 px-2 rounded border border-emerald-700">أرباح الصنف</button>
                             <button data-product-id="${escapeHTML(product.id || '')}" data-product-name="${escapeHTML(product.name || '')}" class="manage-serials-btn text-xs font-semibold py-1 px-2 rounded">إدارة السيريالات</button>
                             <button data-product-id="${escapeHTML(product.id || '')}" data-product-name="${escapeHTML(product.name || '')}" class="edit-product-btn text-xs bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-semibold py-1 px-2 rounded border border-yellow-500">تعديل</button>
                             <button data-product-id="${escapeHTML(product.id || '')}" data-product-name="${escapeHTML(product.name || '')}" class="delete-product-btn text-xs bg-red-500 hover:bg-red-600 text-white font-semibold py-1 px-2 rounded border border-red-600">حذف</button>
